@@ -25,9 +25,38 @@ Dispatched from core/go orchestration. Pick up tasks in order.
 
 ## Phase 2: Namespace Isolation
 
-- [ ] Group-based access control for multi-tenant use
-- [ ] Namespace prefixing to prevent key collisions across tenants
-- [ ] Per-namespace quota limits (max keys, max total size)
+Scoped store wrapper that auto-prefixes groups with a namespace to prevent key collisions across tenants. Pure Go, no new deps.
+
+### 2.1 ScopedStore Wrapper
+
+- [ ] **Create `scope.go`** — A lightweight wrapper around `*Store` that auto-prefixes all group names:
+  - `type ScopedStore struct { store *Store; namespace string }` — holds reference to underlying store and namespace prefix
+  - `func NewScoped(store *Store, namespace string) *ScopedStore` — constructor. Validates namespace is non-empty, alphanumeric + hyphens only.
+  - `func (s *ScopedStore) prefix(group string) string` — returns `namespace + ":" + group`
+  - Implement all `Store` methods on `ScopedStore` that delegate to the underlying store with prefixed groups:
+    - `Get(group, key)`, `Set(group, key, value)`, `SetWithTTL(group, key, value, ttl)`
+    - `Delete(group, key)`, `DeleteGroup(group)`
+    - `GetAll(group)`, `Count(group)`
+    - `Render(group, key, data)`
+  - Each method simply calls `s.store.Method(s.prefix(group), key, ...)` — thin delegation, no logic duplication.
+
+### 2.2 Quota Enforcement
+
+- [ ] **Add `QuotaConfig` to ScopedStore** — Optional quota limits per namespace:
+  - `type QuotaConfig struct { MaxKeys int; MaxGroups int }` — zero means unlimited
+  - `func NewScopedWithQuota(store *Store, namespace string, quota QuotaConfig) *ScopedStore`
+  - `var ErrQuotaExceeded = errors.New("store: quota exceeded")`
+- [ ] **Enforce on Set()** — Before inserting, check `Count()` across all groups with the namespace prefix. If `MaxKeys > 0` and current count >= MaxKeys, return `ErrQuotaExceeded`. Only check on new keys (UPSERT existing keys doesn't increase count).
+- [ ] **Enforce on group creation** — Track distinct groups with the namespace prefix. If `MaxGroups > 0` and adding a new group would exceed the limit, return `ErrQuotaExceeded`.
+- [ ] **Add `CountAll() (int, error)` to Store** — Returns total key count across ALL groups matching a prefix. SQL: `SELECT COUNT(*) FROM kv WHERE grp LIKE ? AND (expires_at IS NULL OR expires_at > ?)` with `namespace + ":%"`.
+- [ ] **Add `Groups() ([]string, error)` to Store** — Returns distinct group names. SQL: `SELECT DISTINCT grp FROM kv WHERE (expires_at IS NULL OR expires_at > ?)`. Useful for quota checks and admin tooling.
+
+### 2.3 Tests
+
+- [ ] **ScopedStore basic tests** — Set/Get/Delete through ScopedStore, verify underlying store has prefixed groups, two namespaces don't collide, GetAll returns only scoped group's keys
+- [ ] **Quota tests** — (a) MaxKeys=5, insert 5 keys → OK, insert 6th → ErrQuotaExceeded, (b) UPSERT existing key doesn't count towards quota, (c) Delete + re-insert stays within quota, (d) MaxGroups=3, create 3 groups → OK, 4th → ErrQuotaExceeded, (e) zero quota = unlimited, (f) TTL-expired keys don't count towards quota
+- [ ] **CountAll/Groups tests** — (a) CountAll with mixed namespaces, (b) Groups returns distinct list, (c) expired keys excluded from both
+- [ ] **Existing tests still pass** — No changes to Store API, backward compatible
 
 ## Phase 3: Event Hooks
 
