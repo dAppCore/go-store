@@ -1,4 +1,4 @@
-# TODO.md — go-store
+# TODO.md -- go-store
 
 Dispatched from core/go orchestration. Pick up tasks in order.
 
@@ -6,17 +6,22 @@ Dispatched from core/go orchestration. Pick up tasks in order.
 
 ## Phase 0: Hardening & Test Coverage
 
-- [ ] **Expand test coverage** — `store_test.go` exists. Add tests for: concurrent `Set`/`Get` with 10 goroutines (race test), `Render()` with invalid template syntax, `Render()` with missing template vars, `Get()` on non-existent group (vs non-existent key), `DeleteGroup()` then verify `GetAll()` returns empty, `Count()` after bulk inserts, `:memory:` vs file-backed store, WAL mode verification.
-- [ ] **Edge cases** — Test: empty key, empty value, empty group, very long key (10K chars), binary-ish value (null bytes), Unicode keys and values.
-- [ ] **Benchmark** — `BenchmarkSet`, `BenchmarkGet`, `BenchmarkGetAll` with 10K keys in a group. Measure SQLite WAL write throughput.
-- [ ] **`go vet ./...` clean** — Fix any warnings.
+- [x] **Expand test coverage** -- concurrent Set/Get with 10 goroutines (race test), Render() with invalid template syntax, Render() with missing template vars, Get() on non-existent group vs non-existent key, DeleteGroup() then verify GetAll() returns empty, Count() after bulk inserts, :memory: vs file-backed store, WAL mode verification. Coverage: 73.1% -> 90.9%.
+- [x] **Edge cases** -- empty key, empty value, empty group, very long key (10K chars), binary-ish value (null bytes), Unicode keys and values, CJK, Arabic, SQL injection attempts, special characters.
+- [x] **Benchmark** -- BenchmarkSet, BenchmarkGet, BenchmarkGetAll with 10K keys, BenchmarkSet_FileBacked.
+- [x] **`go vet ./...` clean** -- no warnings.
+- [x] **Concurrency fix** -- Added `db.SetMaxOpenConns(1)` and `PRAGMA busy_timeout=5000` to prevent SQLITE_BUSY errors under concurrent writes.
 
 ## Phase 1: TTL Support
 
-- [ ] Add optional expiry timestamp for keys
-- [ ] Background goroutine to purge expired entries
-- [ ] `SetWithTTL(group, key, value, duration)` API
-- [ ] Lazy expiry check on `Get` as fallback
+- [x] Add optional expiry timestamp for keys (`expires_at INTEGER` column)
+- [x] Background goroutine to purge expired entries (configurable interval, default 60s)
+- [x] `SetWithTTL(group, key, value, duration)` API
+- [x] Lazy expiry check on `Get` as fallback
+- [x] `PurgeExpired()` public method for manual purge
+- [x] `Count`, `GetAll`, `Render` exclude expired entries
+- [x] Schema migration for pre-TTL databases (ALTER TABLE ADD COLUMN)
+- [x] Tests for all TTL functionality including concurrent TTL access
 
 ## Phase 2: Namespace Isolation
 

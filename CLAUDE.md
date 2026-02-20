@@ -2,20 +2,33 @@
 
 ## What This Is
 
-SQLite key-value store wrapper. Module: `forge.lthn.ai/core/go-store`
+SQLite key-value store wrapper with TTL support. Module: `forge.lthn.ai/core/go-store`
 
 ## Commands
 
 ```bash
-go test ./...          # Run all tests
-go test -v -run Name   # Run single test
+go test ./...              # Run all tests
+go test -v -run Name       # Run single test
+go test -race ./...        # Race detector
+go test -cover ./...       # Coverage (target: 90%+)
+go test -bench=. ./...     # Benchmarks
 ```
 
 ## Key API
 
 ```go
-st, _ := store.New(":memory:")
+st, _ := store.New(":memory:")      // or store.New("/path/to/db")
 defer st.Close()
+
+st.Set("group", "key", "value")                         // no expiry
+st.SetWithTTL("group", "key", "value", 5*time.Minute)   // expires after TTL
+val, _ := st.Get("group", "key")                         // lazy-deletes expired
+st.Delete("group", "key")
+st.DeleteGroup("group")
+all, _ := st.GetAll("group")        // excludes expired
+n, _ := st.Count("group")           // excludes expired
+out, _ := st.Render(tmpl, "group")  // excludes expired
+removed, _ := st.PurgeExpired()     // manual purge
 ```
 
 ## Coding Standards
