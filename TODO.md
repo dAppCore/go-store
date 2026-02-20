@@ -60,10 +60,66 @@ Scoped store wrapper that auto-prefixes groups with a namespace to prevent key c
 
 ## Phase 3: Event Hooks
 
-- [ ] Notify on `Set` / `Delete` for reactive patterns
-- [ ] Channel-based subscription: `Watch(group, key) <-chan Event`
-- [ ] Support wildcard watches (`Watch(group, "*")`)
-- [ ] Integration hook for go-ws to broadcast store changes via WebSocket
+Reactive notification system for store mutations. Pure Go, no new deps. The go-ws integration point is via callbacks — go-store does NOT import go-ws.
+
+### 3.1 Event Types (`events.go`)
+
+- [ ] **Create `events.go`** — Define the event model:
+  - `type EventType int` with constants: `EventSet`, `EventDelete`, `EventDeleteGroup`
+  - `type Event struct { Type EventType; Group string; Key string; Value string; Timestamp time.Time }` — Key is empty for `EventDeleteGroup`, Value is only populated for `EventSet`
+  - `func (t EventType) String() string` — returns `"set"`, `"delete"`, `"delete_group"`
+
+### 3.2 Watcher API
+
+- [ ] **Add watcher infrastructure to Store** — New fields on `Store`:
+  - `watchers  []*Watcher` — registered watchers
+  - `callbacks []callbackEntry` — registered callbacks
+  - `mu        sync.RWMutex` — protects watchers and callbacks (separate from SQLite serialisation)
+  - `nextID    uint64` — monotonic ID for callbacks
+- [ ] **`type Watcher struct`** — `Ch <-chan Event` (public read-only channel), `ch chan Event` (internal write), `group string`, `key string`, `id uint64`
+- [ ] **`func (s *Store) Watch(group, key string) *Watcher`** — Create a watcher with buffered channel (cap 16). `"*"` as key matches all keys in the group. `"*"` for both group and key matches everything. Returns the watcher.
+- [ ] **`func (s *Store) Unwatch(w *Watcher)`** — Remove watcher from slice, close its channel. Safe to call multiple times.
+
+### 3.3 Callback Hook
+
+- [ ] **`func (s *Store) OnChange(fn func(Event)) func()`** — Register a callback for all mutations. Returns an unregister function. Callbacks are called synchronously in the emitting goroutine (caller controls concurrency). This is the go-ws integration point — consumers do:
+  ```go
+  unreg := store.OnChange(func(e store.Event) {
+      hub.SendToChannel("store-events", e)
+  })
+  defer unreg()
+  ```
+
+### 3.4 Emit Events
+
+- [ ] **Modify `Set()`** — After successful DB write, call `s.notify(Event{Type: EventSet, Group: group, Key: key, Value: value, Timestamp: time.Now()})`
+- [ ] **Modify `SetWithTTL()`** — Same as Set but includes TTL event
+- [ ] **Modify `Delete()`** — Emit `EventDelete` after successful DB write
+- [ ] **Modify `DeleteGroup()`** — Emit `EventDeleteGroup` with Key="" after successful DB write
+- [ ] **`func (s *Store) notify(e Event)`** — Internal method:
+  1. Lock `s.mu` (read lock), iterate watchers: if watcher matches (group/key or wildcard), non-blocking send to `w.ch` (drop if full — don't block writer)
+  2. Call each callback `fn(e)` synchronously
+  3. Unlock
+
+### 3.5 ScopedStore Events
+
+- [ ] **ScopedStore mutations emit events with full prefixed group** — No extra work needed since ScopedStore delegates to Store methods which already emit. The Event.Group will contain the full `namespace:group` string, which is correct for consumers.
+
+### 3.6 Tests (`events_test.go`)
+
+- [ ] **Watch specific key** — Set triggers event on matching watcher, non-matching key gets nothing
+- [ ] **Watch wildcard `"*"`** — Multiple Sets to different keys in same group all trigger
+- [ ] **Watch all `("*", "*")`** — All mutations across all groups trigger
+- [ ] **Unwatch stops delivery** — After Unwatch, no more events on channel, channel is closed
+- [ ] **Delete triggers event** — EventDelete with correct group/key
+- [ ] **DeleteGroup triggers event** — EventDeleteGroup with empty Key
+- [ ] **OnChange callback fires** — Register callback, Set/Delete triggers it
+- [ ] **OnChange unregister** — After calling returned func, callback stops firing
+- [ ] **Buffer-full doesn't block** — Fill channel buffer (16 events), verify next Set doesn't block/deadlock
+- [ ] **Multiple watchers on same key** — Both receive events independently
+- [ ] **Concurrent Watch/Unwatch** — 10 goroutines adding/removing watchers while Sets happen (race test)
+- [ ] **ScopedStore events** — ScopedStore Set triggers event with prefixed group name
+- [ ] **Existing tests still pass** — No regressions
 
 ---
 
