@@ -10,7 +10,7 @@ SQLite key-value store wrapper with TTL support and namespace isolation. Module:
 go test ./...              # Run all tests
 go test -v -run Name       # Run single test
 go test -race ./...        # Race detector
-go test -cover ./...       # Coverage (target: 90%+)
+go test -cover ./...       # Coverage (target: 95%+)
 go test -bench=. ./...     # Benchmarks
 ```
 
@@ -63,6 +63,12 @@ defer unreg()
 ## Coding Standards
 
 - UK English
-- `go test ./...` must pass before commit
+- `go test -race ./...` must pass before commit
 - Conventional commits: `type(scope): description`
 - Co-Author: `Co-Authored-By: Virgil <virgil@lethean.io>`
+
+## Docs
+
+- `docs/architecture.md` — storage layer, group/key model, TTL, events, scoping
+- `docs/development.md` — prerequisites, test patterns, benchmarks, adding methods
+- `docs/history.md` — completed phases, known limitations, future considerations
