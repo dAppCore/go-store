@@ -1,4 +1,15 @@
-# TODO.md -- go-store
+# TODO.md — go-store
+
+Dispatched from core/go orchestration. Pick up tasks in order.
+
+---
+
+## Phase 0: Hardening & Test Coverage
+
+- [ ] **Expand test coverage** — `store_test.go` exists. Add tests for: concurrent `Set`/`Get` with 10 goroutines (race test), `Render()` with invalid template syntax, `Render()` with missing template vars, `Get()` on non-existent group (vs non-existent key), `DeleteGroup()` then verify `GetAll()` returns empty, `Count()` after bulk inserts, `:memory:` vs file-backed store, WAL mode verification.
+- [ ] **Edge cases** — Test: empty key, empty value, empty group, very long key (10K chars), binary-ish value (null bytes), Unicode keys and values.
+- [ ] **Benchmark** — `BenchmarkSet`, `BenchmarkGet`, `BenchmarkGetAll` with 10K keys in a group. Measure SQLite WAL write throughput.
+- [ ] **`go vet ./...` clean** — Fix any warnings.
 
 ## Phase 1: TTL Support
 
