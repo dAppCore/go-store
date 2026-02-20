@@ -41,6 +41,23 @@ sc.Get("config", "key")            // reads from "tenant:config"
 quota := store.QuotaConfig{MaxKeys: 100, MaxGroups: 10}
 sq, _ := store.NewScopedWithQuota(st, "tenant", quota)
 sq.Set("g", "k", "v")             // returns ErrQuotaExceeded if limits hit
+
+// Event hooks — reactive notifications for store mutations
+w := st.Watch("group", "key")     // watch specific key (buffered chan, cap 16)
+w2 := st.Watch("group", "*")      // wildcard: all keys in group
+w3 := st.Watch("*", "*")          // wildcard: all mutations
+defer st.Unwatch(w)
+
+select {
+case e := <-w.Ch:
+    fmt.Println(e.Type, e.Group, e.Key, e.Value)
+}
+
+// Callback hook (synchronous, caller controls concurrency)
+unreg := st.OnChange(func(e store.Event) {
+    hub.SendToChannel("store-events", e) // go-ws integration point
+})
+defer unreg()
 ```
 
 ## Coding Standards

@@ -25,6 +25,12 @@ type Store struct {
 	cancel        context.CancelFunc
 	wg            sync.WaitGroup
 	purgeInterval time.Duration // interval between background purge cycles
+
+	// Event hooks (Phase 3).
+	watchers  []*Watcher
+	callbacks []callbackEntry
+	mu        sync.RWMutex // protects watchers and callbacks
+	nextID    uint64       // monotonic ID for watchers and callbacks
 }
 
 // New creates a Store at the given SQLite path. Use ":memory:" for tests.
@@ -108,6 +114,7 @@ func (s *Store) Set(group, key, value string) error {
 	if err != nil {
 		return fmt.Errorf("store.Set: %w", err)
 	}
+	s.notify(Event{Type: EventSet, Group: group, Key: key, Value: value, Timestamp: time.Now()})
 	return nil
 }
 
@@ -124,6 +131,7 @@ func (s *Store) SetWithTTL(group, key, value string, ttl time.Duration) error {
 	if err != nil {
 		return fmt.Errorf("store.SetWithTTL: %w", err)
 	}
+	s.notify(Event{Type: EventSet, Group: group, Key: key, Value: value, Timestamp: time.Now()})
 	return nil
 }
 
@@ -133,6 +141,7 @@ func (s *Store) Delete(group, key string) error {
 	if err != nil {
 		return fmt.Errorf("store.Delete: %w", err)
 	}
+	s.notify(Event{Type: EventDelete, Group: group, Key: key, Timestamp: time.Now()})
 	return nil
 }
 
@@ -155,6 +164,7 @@ func (s *Store) DeleteGroup(group string) error {
 	if err != nil {
 		return fmt.Errorf("store.DeleteGroup: %w", err)
 	}
+	s.notify(Event{Type: EventDeleteGroup, Group: group, Timestamp: time.Now()})
 	return nil
 }
 
