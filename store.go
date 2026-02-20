@@ -16,6 +16,9 @@ import (
 // ErrNotFound is returned when a key does not exist in the store.
 var ErrNotFound = errors.New("store: not found")
 
+// ErrQuotaExceeded is returned when a namespace quota limit is reached.
+var ErrQuotaExceeded = errors.New("store: quota exceeded")
+
 // Store is a group-namespaced key-value store backed by SQLite.
 type Store struct {
 	db            *sql.DB
@@ -213,6 +216,63 @@ func (s *Store) Render(tmplStr, group string) (string, error) {
 		return "", fmt.Errorf("store.Render: exec: %w", err)
 	}
 	return b.String(), nil
+}
+
+// CountAll returns the total number of non-expired keys across all groups whose
+// name starts with the given prefix. Pass an empty string to count everything.
+func (s *Store) CountAll(prefix string) (int, error) {
+	var n int
+	var err error
+	if prefix == "" {
+		err = s.db.QueryRow(
+			"SELECT COUNT(*) FROM kv WHERE (expires_at IS NULL OR expires_at > ?)",
+			time.Now().UnixMilli(),
+		).Scan(&n)
+	} else {
+		err = s.db.QueryRow(
+			"SELECT COUNT(*) FROM kv WHERE grp LIKE ? AND (expires_at IS NULL OR expires_at > ?)",
+			prefix+"%", time.Now().UnixMilli(),
+		).Scan(&n)
+	}
+	if err != nil {
+		return 0, fmt.Errorf("store.CountAll: %w", err)
+	}
+	return n, nil
+}
+
+// Groups returns the distinct group names of all non-expired keys. If prefix is
+// non-empty, only groups starting with that prefix are returned.
+func (s *Store) Groups(prefix string) ([]string, error) {
+	var rows *sql.Rows
+	var err error
+	if prefix == "" {
+		rows, err = s.db.Query(
+			"SELECT DISTINCT grp FROM kv WHERE (expires_at IS NULL OR expires_at > ?)",
+			time.Now().UnixMilli(),
+		)
+	} else {
+		rows, err = s.db.Query(
+			"SELECT DISTINCT grp FROM kv WHERE grp LIKE ? AND (expires_at IS NULL OR expires_at > ?)",
+			prefix+"%", time.Now().UnixMilli(),
+		)
+	}
+	if err != nil {
+		return nil, fmt.Errorf("store.Groups: %w", err)
+	}
+	defer rows.Close()
+
+	var groups []string
+	for rows.Next() {
+		var g string
+		if err := rows.Scan(&g); err != nil {
+			return nil, fmt.Errorf("store.Groups: scan: %w", err)
+		}
+		groups = append(groups, g)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("store.Groups: rows: %w", err)
+	}
+	return groups, nil
 }
 
 // PurgeExpired deletes all expired keys across all groups. Returns the number

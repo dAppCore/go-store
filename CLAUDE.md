@@ -2,7 +2,7 @@
 
 ## What This Is
 
-SQLite key-value store wrapper with TTL support. Module: `forge.lthn.ai/core/go-store`
+SQLite key-value store wrapper with TTL support and namespace isolation. Module: `forge.lthn.ai/core/go-store`
 
 ## Commands
 
@@ -29,6 +29,18 @@ all, _ := st.GetAll("group")        // excludes expired
 n, _ := st.Count("group")           // excludes expired
 out, _ := st.Render(tmpl, "group")  // excludes expired
 removed, _ := st.PurgeExpired()     // manual purge
+total, _ := st.CountAll("prefix:")  // count keys matching prefix (excludes expired)
+groups, _ := st.Groups("prefix:")   // distinct group names matching prefix
+
+// Namespace isolation (auto-prefixes groups with "tenant:")
+sc, _ := store.NewScoped(st, "tenant")
+sc.Set("config", "key", "val")     // stored as "tenant:config" in underlying store
+sc.Get("config", "key")            // reads from "tenant:config"
+
+// With quota enforcement
+quota := store.QuotaConfig{MaxKeys: 100, MaxGroups: 10}
+sq, _ := store.NewScopedWithQuota(st, "tenant", quota)
+sq.Set("g", "k", "v")             // returns ErrQuotaExceeded if limits hit
 ```
 
 ## Coding Standards
