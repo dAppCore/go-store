@@ -214,7 +214,7 @@ func TestQuota_Good_MaxKeys(t *testing.T) {
 	require.NoError(t, err)
 
 	// Insert 5 keys across different groups — should be fine.
-	for i := 0; i < 5; i++ {
+	for i := range 5 {
 		require.NoError(t, sc.Set("g", keyName(i), "v"))
 	}
 
@@ -279,7 +279,7 @@ func TestQuota_Good_ZeroMeansUnlimited(t *testing.T) {
 	sc, _ := NewScopedWithQuota(s, "tenant-a", QuotaConfig{MaxKeys: 0, MaxGroups: 0})
 
 	// Should be able to insert many keys and groups without error.
-	for i := 0; i < 100; i++ {
+	for i := range 100 {
 		require.NoError(t, sc.Set("g", keyName(i), "v"))
 	}
 }
@@ -373,7 +373,7 @@ func TestQuota_Good_MaxGroups_ZeroUnlimited(t *testing.T) {
 
 	sc, _ := NewScopedWithQuota(s, "tenant-a", QuotaConfig{MaxGroups: 0})
 
-	for i := 0; i < 50; i++ {
+	for i := range 50 {
 		require.NoError(t, sc.Set(keyName(i), "k", "v"))
 	}
 }

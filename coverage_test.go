@@ -89,7 +89,7 @@ func TestGetAll_Bad_RowsError(t *testing.T) {
 
 	// Insert enough rows to span multiple database pages.
 	const rows = 5000
-	for i := 0; i < rows; i++ {
+	for i := range rows {
 		require.NoError(t, s.Set("g",
 			fmt.Sprintf("key-%06d", i),
 			fmt.Sprintf("value-with-padding-%06d-xxxxxxxxxxxxxxxxxxxxxxxx", i)))
@@ -182,7 +182,7 @@ func TestRender_Bad_RowsError(t *testing.T) {
 	require.NoError(t, err)
 
 	const rows = 5000
-	for i := 0; i < rows; i++ {
+	for i := range rows {
 		require.NoError(t, s.Set("g",
 			fmt.Sprintf("key-%06d", i),
 			fmt.Sprintf("value-with-padding-%06d-xxxxxxxxxxxxxxxxxxxxxxxx", i)))

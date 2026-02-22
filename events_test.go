@@ -247,7 +247,7 @@ func TestWatch_Good_BufferFullDoesNotBlock(t *testing.T) {
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
-		for i := 0; i < 32; i++ {
+		for i := range 32 {
 			require.NoError(t, s.Set("g", fmt.Sprintf("k%d", i), "v"))
 		}
 	}()
@@ -316,20 +316,16 @@ func TestWatch_Good_ConcurrentWatchUnwatch(t *testing.T) {
 	var wg sync.WaitGroup
 
 	// Writers — continuously mutate the store.
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		for i := 0; i < goroutines*ops; i++ {
+	wg.Go(func() {
+		for i := range goroutines * ops {
 			_ = s.Set("g", fmt.Sprintf("k%d", i), "v")
 		}
-	}()
+	})
 
 	// Watchers — add and remove watchers concurrently.
-	for g := 0; g < goroutines; g++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			for i := 0; i < ops; i++ {
+	for range goroutines {
+		wg.Go(func() {
+			for range ops {
 				w := s.Watch("g", "*")
 				// Drain a few events to exercise the channel path.
 				for range 3 {
@@ -340,7 +336,7 @@ func TestWatch_Good_ConcurrentWatchUnwatch(t *testing.T) {
 				}
 				s.Unwatch(w)
 			}
-		}()
+		})
 	}
 
 	wg.Wait()

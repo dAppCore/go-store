@@ -232,7 +232,7 @@ func TestCount_Good_BulkInsert(t *testing.T) {
 	defer s.Close()
 
 	const total = 500
-	for i := 0; i < total; i++ {
+	for i := range total {
 		require.NoError(t, s.Set("bulk", fmt.Sprintf("key-%04d", i), "v"))
 	}
 	n, err := s.Count("bulk")
@@ -533,12 +533,12 @@ func TestConcurrent_ReadWrite(t *testing.T) {
 	errs := make(chan error, goroutines*opsPerGoroutine*2)
 
 	// Writers.
-	for g := 0; g < goroutines; g++ {
+	for g := range goroutines {
 		wg.Add(1)
 		go func(id int) {
 			defer wg.Done()
 			group := fmt.Sprintf("grp-%d", id)
-			for i := 0; i < opsPerGoroutine; i++ {
+			for i := range opsPerGoroutine {
 				key := fmt.Sprintf("key-%d", i)
 				val := fmt.Sprintf("val-%d-%d", id, i)
 				if err := s.Set(group, key, val); err != nil {
@@ -549,12 +549,12 @@ func TestConcurrent_ReadWrite(t *testing.T) {
 	}
 
 	// Readers — start immediately alongside writers.
-	for g := 0; g < goroutines; g++ {
+	for g := range goroutines {
 		wg.Add(1)
 		go func(id int) {
 			defer wg.Done()
 			group := fmt.Sprintf("grp-%d", id)
-			for i := 0; i < opsPerGoroutine; i++ {
+			for i := range opsPerGoroutine {
 				key := fmt.Sprintf("key-%d", i)
 				_, err := s.Get(group, key)
 				// ErrNotFound is acceptable — the writer may not have written yet.
@@ -573,7 +573,7 @@ func TestConcurrent_ReadWrite(t *testing.T) {
 	}
 
 	// After all writers finish, every key should be present.
-	for g := 0; g < goroutines; g++ {
+	for g := range goroutines {
 		group := fmt.Sprintf("grp-%d", g)
 		n, err := s.Count(group)
 		require.NoError(t, err)
@@ -587,15 +587,13 @@ func TestConcurrent_GetAll(t *testing.T) {
 	defer s.Close()
 
 	// Seed data.
-	for i := 0; i < 50; i++ {
+	for i := range 50 {
 		require.NoError(t, s.Set("shared", fmt.Sprintf("k%d", i), fmt.Sprintf("v%d", i)))
 	}
 
 	var wg sync.WaitGroup
-	for g := 0; g < 10; g++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+	for range 10 {
+		wg.Go(func() {
 			all, err := s.GetAll("shared")
 			if err != nil {
 				t.Errorf("GetAll failed: %v", err)
@@ -604,7 +602,7 @@ func TestConcurrent_GetAll(t *testing.T) {
 			if len(all) != 50 {
 				t.Errorf("expected 50 keys, got %d", len(all))
 			}
-		}()
+		})
 	}
 	wg.Wait()
 }
@@ -615,12 +613,12 @@ func TestConcurrent_DeleteGroup(t *testing.T) {
 	defer s.Close()
 
 	var wg sync.WaitGroup
-	for g := 0; g < 10; g++ {
+	for g := range 10 {
 		wg.Add(1)
 		go func(id int) {
 			defer wg.Done()
 			grp := fmt.Sprintf("g%d", id)
-			for i := 0; i < 20; i++ {
+			for i := range 20 {
 				_ = s.Set(grp, fmt.Sprintf("k%d", i), "v")
 			}
 			_ = s.DeleteGroup(grp)
@@ -663,7 +661,7 @@ func BenchmarkGet(b *testing.B) {
 
 	// Pre-populate.
 	const keys = 10000
-	for i := 0; i < keys; i++ {
+	for i := range keys {
 		_ = s.Set("bench", fmt.Sprintf("key-%d", i), "value")
 	}
 
@@ -678,7 +676,7 @@ func BenchmarkGetAll(b *testing.B) {
 	defer s.Close()
 
 	const keys = 10000
-	for i := 0; i < keys; i++ {
+	for i := range keys {
 		_ = s.Set("bench", fmt.Sprintf("key-%d", i), "value")
 	}
 
@@ -976,12 +974,12 @@ func TestConcurrent_TTL(t *testing.T) {
 	const ops = 50
 
 	var wg sync.WaitGroup
-	for g := 0; g < goroutines; g++ {
+	for g := range goroutines {
 		wg.Add(1)
 		go func(id int) {
 			defer wg.Done()
 			grp := fmt.Sprintf("ttl-%d", id)
-			for i := 0; i < ops; i++ {
+			for i := range ops {
 				key := fmt.Sprintf("k%d", i)
 				if i%2 == 0 {
 					_ = s.SetWithTTL(grp, key, "v", 50*time.Millisecond)
@@ -996,7 +994,7 @@ func TestConcurrent_TTL(t *testing.T) {
 	// Give expired keys time to lapse.
 	time.Sleep(60 * time.Millisecond)
 
-	for g := 0; g < goroutines; g++ {
+	for g := range goroutines {
 		grp := fmt.Sprintf("ttl-%d", g)
 		n, err := s.Count(grp)
 		require.NoError(t, err)

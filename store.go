@@ -299,9 +299,7 @@ func (s *Store) PurgeExpired() (int64, error) {
 // startPurge launches a background goroutine that purges expired entries at the
 // store's configured purge interval. It stops when the context is cancelled.
 func (s *Store) startPurge(ctx context.Context) {
-	s.wg.Add(1)
-	go func() {
-		defer s.wg.Done()
+	s.wg.Go(func() {
 		ticker := time.NewTicker(s.purgeInterval)
 		defer ticker.Stop()
 		for {
@@ -312,5 +310,5 @@ func (s *Store) startPurge(ctx context.Context) {
 				_, _ = s.PurgeExpired()
 			}
 		}
-	}()
+	})
 }
