@@ -2,6 +2,7 @@ package store
 
 import (
 	"fmt"
+	"iter"
 	"regexp"
 	"time"
 )
@@ -95,6 +96,12 @@ func (s *ScopedStore) GetAll(group string) (map[string]string, error) {
 	return s.store.GetAll(s.prefix(group))
 }
 
+// All returns an iterator over all non-expired key-value pairs in a group
+// within the namespace.
+func (s *ScopedStore) All(group string) iter.Seq2[KV, error] {
+	return s.store.All(s.prefix(group))
+}
+
 // Count returns the number of non-expired keys in a group within the namespace.
 func (s *ScopedStore) Count(group string) (int, error) {
 	return s.store.Count(s.prefix(group))
@@ -143,11 +150,14 @@ func (s *ScopedStore) checkQuota(group, key string) error {
 		}
 		if groupCount == 0 {
 			// This group is new — check if adding it would exceed the group limit.
-			groups, err := s.store.Groups(nsPrefix)
-			if err != nil {
-				return fmt.Errorf("store.ScopedStore: quota check: %w", err)
+			count := 0
+			for _, err := range s.store.GroupsSeq(nsPrefix) {
+				if err != nil {
+					return fmt.Errorf("store.ScopedStore: quota check: %w", err)
+				}
+				count++
 			}
-			if len(groups) >= s.quota.MaxGroups {
+			if count >= s.quota.MaxGroups {
 				return fmt.Errorf("store.ScopedStore: group limit (%d): %w", s.quota.MaxGroups, ErrQuotaExceeded)
 			}
 		}

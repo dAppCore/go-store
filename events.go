@@ -1,6 +1,7 @@
 package store
 
 import (
+	"slices"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -92,17 +93,13 @@ func (s *Store) Unwatch(w *Watcher) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	for i, existing := range s.watchers {
+	s.watchers = slices.DeleteFunc(s.watchers, func(existing *Watcher) bool {
 		if existing.id == w.id {
-			// Remove from slice (order doesn't matter).
-			s.watchers[i] = s.watchers[len(s.watchers)-1]
-			s.watchers[len(s.watchers)-1] = nil
-			s.watchers = s.watchers[:len(s.watchers)-1]
 			close(w.ch)
-			return
+			return true
 		}
-	}
-	// Already unwatched — no-op.
+		return false
+	})
 }
 
 // OnChange registers a callback that fires on every store mutation. Callbacks
@@ -130,14 +127,9 @@ func (s *Store) OnChange(fn func(Event)) func() {
 		once.Do(func() {
 			s.mu.Lock()
 			defer s.mu.Unlock()
-			for i, cb := range s.callbacks {
-				if cb.id == id {
-					s.callbacks[i] = s.callbacks[len(s.callbacks)-1]
-					s.callbacks[len(s.callbacks)-1] = callbackEntry{}
-					s.callbacks = s.callbacks[:len(s.callbacks)-1]
-					return
-				}
-			}
+			s.callbacks = slices.DeleteFunc(s.callbacks, func(cb callbackEntry) bool {
+				return cb.id == id
+			})
 		})
 	}
 }

@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"iter"
 	"strings"
 	"sync"
 	"text/template"
@@ -168,53 +169,83 @@ func (s *Store) DeleteGroup(group string) error {
 	return nil
 }
 
+// KV represents a key-value pair.
+type KV struct {
+	Key, Value string
+}
+
 // GetAll returns all non-expired key-value pairs in a group.
 func (s *Store) GetAll(group string) (map[string]string, error) {
-	rows, err := s.db.Query(
-		"SELECT key, value FROM kv WHERE grp = ? AND (expires_at IS NULL OR expires_at > ?)",
-		group, time.Now().UnixMilli(),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("store.GetAll: %w", err)
-	}
-	defer rows.Close()
-
 	result := make(map[string]string)
-	for rows.Next() {
-		var k, v string
-		if err := rows.Scan(&k, &v); err != nil {
-			return nil, fmt.Errorf("store.GetAll: scan: %w", err)
+	for kv, err := range s.All(group) {
+		if err != nil {
+			return nil, fmt.Errorf("store.GetAll: %w", err)
 		}
-		result[k] = v
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("store.GetAll: rows: %w", err)
+		result[kv.Key] = kv.Value
 	}
 	return result, nil
+}
+
+// All returns an iterator over all non-expired key-value pairs in a group.
+func (s *Store) All(group string) iter.Seq2[KV, error] {
+	return func(yield func(KV, error) bool) {
+		rows, err := s.db.Query(
+			"SELECT key, value FROM kv WHERE grp = ? AND (expires_at IS NULL OR expires_at > ?)",
+			group, time.Now().UnixMilli(),
+		)
+		if err != nil {
+			yield(KV{}, err)
+			return
+		}
+		defer rows.Close()
+
+		for rows.Next() {
+			var kv KV
+			if err := rows.Scan(&kv.Key, &kv.Value); err != nil {
+				if !yield(KV{}, fmt.Errorf("scan: %w", err)) {
+					return
+				}
+				continue
+			}
+			if !yield(kv, nil) {
+				return
+			}
+		}
+		if err := rows.Err(); err != nil {
+			yield(KV{}, fmt.Errorf("rows: %w", err))
+		}
+	}
+}
+
+// GetSplit retrieves a value and returns an iterator over its parts, split by
+// sep.
+func (s *Store) GetSplit(group, key, sep string) (iter.Seq[string], error) {
+	val, err := s.Get(group, key)
+	if err != nil {
+		return nil, err
+	}
+	return strings.SplitSeq(val, sep), nil
+}
+
+// GetFields retrieves a value and returns an iterator over its parts, split by
+// whitespace.
+func (s *Store) GetFields(group, key string) (iter.Seq[string], error) {
+	val, err := s.Get(group, key)
+	if err != nil {
+		return nil, err
+	}
+	return strings.FieldsSeq(val), nil
 }
 
 // Render loads all non-expired key-value pairs from a group and renders a Go
 // template.
 func (s *Store) Render(tmplStr, group string) (string, error) {
-	rows, err := s.db.Query(
-		"SELECT key, value FROM kv WHERE grp = ? AND (expires_at IS NULL OR expires_at > ?)",
-		group, time.Now().UnixMilli(),
-	)
-	if err != nil {
-		return "", fmt.Errorf("store.Render: query: %w", err)
-	}
-	defer rows.Close()
-
 	vars := make(map[string]string)
-	for rows.Next() {
-		var k, v string
-		if err := rows.Scan(&k, &v); err != nil {
-			return "", fmt.Errorf("store.Render: scan: %w", err)
+	for kv, err := range s.All(group) {
+		if err != nil {
+			return "", fmt.Errorf("store.Render: %w", err)
 		}
-		vars[k] = v
-	}
-	if err := rows.Err(); err != nil {
-		return "", fmt.Errorf("store.Render: rows: %w", err)
+		vars[kv.Key] = kv.Value
 	}
 
 	tmpl, err := template.New("render").Parse(tmplStr)
@@ -253,36 +284,56 @@ func (s *Store) CountAll(prefix string) (int, error) {
 // Groups returns the distinct group names of all non-expired keys. If prefix is
 // non-empty, only groups starting with that prefix are returned.
 func (s *Store) Groups(prefix string) ([]string, error) {
-	var rows *sql.Rows
-	var err error
-	if prefix == "" {
-		rows, err = s.db.Query(
-			"SELECT DISTINCT grp FROM kv WHERE (expires_at IS NULL OR expires_at > ?)",
-			time.Now().UnixMilli(),
-		)
-	} else {
-		rows, err = s.db.Query(
-			"SELECT DISTINCT grp FROM kv WHERE grp LIKE ? AND (expires_at IS NULL OR expires_at > ?)",
-			prefix+"%", time.Now().UnixMilli(),
-		)
-	}
-	if err != nil {
-		return nil, fmt.Errorf("store.Groups: %w", err)
-	}
-	defer rows.Close()
-
 	var groups []string
-	for rows.Next() {
-		var g string
-		if err := rows.Scan(&g); err != nil {
-			return nil, fmt.Errorf("store.Groups: scan: %w", err)
+	for g, err := range s.GroupsSeq(prefix) {
+		if err != nil {
+			return nil, err
 		}
 		groups = append(groups, g)
 	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("store.Groups: rows: %w", err)
-	}
 	return groups, nil
+}
+
+// GroupsSeq returns an iterator over the distinct group names of all
+// non-expired keys.
+func (s *Store) GroupsSeq(prefix string) iter.Seq2[string, error] {
+	return func(yield func(string, error) bool) {
+		var rows *sql.Rows
+		var err error
+		now := time.Now().UnixMilli()
+		if prefix == "" {
+			rows, err = s.db.Query(
+				"SELECT DISTINCT grp FROM kv WHERE (expires_at IS NULL OR expires_at > ?)",
+				now,
+			)
+		} else {
+			rows, err = s.db.Query(
+				"SELECT DISTINCT grp FROM kv WHERE grp LIKE ? AND (expires_at IS NULL OR expires_at > ?)",
+				prefix+"%", now,
+			)
+		}
+		if err != nil {
+			yield("", fmt.Errorf("store.Groups: %w", err))
+			return
+		}
+		defer rows.Close()
+
+		for rows.Next() {
+			var g string
+			if err := rows.Scan(&g); err != nil {
+				if !yield("", fmt.Errorf("store.Groups: scan: %w", err)) {
+					return
+				}
+				continue
+			}
+			if !yield(g, nil) {
+				return
+			}
+		}
+		if err := rows.Err(); err != nil {
+			yield("", fmt.Errorf("store.Groups: rows: %w", err))
+		}
+	}
 }
 
 // PurgeExpired deletes all expired keys across all groups. Returns the number

@@ -650,7 +650,7 @@ func BenchmarkSet(b *testing.B) {
 	defer s.Close()
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for i := range b.N {
 		_ = s.Set("bench", fmt.Sprintf("key-%d", i), "value")
 	}
 }
@@ -666,7 +666,7 @@ func BenchmarkGet(b *testing.B) {
 	}
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for i := range b.N {
 		_, _ = s.Get("bench", fmt.Sprintf("key-%d", i%keys))
 	}
 }
@@ -681,7 +681,7 @@ func BenchmarkGetAll(b *testing.B) {
 	}
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for range b.N {
 		_, _ = s.GetAll("bench")
 	}
 }
@@ -692,7 +692,7 @@ func BenchmarkSet_FileBacked(b *testing.B) {
 	defer s.Close()
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for i := range b.N {
 		_ = s.Set("bench", fmt.Sprintf("key-%d", i), "value")
 	}
 }
