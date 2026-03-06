@@ -1,0 +1,20 @@
+version: 1
+
+project:
+  name: go-store
+  repository: core/go-store
+
+publishers: []
+
+changelog:
+  include:
+    - feat
+    - fix
+    - perf
+    - refactor
+  exclude:
+    - chore
+    - docs
+    - style
+    - test
+    - ci
