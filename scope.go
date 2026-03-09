@@ -1,6 +1,7 @@
 package store
 
 import (
+	"errors"
 	"fmt"
 	"iter"
 	"regexp"
@@ -129,6 +130,10 @@ func (s *ScopedStore) checkQuota(group, key string) error {
 	if err == nil {
 		// Key exists — this is an upsert, no quota check needed.
 		return nil
+	}
+	if !errors.Is(err, ErrNotFound) {
+		// A database error occurred, not just a "not found" result.
+		return fmt.Errorf("store.ScopedStore: quota check: %w", err)
 	}
 
 	// Check MaxKeys quota.

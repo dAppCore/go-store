@@ -454,6 +454,30 @@ func TestCountAll_Good_WithPrefix(t *testing.T) {
 	assert.Equal(t, 1, n)
 }
 
+func TestCountAll_Good_WithPrefix_Wildcards(t *testing.T) {
+	s, _ := New(":memory:")
+	defer s.Close()
+
+	// Add keys in groups that look like wildcards.
+	require.NoError(t, s.Set("user_1", "k", "v"))
+	require.NoError(t, s.Set("user_2", "k", "v"))
+	require.NoError(t, s.Set("user%test", "k", "v"))
+	require.NoError(t, s.Set("user_test", "k", "v"))
+
+	// Prefix "user_" should ONLY match groups starting with "user_".
+	// Since we escape "_", it matches literal "_".
+	// Groups: "user_1", "user_2", "user_test" (3 total).
+	// "user%test" is NOT matched because "_" is literal.
+	n, err := s.CountAll("user_")
+	require.NoError(t, err)
+	assert.Equal(t, 3, n)
+
+	// Prefix "user%" should ONLY match "user%test".
+	n, err = s.CountAll("user%")
+	require.NoError(t, err)
+	assert.Equal(t, 1, n)
+}
+
 func TestCountAll_Good_EmptyPrefix(t *testing.T) {
 	s, _ := New(":memory:")
 	defer s.Close()

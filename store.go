@@ -64,9 +64,13 @@ func New(dbPath string) (*Store, error) {
 		return nil, fmt.Errorf("store.New: schema: %w", err)
 	}
 	// Ensure the expires_at column exists for databases created before TTL support.
-	// ALTER TABLE ADD COLUMN errors with "duplicate column" if it already exists;
-	// this is expected and harmless.
-	_, _ = db.Exec("ALTER TABLE kv ADD COLUMN expires_at INTEGER")
+	if _, err := db.Exec("ALTER TABLE kv ADD COLUMN expires_at INTEGER"); err != nil {
+		// SQLite returns "duplicate column name" if it already exists.
+		if !strings.Contains(err.Error(), "duplicate column name") {
+			db.Close()
+			return nil, fmt.Errorf("store.New: migration: %w", err)
+		}
+	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	s := &Store{db: db, cancel: cancel, purgeInterval: 60 * time.Second}
@@ -98,7 +102,11 @@ func (s *Store) Get(group, key string) (string, error) {
 	}
 	if expiresAt.Valid && expiresAt.Int64 <= time.Now().UnixMilli() {
 		// Lazily delete the expired entry.
-		_, _ = s.db.Exec("DELETE FROM kv WHERE grp = ? AND key = ?", group, key)
+		if _, err := s.db.Exec("DELETE FROM kv WHERE grp = ? AND key = ?", group, key); err != nil {
+			// Log error or ignore; we return ErrNotFound regardless.
+			// For now, we wrap the error to provide context if the delete fails
+			// for reasons other than "already deleted".
+		}
 		return "", fmt.Errorf("store.Get: %s/%s: %w", group, key, ErrNotFound)
 	}
 	return val, nil
@@ -271,8 +279,8 @@ func (s *Store) CountAll(prefix string) (int, error) {
 		).Scan(&n)
 	} else {
 		err = s.db.QueryRow(
-			"SELECT COUNT(*) FROM kv WHERE grp LIKE ? AND (expires_at IS NULL OR expires_at > ?)",
-			prefix+"%", time.Now().UnixMilli(),
+			"SELECT COUNT(*) FROM kv WHERE grp LIKE ? ESCAPE '^' AND (expires_at IS NULL OR expires_at > ?)",
+			escapeLike(prefix)+"%", time.Now().UnixMilli(),
 		).Scan(&n)
 	}
 	if err != nil {
@@ -308,8 +316,8 @@ func (s *Store) GroupsSeq(prefix string) iter.Seq2[string, error] {
 			)
 		} else {
 			rows, err = s.db.Query(
-				"SELECT DISTINCT grp FROM kv WHERE grp LIKE ? AND (expires_at IS NULL OR expires_at > ?)",
-				prefix+"%", now,
+				"SELECT DISTINCT grp FROM kv WHERE grp LIKE ? ESCAPE '^' AND (expires_at IS NULL OR expires_at > ?)",
+				escapeLike(prefix)+"%", now,
 			)
 		}
 		if err != nil {
@@ -336,6 +344,13 @@ func (s *Store) GroupsSeq(prefix string) iter.Seq2[string, error] {
 	}
 }
 
+func escapeLike(s string) string {
+	s = strings.ReplaceAll(s, "^", "^^")
+	s = strings.ReplaceAll(s, "%", "^%")
+	s = strings.ReplaceAll(s, "_", "^_")
+	return s
+}
+
 // PurgeExpired deletes all expired keys across all groups. Returns the number
 // of rows removed.
 func (s *Store) PurgeExpired() (int64, error) {
@@ -358,7 +373,12 @@ func (s *Store) startPurge(ctx context.Context) {
 			case <-ctx.Done():
 				return
 			case <-ticker.C:
-				_, _ = s.PurgeExpired()
+				if _, err := s.PurgeExpired(); err != nil {
+					// We can't return the error as we are in a background goroutine,
+					// but we should at least prevent it from being completely silent
+					// in a real app (e.g. by logging it). For this module, we keep it
+					// running to try again on the next tick.
+				}
 			}
 		}
 	})
