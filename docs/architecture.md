@@ -1,12 +1,11 @@
-# Architecture — go-store
+---
+title: Architecture
+description: Internal design of go-store -- storage layer, group/key model, TTL expiry, event system, namespace isolation, and concurrency model.
+---
 
-Module: `forge.lthn.ai/core/go-store`
+# Architecture
 
-## Overview
-
-go-store is a group-namespaced key-value store backed by SQLite. It provides persistent or in-memory storage with optional TTL expiry, namespace isolation for multi-tenant use, and a reactive event system for observing mutations.
-
-The package has no external runtime dependencies beyond a pure-Go SQLite driver (`modernc.org/sqlite`). It requires no CGO and compiles on all platforms.
+This document describes how go-store works internally. It covers the storage layer, the data model, TTL expiry, the event system, namespace isolation with quota enforcement, and the concurrency model.
 
 ## Storage Layer
 
@@ -21,7 +20,11 @@ PRAGMA busy_timeout=5000;
 
 WAL (Write-Ahead Logging) mode allows concurrent readers to proceed without blocking writers. The `busy_timeout` of 5000 milliseconds causes the driver to wait and retry rather than immediately returning `SQLITE_BUSY` under write contention.
 
-**Single connection constraint.** The `database/sql` package maintains a connection pool by default. SQLite pragmas are per-connection: if the pool hands out a second connection, that connection inherits none of the WAL or busy-timeout settings, causing `SQLITE_BUSY` errors under concurrent load. go-store calls `db.SetMaxOpenConns(1)` to pin all access to a single connection. Since SQLite serialises writes at the file level regardless, this introduces no additional throughput penalty.
+### Single Connection Constraint
+
+The `database/sql` package maintains a connection pool by default. SQLite pragmas are per-connection: if the pool hands out a second connection, that connection inherits none of the WAL or busy-timeout settings, causing `SQLITE_BUSY` errors under concurrent load.
+
+go-store calls `db.SetMaxOpenConns(1)` to pin all access to a single connection. Since SQLite serialises writes at the file level regardless, this introduces no additional throughput penalty. It eliminates the BUSY errors by ensuring the pragma settings always apply.
 
 ### Schema
 
@@ -41,7 +44,7 @@ The compound primary key `(grp, key)` enforces uniqueness per group-key pair and
 
 ## Group/Key Model
 
-Keys are addressed by a two-level path: `(group, key)`. Groups act as logical namespaces within a single database. Groups are implicit — they exist as a consequence of the keys they contain and are destroyed automatically when all their keys are deleted.
+Keys are addressed by a two-level path: `(group, key)`. Groups act as logical namespaces within a single database. Groups are implicit -- they exist as a consequence of the keys they contain and are destroyed automatically when all their keys are deleted.
 
 This model maps naturally to domain concepts:
 
@@ -68,21 +71,34 @@ All writes use `INSERT ... ON CONFLICT(grp, key) DO UPDATE`. This means:
 
 Keys may be created with a time-to-live via `SetWithTTL`. Expiry is stored as a Unix millisecond timestamp in `expires_at`.
 
-**Expiry is enforced in three ways:**
+Expiry is enforced in three ways:
 
-1. **Lazy deletion on `Get`.** If a key is found but its `expires_at` is in the past, it is deleted synchronously before returning `ErrNotFound`. This prevents stale values from being returned even if the background purge has not run yet.
+### 1. Lazy Deletion on Get
 
-2. **Query-time filtering.** All bulk operations (`GetAll`, `Count`, `Render`, `CountAll`, `Groups`) include `(expires_at IS NULL OR expires_at > ?)` in their `WHERE` clause. Expired keys are excluded from results without being deleted.
+If a key is found but its `expires_at` is in the past, it is deleted synchronously before returning `ErrNotFound`. This prevents stale values from being returned even if the background purge has not run yet.
 
-3. **Background purge goroutine.** `New()` launches a goroutine that calls `PurgeExpired()` every 60 seconds (configurable via `s.purgeInterval`). This recovers disk space by physically removing expired rows. The goroutine is stopped cleanly by `Close()` via `context.WithCancel`.
+### 2. Query-Time Filtering
 
-`PurgeExpired()` is also a public method for applications that want manual control over purge timing.
+All bulk operations (`GetAll`, `All`, `Count`, `Render`, `CountAll`, `Groups`, `GroupsSeq`) include `(expires_at IS NULL OR expires_at > ?)` in their `WHERE` clause. Expired keys are excluded from results without being deleted.
+
+### 3. Background Purge Goroutine
+
+`New()` launches a goroutine that calls `PurgeExpired()` every 60 seconds. This recovers disk space by physically removing expired rows. The goroutine is stopped cleanly by `Close()` via `context.WithCancel` and `sync.WaitGroup`.
+
+`PurgeExpired()` is also available as a public method for applications that want manual control over purge timing.
+
+## String Splitting Helpers
+
+Two convenience methods build on `Get` to return iterators over parts of a stored value:
+
+- **`GetSplit(group, key, sep)`** splits the value by a custom separator, returning an `iter.Seq[string]` via `strings.SplitSeq`.
+- **`GetFields(group, key)`** splits the value by whitespace, returning an `iter.Seq[string]` via `strings.FieldsSeq`.
+
+Both return `ErrNotFound` if the key does not exist or has expired.
 
 ## Template Rendering
 
-`Render(tmplStr, group string)` is a convenience method that fetches all non-expired key-value pairs from a group and renders a Go `text/template` against them. The template data is a `map[string]string` keyed by the field name.
-
-Example:
+`Render(tmplStr, group)` is a convenience method that fetches all non-expired key-value pairs from a group and renders a Go `text/template` against them. The template data is a `map[string]string` keyed by the field name.
 
 ```go
 st.Set("miner", "pool", "pool.lthn.io:3333")
@@ -93,55 +109,13 @@ out, _ := st.Render(`{"pool":"{{ .pool }}","wallet":"{{ .wallet }}"}`, "miner")
 
 Template parse errors and execution errors are both returned as wrapped errors with context (e.g., `store.Render: parse: ...` and `store.Render: exec: ...`).
 
-Missing template variables do not return an error by default — Go's `text/template` renders them as `<no value>`. Applications requiring strict variable presence should set `Option("missingkey=error")` on their own template instances before calling `Render`, or validate data beforehand.
+Missing template variables do not return an error by default -- Go's `text/template` renders them as `<no value>`. Applications requiring strict variable presence should validate data beforehand.
 
-## Watch/Unwatch Pattern
+## Event System
 
-`Watch(group, key string) *Watcher` registers a subscription that receives events as they occur. Each `Watcher` holds a buffered channel (`Ch <-chan Event`) with capacity 16.
+go-store provides two mechanisms for observing mutations: channel-based watchers and synchronous callbacks. Both are defined in `events.go`.
 
-**Filter semantics:**
-
-| group argument | key argument | Receives |
-|---|---|---|
-| `"mygroup"` | `"mykey"` | Only mutations to that exact key |
-| `"mygroup"` | `"*"` | All mutations within the group, including `DeleteGroup` |
-| `"*"` | `"*"` | Every mutation across the entire store |
-
-`Unwatch(w *Watcher)` removes the watcher from the registry and closes its channel. It is safe to call multiple times — subsequent calls are no-ops.
-
-**Backpressure.** Event dispatch to a watcher channel is non-blocking: if the channel buffer is full, the event is dropped silently. This prevents a slow consumer from blocking a writer. Applications that cannot afford dropped events should drain the channel promptly or use `OnChange` callbacks instead.
-
-**Idiomatic usage:**
-
-```go
-w := st.Watch("config", "*")
-defer st.Unwatch(w)
-
-for e := range w.Ch {
-    fmt.Println(e.Type, e.Group, e.Key, e.Value)
-}
-```
-
-## OnChange Callbacks
-
-`OnChange(fn func(Event)) func()` registers a synchronous callback that fires on every mutation. The callback runs in the goroutine that performed the write, holding the watcher/callback read-lock. Callers must not call store methods from within a callback (deadlock risk) and should offload any significant work to a goroutine.
-
-`OnChange` returns an unregister function. Calling it removes the callback from the registry. The unregister function is idempotent.
-
-This is the designed integration point for go-ws:
-
-```go
-unreg := st.OnChange(func(e store.Event) {
-    hub.SendToChannel("store-events", e)
-})
-defer unreg()
-```
-
-go-store does not import go-ws. The dependency flows in one direction only: go-ws (or any consumer) imports go-store.
-
-## Event Model
-
-Events are defined in `events.go`:
+### Event Model
 
 ```go
 type Event struct {
@@ -159,7 +133,53 @@ type Event struct {
 | `EventDelete` | `"delete"` | Yes | No |
 | `EventDeleteGroup` | `"delete_group"` | No (empty) | No |
 
-Events are emitted synchronously after each successful database write inside `notify()`. `notify()` acquires a read-lock on `s.mu`, iterates watchers with non-blocking channel sends, then calls each registered callback. The read-lock allows multiple concurrent `notify()` calls to proceed simultaneously; `Watch`/`Unwatch`/`OnChange` take a write-lock when modifying the registry.
+Events are emitted synchronously after each successful database write inside the internal `notify()` method.
+
+### Watch/Unwatch
+
+`Watch(group, key)` creates a `Watcher` with a buffered channel (`Ch <-chan Event`, capacity 16).
+
+| group argument | key argument | Receives |
+|---|---|---|
+| `"mygroup"` | `"mykey"` | Only mutations to that exact key |
+| `"mygroup"` | `"*"` | All mutations within the group, including `DeleteGroup` |
+| `"*"` | `"*"` | Every mutation across the entire store |
+
+`Unwatch(w)` removes the watcher from the registry and closes its channel. It is safe to call multiple times; subsequent calls are no-ops.
+
+**Backpressure.** Event dispatch to a watcher channel is non-blocking: if the channel buffer is full, the event is dropped silently. This prevents a slow consumer from blocking a writer. Applications that cannot afford dropped events should drain the channel promptly or use `OnChange` callbacks instead.
+
+```go
+w := st.Watch("config", "*")
+defer st.Unwatch(w)
+
+for e := range w.Ch {
+    fmt.Println(e.Type, e.Group, e.Key, e.Value)
+}
+```
+
+### OnChange Callbacks
+
+`OnChange(fn func(Event))` registers a synchronous callback that fires on every mutation. The callback runs in the goroutine that performed the write. Returns an idempotent unregister function.
+
+This is the designed integration point for consumers such as go-ws:
+
+```go
+unreg := st.OnChange(func(e store.Event) {
+    hub.SendToChannel("store-events", e)
+})
+defer unreg()
+```
+
+go-store does not import go-ws. The dependency flows in one direction only: go-ws (or any consumer) imports go-store.
+
+**Important constraint.** `OnChange` callbacks execute while holding the watcher/callback read-lock (`s.mu`). Calling `Watch`, `Unwatch`, or `OnChange` from within a callback will deadlock, because those methods require a write-lock. Offload any significant work to a separate goroutine if needed.
+
+### Internal Dispatch
+
+The `notify(e Event)` method acquires a read-lock on `s.mu`, iterates all watchers with non-blocking channel sends, then calls each registered callback. The read-lock allows multiple concurrent `notify()` calls to proceed simultaneously. `Watch`/`Unwatch`/`OnChange` take a write-lock when modifying the registry.
+
+Watcher matching is handled by the `watcherMatches` helper, which checks the group and key filters against the event. Wildcard `"*"` matches any value in its position.
 
 ## Namespace Isolation (ScopedStore)
 
@@ -174,6 +194,8 @@ sc.Set("config", "theme", "dark")
 Namespace strings must match `^[a-zA-Z0-9-]+$`. Invalid namespaces are rejected at construction time.
 
 `ScopedStore` delegates all operations to the underlying `Store` after prefixing. Events emitted by scoped operations carry the full prefixed group name in `Event.Group`, enabling watchers on the underlying store to observe scoped mutations.
+
+`ScopedStore` exposes the same API surface as `Store` for: `Get`, `Set`, `SetWithTTL`, `Delete`, `DeleteGroup`, `GetAll`, `All`, `Count`, and `Render`. The `Namespace()` method returns the namespace string.
 
 ### Quota Enforcement
 
@@ -190,7 +212,7 @@ Zero values mean unlimited. Before each `Set` or `SetWithTTL`, the scoped store:
 
 1. Checks whether the key already exists (upserts never consume quota).
 2. If the key is new, queries `CountAll(namespace + ":")` and compares against `MaxKeys`.
-3. If the group is new (current count for that group is zero), queries `Groups(namespace + ":")` and compares against `MaxGroups`.
+3. If the group is new (current count for that group is zero), queries `GroupsSeq(namespace + ":")` and compares against `MaxGroups`.
 
 Exceeding a limit returns `ErrQuotaExceeded`.
 
@@ -207,12 +229,12 @@ All operations are safe to call from multiple goroutines concurrently. The race 
 ## File Layout
 
 ```
-store.go        Core Store type, CRUD operations, TTL, background purge
-events.go       EventType, Event, Watcher, OnChange, notify
-scope.go        ScopedStore, QuotaConfig
-store_test.go   Tests: CRUD, TTL, concurrency, edge cases, benchmarks
-events_test.go  Tests: Watch, Unwatch, OnChange, event dispatch
-scope_test.go   Tests: namespace isolation, quota enforcement
-coverage_test.go  Tests: error paths for defensive code (scan errors, corruption)
-bench_test.go   Additional benchmarks
+store.go          Core Store type, CRUD, TTL, background purge, iterators, rendering
+events.go         EventType, Event, Watcher, OnChange, notify
+scope.go          ScopedStore, QuotaConfig, quota enforcement
+store_test.go     Tests: CRUD, TTL, concurrency, edge cases, persistence
+events_test.go    Tests: Watch, Unwatch, OnChange, event dispatch
+scope_test.go     Tests: namespace isolation, quota enforcement
+coverage_test.go  Tests: defensive error paths (scan errors, corruption)
+bench_test.go     Performance benchmarks
 ```
