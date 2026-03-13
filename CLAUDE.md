@@ -1,18 +1,35 @@
 # CLAUDE.md
 
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
 ## What This Is
 
-SQLite key-value store wrapper with TTL support and namespace isolation. Module: `forge.lthn.ai/core/go-store`
+SQLite key-value store with TTL, namespace isolation, and reactive events. Pure Go (no CGO). Module: `forge.lthn.ai/core/go-store`
 
 ## Commands
 
 ```bash
-go test ./...              # Run all tests
-go test -v -run Name       # Run single test
-go test -race ./...        # Race detector
-go test -cover ./...       # Coverage (target: 95%+)
-go test -bench=. ./...     # Benchmarks
+go test ./...                        # Run all tests
+go test -v -run TestWatch_Good ./... # Run single test
+go test -race ./...                  # Race detector (must pass before commit)
+go test -cover ./...                 # Coverage (target: 95%+)
+go test -bench=. -benchmem ./...     # Benchmarks
+golangci-lint run ./...              # Lint (config in .golangci.yml)
+go vet ./...                         # Vet
 ```
+
+## Architecture
+
+**Single-connection SQLite.** `store.go` pins `MaxOpenConns(1)` because SQLite pragmas (WAL, busy_timeout) are per-connection — a pool would hand out unpragma'd connections causing SQLITE_BUSY. This is the most important architectural decision; don't change it.
+
+**Three-layer design:**
+- `store.go` — Core `Store` type: CRUD on a `(grp, key)` compound-PK table, TTL via `expires_at` (Unix ms), background purge goroutine (60s interval), `text/template` rendering, `iter.Seq2` iterators
+- `events.go` — Event system: `Watch`/`Unwatch` (buffered chan, cap 16, non-blocking sends drop events) and `OnChange` callbacks (synchronous in writer goroutine). `notify()` holds `s.mu` read-lock; **calling Watch/Unwatch/OnChange from inside a callback will deadlock** (they need write-lock)
+- `scope.go` — `ScopedStore` wraps `*Store`, prefixes groups with `namespace:`. Quota enforcement (`MaxKeys`/`MaxGroups`) checked before writes; upserts bypass quota. Namespace regex: `^[a-zA-Z0-9-]+$`
+
+**TTL enforcement is triple-layered:** lazy delete on `Get`, query-time `WHERE` filtering on bulk reads, and background purge goroutine.
+
+**LIKE queries use `escapeLike()`** with `^` as escape char to prevent SQL wildcard injection in `CountAll` and `Groups`/`GroupsSeq`.
 
 ## Key API
 
@@ -35,40 +52,47 @@ groups, _ := st.Groups("prefix:")   // distinct group names matching prefix
 // Namespace isolation (auto-prefixes groups with "tenant:")
 sc, _ := store.NewScoped(st, "tenant")
 sc.Set("config", "key", "val")     // stored as "tenant:config" in underlying store
-sc.Get("config", "key")            // reads from "tenant:config"
 
 // With quota enforcement
-quota := store.QuotaConfig{MaxKeys: 100, MaxGroups: 10}
-sq, _ := store.NewScopedWithQuota(st, "tenant", quota)
+sq, _ := store.NewScopedWithQuota(st, "tenant", store.QuotaConfig{MaxKeys: 100, MaxGroups: 10})
 sq.Set("g", "k", "v")             // returns ErrQuotaExceeded if limits hit
 
-// Event hooks — reactive notifications for store mutations
-w := st.Watch("group", "key")     // watch specific key (buffered chan, cap 16)
-w2 := st.Watch("group", "*")      // wildcard: all keys in group
-w3 := st.Watch("*", "*")          // wildcard: all mutations
+// Event hooks
+w := st.Watch("group", "*")       // wildcard: all keys in group ("*","*" for all)
 defer st.Unwatch(w)
+e := <-w.Ch                        // buffered chan, cap 16
 
-select {
-case e := <-w.Ch:
-    fmt.Println(e.Type, e.Group, e.Key, e.Value)
-}
-
-// Callback hook (synchronous, caller controls concurrency)
-unreg := st.OnChange(func(e store.Event) {
-    hub.SendToChannel("store-events", e) // go-ws integration point
-})
+unreg := st.OnChange(func(e store.Event) { /* synchronous in writer goroutine */ })
 defer unreg()
 ```
 
 ## Coding Standards
 
-- UK English
+- **UK English** in all code, comments, docs (colour, behaviour, serialise, organisation)
+- Error strings: `"store.Method: what failed"` — self-identifying without stack traces
 - `go test -race ./...` must pass before commit
 - Conventional commits: `type(scope): description`
 - Co-Author: `Co-Authored-By: Virgil <virgil@lethean.io>`
+- Only runtime dependency allowed: `modernc.org/sqlite`. No CGO. New deps must be pure Go with EUPL-1.2-compatible licence.
+
+## Test Conventions
+
+- Suffix convention: `_Good` (happy path), `_Bad` (expected errors), `_Ugly` (panics/edge)
+- Use `New(":memory:")` unless testing persistence; use `t.TempDir()` for file-backed
+- TTL tests: 1ms TTL + 5ms sleep; use `sync.WaitGroup` not sleeps for goroutine sync
+- `require` for preconditions, `assert` for verifications (`testify`)
+
+## Adding a New Method
+
+1. Implement on `*Store` in `store.go`
+2. If mutating, call `s.notify(Event{...})` after successful DB write
+3. Add delegation method on `ScopedStore` in `scope.go` (prefix the group)
+4. Update `checkQuota` in `scope.go` if it affects key/group counts
+5. Write `_Good`/`_Bad` tests
+6. Run `go test -race ./...` and `go vet ./...`
 
 ## Docs
 
-- `docs/architecture.md` — storage layer, group/key model, TTL, events, scoping
-- `docs/development.md` — prerequisites, test patterns, benchmarks, adding methods
-- `docs/history.md` — completed phases, known limitations, future considerations
+- `docs/architecture.md` — full internal design details
+- `docs/development.md` — test patterns, benchmarks, coding standards
+- `docs/history.md` — completed phases, known limitations
