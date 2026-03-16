@@ -6,6 +6,8 @@ import (
 	"iter"
 	"regexp"
 	"time"
+
+	coreerr "forge.lthn.ai/core/go-log"
 )
 
 // validNamespace matches alphanumeric characters and hyphens (non-empty).
@@ -31,7 +33,7 @@ type ScopedStore struct {
 // characters and hyphens.
 func NewScoped(store *Store, namespace string) (*ScopedStore, error) {
 	if !validNamespace.MatchString(namespace) {
-		return nil, fmt.Errorf("store.NewScoped: namespace %q is invalid (must be non-empty, alphanumeric + hyphens)", namespace)
+		return nil, coreerr.E("store.NewScoped", fmt.Sprintf("namespace %q is invalid (must be non-empty, alphanumeric + hyphens)", namespace), nil)
 	}
 	return &ScopedStore{store: store, namespace: namespace}, nil
 }
@@ -133,17 +135,17 @@ func (s *ScopedStore) checkQuota(group, key string) error {
 	}
 	if !errors.Is(err, ErrNotFound) {
 		// A database error occurred, not just a "not found" result.
-		return fmt.Errorf("store.ScopedStore: quota check: %w", err)
+		return coreerr.E("store.ScopedStore", "quota check", err)
 	}
 
 	// Check MaxKeys quota.
 	if s.quota.MaxKeys > 0 {
 		count, err := s.store.CountAll(nsPrefix)
 		if err != nil {
-			return fmt.Errorf("store.ScopedStore: quota check: %w", err)
+			return coreerr.E("store.ScopedStore", "quota check", err)
 		}
 		if count >= s.quota.MaxKeys {
-			return fmt.Errorf("store.ScopedStore: key limit (%d): %w", s.quota.MaxKeys, ErrQuotaExceeded)
+			return coreerr.E("store.ScopedStore", fmt.Sprintf("key limit (%d)", s.quota.MaxKeys), ErrQuotaExceeded)
 		}
 	}
 
@@ -151,19 +153,19 @@ func (s *ScopedStore) checkQuota(group, key string) error {
 	if s.quota.MaxGroups > 0 {
 		groupCount, err := s.store.Count(prefixedGroup)
 		if err != nil {
-			return fmt.Errorf("store.ScopedStore: quota check: %w", err)
+			return coreerr.E("store.ScopedStore", "quota check", err)
 		}
 		if groupCount == 0 {
 			// This group is new — check if adding it would exceed the group limit.
 			count := 0
 			for _, err := range s.store.GroupsSeq(nsPrefix) {
 				if err != nil {
-					return fmt.Errorf("store.ScopedStore: quota check: %w", err)
+					return coreerr.E("store.ScopedStore", "quota check", err)
 				}
 				count++
 			}
 			if count >= s.quota.MaxGroups {
-				return fmt.Errorf("store.ScopedStore: group limit (%d): %w", s.quota.MaxGroups, ErrQuotaExceeded)
+				return coreerr.E("store.ScopedStore", fmt.Sprintf("group limit (%d)", s.quota.MaxGroups), ErrQuotaExceeded)
 			}
 		}
 	}

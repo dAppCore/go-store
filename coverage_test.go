@@ -71,7 +71,7 @@ func TestGetAll_Bad_ScanError(t *testing.T) {
 
 	_, err = s.GetAll("g")
 	require.Error(t, err, "GetAll should fail when a row contains a NULL key")
-	assert.Contains(t, err.Error(), "store.GetAll: scan")
+	assert.Contains(t, err.Error(), "store.All: scan")
 }
 
 // ---------------------------------------------------------------------------
@@ -133,7 +133,7 @@ func TestGetAll_Bad_RowsError(t *testing.T) {
 
 	_, err = s2.GetAll("g")
 	require.Error(t, err, "GetAll should fail on corrupted database pages")
-	assert.Contains(t, err.Error(), "store.GetAll: rows")
+	assert.Contains(t, err.Error(), "store.All: rows")
 }
 
 // ---------------------------------------------------------------------------
@@ -166,7 +166,7 @@ func TestRender_Bad_ScanError(t *testing.T) {
 
 	_, err = s.Render("{{ .good }}", "g")
 	require.Error(t, err, "Render should fail when a row contains a NULL key")
-	assert.Contains(t, err.Error(), "store.Render: scan")
+	assert.Contains(t, err.Error(), "store.All: scan")
 }
 
 // ---------------------------------------------------------------------------
@@ -221,5 +221,5 @@ func TestRender_Bad_RowsError(t *testing.T) {
 
 	_, err = s2.Render("{{ . }}", "g")
 	require.Error(t, err, "Render should fail on corrupted database pages")
-	assert.Contains(t, err.Error(), "store.Render: rows")
+	assert.Contains(t, err.Error(), "store.All: rows")
 }

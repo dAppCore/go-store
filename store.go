@@ -3,22 +3,21 @@ package store
 import (
 	"context"
 	"database/sql"
-	"errors"
-	"fmt"
 	"iter"
 	"strings"
 	"sync"
 	"text/template"
 	"time"
 
+	coreerr "forge.lthn.ai/core/go-log"
 	_ "modernc.org/sqlite"
 )
 
 // ErrNotFound is returned when a key does not exist in the store.
-var ErrNotFound = errors.New("store: not found")
+var ErrNotFound = coreerr.E("store", "not found", nil)
 
 // ErrQuotaExceeded is returned when a namespace quota limit is reached.
-var ErrQuotaExceeded = errors.New("store: quota exceeded")
+var ErrQuotaExceeded = coreerr.E("store", "quota exceeded", nil)
 
 // Store is a group-namespaced key-value store backed by SQLite.
 type Store struct {
@@ -38,7 +37,7 @@ type Store struct {
 func New(dbPath string) (*Store, error) {
 	db, err := sql.Open("sqlite", dbPath)
 	if err != nil {
-		return nil, fmt.Errorf("store.New: %w", err)
+		return nil, coreerr.E("store.New", "open", err)
 	}
 	// Serialise all access through a single connection. SQLite only supports
 	// one writer at a time; using a pool causes SQLITE_BUSY under contention
@@ -47,11 +46,11 @@ func New(dbPath string) (*Store, error) {
 	db.SetMaxOpenConns(1)
 	if _, err := db.Exec("PRAGMA journal_mode=WAL"); err != nil {
 		db.Close()
-		return nil, fmt.Errorf("store.New: WAL: %w", err)
+		return nil, coreerr.E("store.New", "WAL", err)
 	}
 	if _, err := db.Exec("PRAGMA busy_timeout=5000"); err != nil {
 		db.Close()
-		return nil, fmt.Errorf("store.New: busy_timeout: %w", err)
+		return nil, coreerr.E("store.New", "busy_timeout", err)
 	}
 	if _, err := db.Exec(`CREATE TABLE IF NOT EXISTS kv (
 		grp        TEXT NOT NULL,
@@ -61,14 +60,14 @@ func New(dbPath string) (*Store, error) {
 		PRIMARY KEY (grp, key)
 	)`); err != nil {
 		db.Close()
-		return nil, fmt.Errorf("store.New: schema: %w", err)
+		return nil, coreerr.E("store.New", "schema", err)
 	}
 	// Ensure the expires_at column exists for databases created before TTL support.
 	if _, err := db.Exec("ALTER TABLE kv ADD COLUMN expires_at INTEGER"); err != nil {
 		// SQLite returns "duplicate column name" if it already exists.
 		if !strings.Contains(err.Error(), "duplicate column name") {
 			db.Close()
-			return nil, fmt.Errorf("store.New: migration: %w", err)
+			return nil, coreerr.E("store.New", "migration", err)
 		}
 	}
 
@@ -95,10 +94,10 @@ func (s *Store) Get(group, key string) (string, error) {
 		group, key,
 	).Scan(&val, &expiresAt)
 	if err == sql.ErrNoRows {
-		return "", fmt.Errorf("store.Get: %s/%s: %w", group, key, ErrNotFound)
+		return "", coreerr.E("store.Get", group+"/"+key, ErrNotFound)
 	}
 	if err != nil {
-		return "", fmt.Errorf("store.Get: %w", err)
+		return "", coreerr.E("store.Get", "query", err)
 	}
 	if expiresAt.Valid && expiresAt.Int64 <= time.Now().UnixMilli() {
 		// Lazily delete the expired entry.
@@ -107,7 +106,7 @@ func (s *Store) Get(group, key string) (string, error) {
 			// For now, we wrap the error to provide context if the delete fails
 			// for reasons other than "already deleted".
 		}
-		return "", fmt.Errorf("store.Get: %s/%s: %w", group, key, ErrNotFound)
+		return "", coreerr.E("store.Get", group+"/"+key, ErrNotFound)
 	}
 	return val, nil
 }
@@ -121,7 +120,7 @@ func (s *Store) Set(group, key, value string) error {
 		group, key, value,
 	)
 	if err != nil {
-		return fmt.Errorf("store.Set: %w", err)
+		return coreerr.E("store.Set", "exec", err)
 	}
 	s.notify(Event{Type: EventSet, Group: group, Key: key, Value: value, Timestamp: time.Now()})
 	return nil
@@ -138,7 +137,7 @@ func (s *Store) SetWithTTL(group, key, value string, ttl time.Duration) error {
 		group, key, value, expiresAt,
 	)
 	if err != nil {
-		return fmt.Errorf("store.SetWithTTL: %w", err)
+		return coreerr.E("store.SetWithTTL", "exec", err)
 	}
 	s.notify(Event{Type: EventSet, Group: group, Key: key, Value: value, Timestamp: time.Now()})
 	return nil
@@ -148,7 +147,7 @@ func (s *Store) SetWithTTL(group, key, value string, ttl time.Duration) error {
 func (s *Store) Delete(group, key string) error {
 	_, err := s.db.Exec("DELETE FROM kv WHERE grp = ? AND key = ?", group, key)
 	if err != nil {
-		return fmt.Errorf("store.Delete: %w", err)
+		return coreerr.E("store.Delete", "exec", err)
 	}
 	s.notify(Event{Type: EventDelete, Group: group, Key: key, Timestamp: time.Now()})
 	return nil
@@ -162,7 +161,7 @@ func (s *Store) Count(group string) (int, error) {
 		group, time.Now().UnixMilli(),
 	).Scan(&n)
 	if err != nil {
-		return 0, fmt.Errorf("store.Count: %w", err)
+		return 0, coreerr.E("store.Count", "query", err)
 	}
 	return n, nil
 }
@@ -171,7 +170,7 @@ func (s *Store) Count(group string) (int, error) {
 func (s *Store) DeleteGroup(group string) error {
 	_, err := s.db.Exec("DELETE FROM kv WHERE grp = ?", group)
 	if err != nil {
-		return fmt.Errorf("store.DeleteGroup: %w", err)
+		return coreerr.E("store.DeleteGroup", "exec", err)
 	}
 	s.notify(Event{Type: EventDeleteGroup, Group: group, Timestamp: time.Now()})
 	return nil
@@ -187,7 +186,7 @@ func (s *Store) GetAll(group string) (map[string]string, error) {
 	result := make(map[string]string)
 	for kv, err := range s.All(group) {
 		if err != nil {
-			return nil, fmt.Errorf("store.GetAll: %w", err)
+			return nil, coreerr.E("store.GetAll", "iterate", err)
 		}
 		result[kv.Key] = kv.Value
 	}
@@ -210,7 +209,7 @@ func (s *Store) All(group string) iter.Seq2[KV, error] {
 		for rows.Next() {
 			var kv KV
 			if err := rows.Scan(&kv.Key, &kv.Value); err != nil {
-				if !yield(KV{}, fmt.Errorf("scan: %w", err)) {
+				if !yield(KV{}, coreerr.E("store.All", "scan", err)) {
 					return
 				}
 				continue
@@ -220,7 +219,7 @@ func (s *Store) All(group string) iter.Seq2[KV, error] {
 			}
 		}
 		if err := rows.Err(); err != nil {
-			yield(KV{}, fmt.Errorf("rows: %w", err))
+			yield(KV{}, coreerr.E("store.All", "rows", err))
 		}
 	}
 }
@@ -251,18 +250,18 @@ func (s *Store) Render(tmplStr, group string) (string, error) {
 	vars := make(map[string]string)
 	for kv, err := range s.All(group) {
 		if err != nil {
-			return "", fmt.Errorf("store.Render: %w", err)
+			return "", coreerr.E("store.Render", "iterate", err)
 		}
 		vars[kv.Key] = kv.Value
 	}
 
 	tmpl, err := template.New("render").Parse(tmplStr)
 	if err != nil {
-		return "", fmt.Errorf("store.Render: parse: %w", err)
+		return "", coreerr.E("store.Render", "parse", err)
 	}
 	var b strings.Builder
 	if err := tmpl.Execute(&b, vars); err != nil {
-		return "", fmt.Errorf("store.Render: exec: %w", err)
+		return "", coreerr.E("store.Render", "exec", err)
 	}
 	return b.String(), nil
 }
@@ -284,7 +283,7 @@ func (s *Store) CountAll(prefix string) (int, error) {
 		).Scan(&n)
 	}
 	if err != nil {
-		return 0, fmt.Errorf("store.CountAll: %w", err)
+		return 0, coreerr.E("store.CountAll", "query", err)
 	}
 	return n, nil
 }
@@ -321,7 +320,7 @@ func (s *Store) GroupsSeq(prefix string) iter.Seq2[string, error] {
 			)
 		}
 		if err != nil {
-			yield("", fmt.Errorf("store.Groups: %w", err))
+			yield("", coreerr.E("store.Groups", "query", err))
 			return
 		}
 		defer rows.Close()
@@ -329,7 +328,7 @@ func (s *Store) GroupsSeq(prefix string) iter.Seq2[string, error] {
 		for rows.Next() {
 			var g string
 			if err := rows.Scan(&g); err != nil {
-				if !yield("", fmt.Errorf("store.Groups: scan: %w", err)) {
+				if !yield("", coreerr.E("store.Groups", "scan", err)) {
 					return
 				}
 				continue
@@ -339,7 +338,7 @@ func (s *Store) GroupsSeq(prefix string) iter.Seq2[string, error] {
 			}
 		}
 		if err := rows.Err(); err != nil {
-			yield("", fmt.Errorf("store.Groups: rows: %w", err))
+			yield("", coreerr.E("store.Groups", "rows", err))
 		}
 	}
 }
@@ -357,7 +356,7 @@ func (s *Store) PurgeExpired() (int64, error) {
 	res, err := s.db.Exec("DELETE FROM kv WHERE expires_at IS NOT NULL AND expires_at <= ?",
 		time.Now().UnixMilli())
 	if err != nil {
-		return 0, fmt.Errorf("store.PurgeExpired: %w", err)
+		return 0, coreerr.E("store.PurgeExpired", "exec", err)
 	}
 	return res.RowsAffected()
 }
