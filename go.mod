@@ -5,7 +5,7 @@ go 1.26.0
 require (
 	forge.lthn.ai/core/go-log v0.0.4
 	github.com/stretchr/testify v1.11.1
-	modernc.org/sqlite v1.46.1
+	modernc.org/sqlite v1.46.2
 )
 
 require (
