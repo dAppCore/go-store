@@ -6,6 +6,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 SQLite key-value store with TTL, namespace isolation, and reactive events. Pure Go (no CGO). Module: `forge.lthn.ai/core/go-store`
 
+## Getting Started
+
+Part of the Go workspace at `~/Code/go.work`—run `go work sync` after cloning. Single Go package with `store.go` (core) and `scope.go` (scoping/quota).
+
+```bash
+go test ./... -count=1
+```
+
 ## Commands
 
 ```bash
