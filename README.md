@@ -1,4 +1,4 @@
-[![Go Reference](https://pkg.go.dev/badge/forge.lthn.ai/core/go-store.svg)](https://pkg.go.dev/forge.lthn.ai/core/go-store)
+[![Go Reference](https://pkg.go.dev/badge/dappco.re/go/core/store.svg)](https://pkg.go.dev/dappco.re/go/core/store)
 [![License: EUPL-1.2](https://img.shields.io/badge/License-EUPL--1.2-blue.svg)](LICENSE.md)
 [![Go Version](https://img.shields.io/badge/Go-1.26-00ADD8?style=flat&logo=go)](go.mod)
 
@@ -6,14 +6,14 @@
 
 Group-namespaced SQLite key-value store with TTL expiry, namespace isolation, quota enforcement, and a reactive event system. Backed by a pure-Go SQLite driver (no CGO), uses WAL mode for concurrent reads, and enforces a single connection to ensure pragma consistency. Supports scoped stores for multi-tenant use, Watch/Unwatch subscriptions, and OnChange callbacks — the designed integration point for go-ws real-time streaming.
 
-**Module**: `forge.lthn.ai/core/go-store`
+**Module**: `dappco.re/go/core/store`
 **Licence**: EUPL-1.2
 **Language**: Go 1.25
 
 ## Quick Start
 
 ```go
-import "forge.lthn.ai/core/go-store"
+import "dappco.re/go/core/store"
 
 st, err := store.New("/path/to/store.db")  // or store.New(":memory:")
 defer st.Close()
