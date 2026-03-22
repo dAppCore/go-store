@@ -1,9 +1,9 @@
-module forge.lthn.ai/core/go-store
+module dappco.re/go/core/store
 
 go 1.26.0
 
 require (
-	forge.lthn.ai/core/go-log v0.0.4
+	dappco.re/go/core/log v0.1.0
 	github.com/stretchr/testify v1.11.1
 	modernc.org/sqlite v1.47.0
 )

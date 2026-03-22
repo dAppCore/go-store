@@ -7,7 +7,7 @@ import (
 	"regexp"
 	"time"
 
-	coreerr "forge.lthn.ai/core/go-log"
+	coreerr "dappco.re/go/core/log"
 )
 
 // validNamespace matches alphanumeric characters and hyphens (non-empty).
