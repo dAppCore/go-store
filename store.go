@@ -9,7 +9,7 @@ import (
 	"text/template"
 	"time"
 
-	coreerr "forge.lthn.ai/core/go-log"
+	coreerr "dappco.re/go/core/log"
 	_ "modernc.org/sqlite"
 )
 

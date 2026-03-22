@@ -9,7 +9,7 @@ description: Group-namespaced SQLite key-value store with TTL expiry, namespace 
 
 The package has a single runtime dependency -- a pure-Go SQLite driver (`modernc.org/sqlite`). No CGO is required. It compiles and runs on all platforms that Go supports.
 
-**Module path:** `forge.lthn.ai/core/go-store`
+**Module path:** `dappco.re/go/core/store`
 **Go version:** 1.26+
 **Licence:** EUPL-1.2
 
@@ -22,7 +22,7 @@ import (
     "fmt"
     "time"
 
-    "forge.lthn.ai/core/go-store"
+    "dappco.re/go/core/store"
 )
 
 func main() {
