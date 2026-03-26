@@ -13,7 +13,7 @@ import (
 // NewScoped — constructor validation
 // ---------------------------------------------------------------------------
 
-func TestNewScoped_Good(t *testing.T) {
+func TestScope_NewScoped_Good(t *testing.T) {
 	s, _ := New(":memory:")
 	defer s.Close()
 
@@ -23,7 +23,7 @@ func TestNewScoped_Good(t *testing.T) {
 	assert.Equal(t, "tenant-1", sc.Namespace())
 }
 
-func TestNewScoped_Good_AlphanumericHyphens(t *testing.T) {
+func TestScope_NewScoped_Good_AlphanumericHyphens(t *testing.T) {
 	s, _ := New(":memory:")
 	defer s.Close()
 
@@ -35,7 +35,7 @@ func TestNewScoped_Good_AlphanumericHyphens(t *testing.T) {
 	}
 }
 
-func TestNewScoped_Bad_Empty(t *testing.T) {
+func TestScope_NewScoped_Bad_Empty(t *testing.T) {
 	s, _ := New(":memory:")
 	defer s.Close()
 
@@ -44,7 +44,7 @@ func TestNewScoped_Bad_Empty(t *testing.T) {
 	assert.Contains(t, err.Error(), "invalid")
 }
 
-func TestNewScoped_Bad_InvalidChars(t *testing.T) {
+func TestScope_NewScoped_Bad_InvalidChars(t *testing.T) {
 	s, _ := New(":memory:")
 	defer s.Close()
 
@@ -59,7 +59,7 @@ func TestNewScoped_Bad_InvalidChars(t *testing.T) {
 // ScopedStore — basic CRUD
 // ---------------------------------------------------------------------------
 
-func TestScopedStore_Good_SetGet(t *testing.T) {
+func TestScope_ScopedStore_Good_SetGet(t *testing.T) {
 	s, _ := New(":memory:")
 	defer s.Close()
 
@@ -71,7 +71,7 @@ func TestScopedStore_Good_SetGet(t *testing.T) {
 	assert.Equal(t, "dark", val)
 }
 
-func TestScopedStore_Good_PrefixedInUnderlyingStore(t *testing.T) {
+func TestScope_ScopedStore_Good_PrefixedInUnderlyingStore(t *testing.T) {
 	s, _ := New(":memory:")
 	defer s.Close()
 
@@ -88,7 +88,7 @@ func TestScopedStore_Good_PrefixedInUnderlyingStore(t *testing.T) {
 	assert.True(t, core.Is(err, ErrNotFound))
 }
 
-func TestScopedStore_Good_NamespaceIsolation(t *testing.T) {
+func TestScope_ScopedStore_Good_NamespaceIsolation(t *testing.T) {
 	s, _ := New(":memory:")
 	defer s.Close()
 
@@ -107,7 +107,7 @@ func TestScopedStore_Good_NamespaceIsolation(t *testing.T) {
 	assert.Equal(t, "red", vb)
 }
 
-func TestScopedStore_Good_Delete(t *testing.T) {
+func TestScope_ScopedStore_Good_Delete(t *testing.T) {
 	s, _ := New(":memory:")
 	defer s.Close()
 
@@ -119,7 +119,7 @@ func TestScopedStore_Good_Delete(t *testing.T) {
 	assert.True(t, core.Is(err, ErrNotFound))
 }
 
-func TestScopedStore_Good_DeleteGroup(t *testing.T) {
+func TestScope_ScopedStore_Good_DeleteGroup(t *testing.T) {
 	s, _ := New(":memory:")
 	defer s.Close()
 
@@ -133,7 +133,7 @@ func TestScopedStore_Good_DeleteGroup(t *testing.T) {
 	assert.Equal(t, 0, n)
 }
 
-func TestScopedStore_Good_GetAll(t *testing.T) {
+func TestScope_ScopedStore_Good_GetAll(t *testing.T) {
 	s, _ := New(":memory:")
 	defer s.Close()
 
@@ -153,7 +153,7 @@ func TestScopedStore_Good_GetAll(t *testing.T) {
 	assert.Equal(t, map[string]string{"z": "3"}, allB)
 }
 
-func TestScopedStore_Good_Count(t *testing.T) {
+func TestScope_ScopedStore_Good_Count(t *testing.T) {
 	s, _ := New(":memory:")
 	defer s.Close()
 
@@ -166,7 +166,7 @@ func TestScopedStore_Good_Count(t *testing.T) {
 	assert.Equal(t, 2, n)
 }
 
-func TestScopedStore_Good_SetWithTTL(t *testing.T) {
+func TestScope_ScopedStore_Good_SetWithTTL(t *testing.T) {
 	s, _ := New(":memory:")
 	defer s.Close()
 
@@ -178,7 +178,7 @@ func TestScopedStore_Good_SetWithTTL(t *testing.T) {
 	assert.Equal(t, "v", val)
 }
 
-func TestScopedStore_Good_SetWithTTL_Expires(t *testing.T) {
+func TestScope_ScopedStore_Good_SetWithTTL_Expires(t *testing.T) {
 	s, _ := New(":memory:")
 	defer s.Close()
 
@@ -190,7 +190,7 @@ func TestScopedStore_Good_SetWithTTL_Expires(t *testing.T) {
 	assert.True(t, core.Is(err, ErrNotFound))
 }
 
-func TestScopedStore_Good_Render(t *testing.T) {
+func TestScope_ScopedStore_Good_Render(t *testing.T) {
 	s, _ := New(":memory:")
 	defer s.Close()
 
@@ -206,7 +206,7 @@ func TestScopedStore_Good_Render(t *testing.T) {
 // Quota enforcement — MaxKeys
 // ---------------------------------------------------------------------------
 
-func TestQuota_Good_MaxKeys(t *testing.T) {
+func TestScope_Quota_Good_MaxKeys(t *testing.T) {
 	s, _ := New(":memory:")
 	defer s.Close()
 
@@ -224,7 +224,7 @@ func TestQuota_Good_MaxKeys(t *testing.T) {
 	assert.True(t, core.Is(err, ErrQuotaExceeded), "expected ErrQuotaExceeded, got: %v", err)
 }
 
-func TestQuota_Good_MaxKeys_AcrossGroups(t *testing.T) {
+func TestScope_Quota_Good_MaxKeys_AcrossGroups(t *testing.T) {
 	s, _ := New(":memory:")
 	defer s.Close()
 
@@ -239,7 +239,7 @@ func TestQuota_Good_MaxKeys_AcrossGroups(t *testing.T) {
 	assert.True(t, core.Is(err, ErrQuotaExceeded))
 }
 
-func TestQuota_Good_UpsertDoesNotCount(t *testing.T) {
+func TestScope_Quota_Good_UpsertDoesNotCount(t *testing.T) {
 	s, _ := New(":memory:")
 	defer s.Close()
 
@@ -257,7 +257,7 @@ func TestQuota_Good_UpsertDoesNotCount(t *testing.T) {
 	assert.Equal(t, "updated", val)
 }
 
-func TestQuota_Good_DeleteAndReInsert(t *testing.T) {
+func TestScope_Quota_Good_DeleteAndReInsert(t *testing.T) {
 	s, _ := New(":memory:")
 	defer s.Close()
 
@@ -272,7 +272,7 @@ func TestQuota_Good_DeleteAndReInsert(t *testing.T) {
 	require.NoError(t, sc.Set("g", "d", "4"))
 }
 
-func TestQuota_Good_ZeroMeansUnlimited(t *testing.T) {
+func TestScope_Quota_Good_ZeroMeansUnlimited(t *testing.T) {
 	s, _ := New(":memory:")
 	defer s.Close()
 
@@ -284,7 +284,7 @@ func TestQuota_Good_ZeroMeansUnlimited(t *testing.T) {
 	}
 }
 
-func TestQuota_Good_ExpiredKeysExcluded(t *testing.T) {
+func TestScope_Quota_Good_ExpiredKeysExcluded(t *testing.T) {
 	s, _ := New(":memory:")
 	defer s.Close()
 
@@ -306,7 +306,7 @@ func TestQuota_Good_ExpiredKeysExcluded(t *testing.T) {
 	assert.True(t, core.Is(err, ErrQuotaExceeded))
 }
 
-func TestQuota_Good_SetWithTTL_Enforced(t *testing.T) {
+func TestScope_Quota_Good_SetWithTTL_Enforced(t *testing.T) {
 	s, _ := New(":memory:")
 	defer s.Close()
 
@@ -323,7 +323,7 @@ func TestQuota_Good_SetWithTTL_Enforced(t *testing.T) {
 // Quota enforcement — MaxGroups
 // ---------------------------------------------------------------------------
 
-func TestQuota_Good_MaxGroups(t *testing.T) {
+func TestScope_Quota_Good_MaxGroups(t *testing.T) {
 	s, _ := New(":memory:")
 	defer s.Close()
 
@@ -339,7 +339,7 @@ func TestQuota_Good_MaxGroups(t *testing.T) {
 	assert.True(t, core.Is(err, ErrQuotaExceeded))
 }
 
-func TestQuota_Good_MaxGroups_ExistingGroupOK(t *testing.T) {
+func TestScope_Quota_Good_MaxGroups_ExistingGroupOK(t *testing.T) {
 	s, _ := New(":memory:")
 	defer s.Close()
 
@@ -353,7 +353,7 @@ func TestQuota_Good_MaxGroups_ExistingGroupOK(t *testing.T) {
 	require.NoError(t, sc.Set("g2", "d", "4"))
 }
 
-func TestQuota_Good_MaxGroups_DeleteAndRecreate(t *testing.T) {
+func TestScope_Quota_Good_MaxGroups_DeleteAndRecreate(t *testing.T) {
 	s, _ := New(":memory:")
 	defer s.Close()
 
@@ -367,7 +367,7 @@ func TestQuota_Good_MaxGroups_DeleteAndRecreate(t *testing.T) {
 	require.NoError(t, sc.Set("g3", "k", "v"))
 }
 
-func TestQuota_Good_MaxGroups_ZeroUnlimited(t *testing.T) {
+func TestScope_Quota_Good_MaxGroups_ZeroUnlimited(t *testing.T) {
 	s, _ := New(":memory:")
 	defer s.Close()
 
@@ -378,7 +378,7 @@ func TestQuota_Good_MaxGroups_ZeroUnlimited(t *testing.T) {
 	}
 }
 
-func TestQuota_Good_MaxGroups_ExpiredGroupExcluded(t *testing.T) {
+func TestScope_Quota_Good_MaxGroups_ExpiredGroupExcluded(t *testing.T) {
 	s, _ := New(":memory:")
 	defer s.Close()
 
@@ -394,7 +394,7 @@ func TestQuota_Good_MaxGroups_ExpiredGroupExcluded(t *testing.T) {
 	require.NoError(t, sc.Set("g3", "k", "v"))
 }
 
-func TestQuota_Good_BothLimits(t *testing.T) {
+func TestScope_Quota_Good_BothLimits(t *testing.T) {
 	s, _ := New(":memory:")
 	defer s.Close()
 
@@ -411,7 +411,7 @@ func TestQuota_Good_BothLimits(t *testing.T) {
 	require.NoError(t, sc.Set("g1", "d", "4"))
 }
 
-func TestQuota_Good_DoesNotAffectOtherNamespaces(t *testing.T) {
+func TestScope_Quota_Good_DoesNotAffectOtherNamespaces(t *testing.T) {
 	s, _ := New(":memory:")
 	defer s.Close()
 
@@ -436,7 +436,7 @@ func TestQuota_Good_DoesNotAffectOtherNamespaces(t *testing.T) {
 // CountAll
 // ---------------------------------------------------------------------------
 
-func TestCountAll_Good_WithPrefix(t *testing.T) {
+func TestScope_CountAll_Good_WithPrefix(t *testing.T) {
 	s, _ := New(":memory:")
 	defer s.Close()
 
@@ -454,7 +454,7 @@ func TestCountAll_Good_WithPrefix(t *testing.T) {
 	assert.Equal(t, 1, n)
 }
 
-func TestCountAll_Good_WithPrefix_Wildcards(t *testing.T) {
+func TestScope_CountAll_Good_WithPrefix_Wildcards(t *testing.T) {
 	s, _ := New(":memory:")
 	defer s.Close()
 
@@ -478,7 +478,7 @@ func TestCountAll_Good_WithPrefix_Wildcards(t *testing.T) {
 	assert.Equal(t, 1, n)
 }
 
-func TestCountAll_Good_EmptyPrefix(t *testing.T) {
+func TestScope_CountAll_Good_EmptyPrefix(t *testing.T) {
 	s, _ := New(":memory:")
 	defer s.Close()
 
@@ -490,7 +490,7 @@ func TestCountAll_Good_EmptyPrefix(t *testing.T) {
 	assert.Equal(t, 2, n)
 }
 
-func TestCountAll_Good_ExcludesExpired(t *testing.T) {
+func TestScope_CountAll_Good_ExcludesExpired(t *testing.T) {
 	s, _ := New(":memory:")
 	defer s.Close()
 
@@ -503,7 +503,7 @@ func TestCountAll_Good_ExcludesExpired(t *testing.T) {
 	assert.Equal(t, 1, n, "expired keys should not be counted")
 }
 
-func TestCountAll_Good_Empty(t *testing.T) {
+func TestScope_CountAll_Good_Empty(t *testing.T) {
 	s, _ := New(":memory:")
 	defer s.Close()
 
@@ -512,7 +512,7 @@ func TestCountAll_Good_Empty(t *testing.T) {
 	assert.Equal(t, 0, n)
 }
 
-func TestCountAll_Bad_ClosedStore(t *testing.T) {
+func TestScope_CountAll_Bad_ClosedStore(t *testing.T) {
 	s, _ := New(":memory:")
 	s.Close()
 
@@ -524,7 +524,7 @@ func TestCountAll_Bad_ClosedStore(t *testing.T) {
 // Groups
 // ---------------------------------------------------------------------------
 
-func TestGroups_Good_WithPrefix(t *testing.T) {
+func TestScope_Groups_Good_WithPrefix(t *testing.T) {
 	s, _ := New(":memory:")
 	defer s.Close()
 
@@ -540,7 +540,7 @@ func TestGroups_Good_WithPrefix(t *testing.T) {
 	assert.Contains(t, groups, "ns-a:g2")
 }
 
-func TestGroups_Good_EmptyPrefix(t *testing.T) {
+func TestScope_Groups_Good_EmptyPrefix(t *testing.T) {
 	s, _ := New(":memory:")
 	defer s.Close()
 
@@ -553,7 +553,7 @@ func TestGroups_Good_EmptyPrefix(t *testing.T) {
 	assert.Len(t, groups, 3)
 }
 
-func TestGroups_Good_Distinct(t *testing.T) {
+func TestScope_Groups_Good_Distinct(t *testing.T) {
 	s, _ := New(":memory:")
 	defer s.Close()
 
@@ -568,7 +568,7 @@ func TestGroups_Good_Distinct(t *testing.T) {
 	assert.Equal(t, "g1", groups[0])
 }
 
-func TestGroups_Good_ExcludesExpired(t *testing.T) {
+func TestScope_Groups_Good_ExcludesExpired(t *testing.T) {
 	s, _ := New(":memory:")
 	defer s.Close()
 
@@ -582,7 +582,7 @@ func TestGroups_Good_ExcludesExpired(t *testing.T) {
 	assert.Equal(t, "ns:g1", groups[0])
 }
 
-func TestGroups_Good_Empty(t *testing.T) {
+func TestScope_Groups_Good_Empty(t *testing.T) {
 	s, _ := New(":memory:")
 	defer s.Close()
 
@@ -591,7 +591,7 @@ func TestGroups_Good_Empty(t *testing.T) {
 	assert.Empty(t, groups)
 }
 
-func TestGroups_Bad_ClosedStore(t *testing.T) {
+func TestScope_Groups_Bad_ClosedStore(t *testing.T) {
 	s, _ := New(":memory:")
 	s.Close()
 

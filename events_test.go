@@ -15,7 +15,7 @@ import (
 // Watch — specific key
 // ---------------------------------------------------------------------------
 
-func TestWatch_Good_SpecificKey(t *testing.T) {
+func TestEvents_Watch_Good_SpecificKey(t *testing.T) {
 	s, _ := New(":memory:")
 	defer s.Close()
 
@@ -50,7 +50,7 @@ func TestWatch_Good_SpecificKey(t *testing.T) {
 // Watch — wildcard key "*"
 // ---------------------------------------------------------------------------
 
-func TestWatch_Good_WildcardKey(t *testing.T) {
+func TestEvents_Watch_Good_WildcardKey(t *testing.T) {
 	s, _ := New(":memory:")
 	defer s.Close()
 
@@ -70,7 +70,7 @@ func TestWatch_Good_WildcardKey(t *testing.T) {
 // Watch — wildcard ("*", "*") matches everything
 // ---------------------------------------------------------------------------
 
-func TestWatch_Good_WildcardAll(t *testing.T) {
+func TestEvents_Watch_Good_WildcardAll(t *testing.T) {
 	s, _ := New(":memory:")
 	defer s.Close()
 
@@ -94,7 +94,7 @@ func TestWatch_Good_WildcardAll(t *testing.T) {
 // Unwatch — stops delivery, channel closed
 // ---------------------------------------------------------------------------
 
-func TestUnwatch_Good_StopsDelivery(t *testing.T) {
+func TestEvents_Unwatch_Good_StopsDelivery(t *testing.T) {
 	s, _ := New(":memory:")
 	defer s.Close()
 
@@ -109,7 +109,7 @@ func TestUnwatch_Good_StopsDelivery(t *testing.T) {
 	require.NoError(t, s.Set("g", "k", "v"))
 }
 
-func TestUnwatch_Good_Idempotent(t *testing.T) {
+func TestEvents_Unwatch_Good_Idempotent(t *testing.T) {
 	s, _ := New(":memory:")
 	defer s.Close()
 
@@ -124,7 +124,7 @@ func TestUnwatch_Good_Idempotent(t *testing.T) {
 // Delete triggers event
 // ---------------------------------------------------------------------------
 
-func TestWatch_Good_DeleteEvent(t *testing.T) {
+func TestEvents_Watch_Good_DeleteEvent(t *testing.T) {
 	s, _ := New(":memory:")
 	defer s.Close()
 
@@ -152,7 +152,7 @@ func TestWatch_Good_DeleteEvent(t *testing.T) {
 // DeleteGroup triggers event
 // ---------------------------------------------------------------------------
 
-func TestWatch_Good_DeleteGroupEvent(t *testing.T) {
+func TestEvents_Watch_Good_DeleteGroupEvent(t *testing.T) {
 	s, _ := New(":memory:")
 	defer s.Close()
 
@@ -182,7 +182,7 @@ func TestWatch_Good_DeleteGroupEvent(t *testing.T) {
 // OnChange — callback fires on mutations
 // ---------------------------------------------------------------------------
 
-func TestOnChange_Good_Fires(t *testing.T) {
+func TestEvents_OnChange_Good_Fires(t *testing.T) {
 	s, _ := New(":memory:")
 	defer s.Close()
 
@@ -210,7 +210,7 @@ func TestOnChange_Good_Fires(t *testing.T) {
 // OnChange — unregister stops callback
 // ---------------------------------------------------------------------------
 
-func TestOnChange_Good_Unregister(t *testing.T) {
+func TestEvents_OnChange_Good_Unregister(t *testing.T) {
 	s, _ := New(":memory:")
 	defer s.Close()
 
@@ -236,7 +236,7 @@ func TestOnChange_Good_Unregister(t *testing.T) {
 // Buffer-full doesn't block the writer
 // ---------------------------------------------------------------------------
 
-func TestWatch_Good_BufferFullDoesNotBlock(t *testing.T) {
+func TestEvents_Watch_Good_BufferFullDoesNotBlock(t *testing.T) {
 	s, _ := New(":memory:")
 	defer s.Close()
 
@@ -275,7 +275,7 @@ func TestWatch_Good_BufferFullDoesNotBlock(t *testing.T) {
 // Multiple watchers on same key
 // ---------------------------------------------------------------------------
 
-func TestWatch_Good_MultipleWatchersSameKey(t *testing.T) {
+func TestEvents_Watch_Good_MultipleWatchersSameKey(t *testing.T) {
 	s, _ := New(":memory:")
 	defer s.Close()
 
@@ -306,7 +306,7 @@ func TestWatch_Good_MultipleWatchersSameKey(t *testing.T) {
 // Concurrent Watch/Unwatch during writes (race test)
 // ---------------------------------------------------------------------------
 
-func TestWatch_Good_ConcurrentWatchUnwatch(t *testing.T) {
+func TestEvents_Watch_Good_ConcurrentWatchUnwatch(t *testing.T) {
 	s, _ := New(":memory:")
 	defer s.Close()
 
@@ -347,7 +347,7 @@ func TestWatch_Good_ConcurrentWatchUnwatch(t *testing.T) {
 // ScopedStore events — prefixed group name
 // ---------------------------------------------------------------------------
 
-func TestWatch_Good_ScopedStoreEvents(t *testing.T) {
+func TestEvents_Watch_Good_ScopedStoreEvents(t *testing.T) {
 	s, _ := New(":memory:")
 	defer s.Close()
 
@@ -375,7 +375,7 @@ func TestWatch_Good_ScopedStoreEvents(t *testing.T) {
 // EventType.String()
 // ---------------------------------------------------------------------------
 
-func TestEventType_Good_String(t *testing.T) {
+func TestEvents_EventType_Good_String(t *testing.T) {
 	assert.Equal(t, "set", EventSet.String())
 	assert.Equal(t, "delete", EventDelete.String())
 	assert.Equal(t, "delete_group", EventDeleteGroup.String())
@@ -386,7 +386,7 @@ func TestEventType_Good_String(t *testing.T) {
 // SetWithTTL emits events
 // ---------------------------------------------------------------------------
 
-func TestWatch_Good_SetWithTTLEmitsEvent(t *testing.T) {
+func TestEvents_Watch_Good_SetWithTTLEmitsEvent(t *testing.T) {
 	s, _ := New(":memory:")
 	defer s.Close()
 

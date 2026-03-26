@@ -8,18 +8,23 @@ import (
 )
 
 // EventType describes the kind of store mutation that occurred.
+// Usage example: `if event.Type == store.EventSet { return }`
 type EventType int
 
 const (
 	// EventSet indicates a key was created or updated.
+	// Usage example: `if event.Type == store.EventSet { return }`
 	EventSet EventType = iota
 	// EventDelete indicates a single key was removed.
+	// Usage example: `if event.Type == store.EventDelete { return }`
 	EventDelete
 	// EventDeleteGroup indicates all keys in a group were removed.
+	// Usage example: `if event.Type == store.EventDeleteGroup { return }`
 	EventDeleteGroup
 )
 
 // String returns a human-readable label for the event type.
+// Usage example: `label := store.EventSet.String()`
 func (t EventType) String() string {
 	switch t {
 	case EventSet:
@@ -35,6 +40,7 @@ func (t EventType) String() string {
 
 // Event describes a single store mutation. Key is empty for EventDeleteGroup.
 // Value is only populated for EventSet.
+// Usage example: `func handle(e store.Event) { _ = e.Group }`
 type Event struct {
 	Type      EventType
 	Group     string
@@ -45,6 +51,7 @@ type Event struct {
 
 // Watcher receives events matching a group/key filter. Use Store.Watch to
 // create one and Store.Unwatch to stop delivery.
+// Usage example: `watcher := st.Watch("config", "*")`
 type Watcher struct {
 	// Ch is the public read-only channel that consumers select on.
 	Ch <-chan Event
@@ -70,6 +77,7 @@ const watcherBufSize = 16
 // key. Use "*" as a wildcard: ("mygroup", "*") matches all keys in that group,
 // ("*", "*") matches every mutation. The returned Watcher has a buffered
 // channel (cap 16); events are dropped if the consumer falls behind.
+// Usage example: `watcher := st.Watch("config", "*")`
 func (s *Store) Watch(group, key string) *Watcher {
 	ch := make(chan Event, watcherBufSize)
 	w := &Watcher{
@@ -89,6 +97,7 @@ func (s *Store) Watch(group, key string) *Watcher {
 
 // Unwatch removes a watcher and closes its channel. Safe to call multiple
 // times; subsequent calls are no-ops.
+// Usage example: `st.Unwatch(watcher)`
 func (s *Store) Unwatch(w *Watcher) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -106,6 +115,7 @@ func (s *Store) Unwatch(w *Watcher) {
 // are called synchronously in the goroutine that performed the write, so the
 // caller controls concurrency. Returns an unregister function; calling it stops
 // future invocations.
+// Usage example: `unreg := st.OnChange(func(e store.Event) {})`
 //
 // This is the integration point for go-ws and similar consumers:
 //

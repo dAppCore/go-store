@@ -19,9 +19,9 @@ The package has a single runtime dependency -- a pure-Go SQLite driver (`modernc
 package main
 
 import (
-    "fmt"
     "time"
 
+    "dappco.re/go/core"
     "dappco.re/go/core/store"
 )
 
@@ -36,20 +36,20 @@ func main() {
     // Basic CRUD
     st.Set("config", "theme", "dark")
     val, _ := st.Get("config", "theme")
-    fmt.Println(val) // "dark"
+    core.Println(val) // "dark"
 
     // TTL expiry -- key disappears after the duration elapses
     st.SetWithTTL("session", "token", "abc123", 24*time.Hour)
 
     // Fetch all keys in a group
     all, _ := st.GetAll("config")
-    fmt.Println(all) // map[theme:dark]
+    core.Println(all) // map[theme:dark]
 
     // Template rendering from stored values
     st.Set("mail", "host", "smtp.example.com")
     st.Set("mail", "port", "587")
     out, _ := st.Render(`{{ .host }}:{{ .port }}`, "mail")
-    fmt.Println(out) // "smtp.example.com:587"
+    core.Println(out) // "smtp.example.com:587"
 
     // Namespace isolation for multi-tenant use
     sc, _ := store.NewScoped(st, "tenant-42")
@@ -66,13 +66,13 @@ func main() {
     defer st.Unwatch(w)
     go func() {
         for e := range w.Ch {
-            fmt.Printf("event: %s %s/%s\n", e.Type, e.Group, e.Key)
+            core.Println("event", e.Type, e.Group, e.Key)
         }
     }()
 
     // Or register a synchronous callback
     unreg := st.OnChange(func(e store.Event) {
-        fmt.Printf("changed: %s\n", e.Key)
+        core.Println("changed", e.Key)
     })
     defer unreg()
 }
@@ -112,7 +112,7 @@ Tests are organised in corresponding files:
 |--------|---------|
 | `github.com/stretchr/testify` | Assertion helpers (`assert`, `require`) for tests. |
 
-There are no other direct dependencies. The package uses only the Go standard library (`database/sql`, `context`, `sync`, `time`, `text/template`, `iter`, `errors`, `fmt`, `strings`, `regexp`, `slices`, `sync/atomic`) beyond the SQLite driver.
+There are no other direct dependencies. The package uses the Go standard library plus `dappco.re/go/core` helper primitives for error wrapping, string handling, and filesystem-safe path composition.
 
 ## Key Types
 

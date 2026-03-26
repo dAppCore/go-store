@@ -18,7 +18,7 @@ go test ./... -count=1
 
 ```bash
 go test ./...                        # Run all tests
-go test -v -run TestWatch_Good ./... # Run single test
+go test -v -run TestEvents_Watch_Good_SpecificKey ./... # Run single test
 go test -race ./...                  # Race detector (must pass before commit)
 go test -cover ./...                 # Coverage (target: 95%+)
 go test -bench=. -benchmem ./...     # Benchmarks
@@ -85,7 +85,7 @@ defer unreg()
 
 ## Test Conventions
 
-- Suffix convention: `_Good` (happy path), `_Bad` (expected errors), `_Ugly` (panics/edge)
+- Test names follow `Test<File>_<Function>_<Good|Bad|Ugly>`, for example `TestEvents_Watch_Good_SpecificKey`
 - Use `New(":memory:")` unless testing persistence; use `t.TempDir()` for file-backed
 - TTL tests: 1ms TTL + 5ms sleep; use `sync.WaitGroup` not sleeps for goroutine sync
 - `require` for preconditions, `assert` for verifications (`testify`)
@@ -96,7 +96,7 @@ defer unreg()
 2. If mutating, call `s.notify(Event{...})` after successful DB write
 3. Add delegation method on `ScopedStore` in `scope.go` (prefix the group)
 4. Update `checkQuota` in `scope.go` if it affects key/group counts
-5. Write `_Good`/`_Bad` tests
+5. Write `Test<File>_<Function>_<Good|Bad|Ugly>` tests
 6. Run `go test -race ./...` and `go vet ./...`
 
 ## Docs

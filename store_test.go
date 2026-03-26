@@ -3,9 +3,8 @@ package store
 import (
 	"context"
 	"database/sql"
-	"os"
-	"strings"
 	"sync"
+	"syscall"
 	"testing"
 	"time"
 
@@ -18,15 +17,15 @@ import (
 // New
 // ---------------------------------------------------------------------------
 
-func TestNew_Good_Memory(t *testing.T) {
+func TestStore_New_Good_Memory(t *testing.T) {
 	s, err := New(":memory:")
 	require.NoError(t, err)
 	require.NotNil(t, s)
 	defer s.Close()
 }
 
-func TestNew_Good_FileBacked(t *testing.T) {
-	dbPath := core.JoinPath(t.TempDir(), "test.db")
+func TestStore_New_Good_FileBacked(t *testing.T) {
+	dbPath := testPath(t, "test.db")
 	s, err := New(dbPath)
 	require.NoError(t, err)
 	require.NotNil(t, s)
@@ -45,7 +44,7 @@ func TestNew_Good_FileBacked(t *testing.T) {
 	assert.Equal(t, "v", val)
 }
 
-func TestNew_Bad_InvalidPath(t *testing.T) {
+func TestStore_New_Bad_InvalidPath(t *testing.T) {
 	// A path under a non-existent directory should fail at the WAL pragma step
 	// because sql.Open is lazy and only validates on first use.
 	_, err := New("/no/such/directory/test.db")
@@ -53,21 +52,20 @@ func TestNew_Bad_InvalidPath(t *testing.T) {
 	assert.Contains(t, err.Error(), "store.New")
 }
 
-func TestNew_Bad_CorruptFile(t *testing.T) {
+func TestStore_New_Bad_CorruptFile(t *testing.T) {
 	// A file that exists but is not a valid SQLite database should fail.
-	dir := t.TempDir()
-	dbPath := core.JoinPath(dir, "corrupt.db")
-	require.NoError(t, os.WriteFile(dbPath, []byte("not a sqlite database"), 0644))
+	dbPath := testPath(t, "corrupt.db")
+	requireCoreOK(t, testFS().Write(dbPath, "not a sqlite database"))
 
 	_, err := New(dbPath)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "store.New")
 }
 
-func TestNew_Bad_ReadOnlyDir(t *testing.T) {
+func TestStore_New_Bad_ReadOnlyDir(t *testing.T) {
 	// A path in a read-only directory should fail when SQLite tries to create the WAL file.
 	dir := t.TempDir()
-	dbPath := core.JoinPath(dir, "readonly.db")
+	dbPath := core.Path(dir, "readonly.db")
 
 	// Create a valid DB first, then make the directory read-only.
 	s, err := New(dbPath)
@@ -75,10 +73,10 @@ func TestNew_Bad_ReadOnlyDir(t *testing.T) {
 	require.NoError(t, s.Close())
 
 	// Remove WAL/SHM files and make directory read-only.
-	os.Remove(dbPath + "-wal")
-	os.Remove(dbPath + "-shm")
-	require.NoError(t, os.Chmod(dir, 0555))
-	defer os.Chmod(dir, 0755) // restore for cleanup
+	_ = testFS().Delete(dbPath + "-wal")
+	_ = testFS().Delete(dbPath + "-shm")
+	require.NoError(t, syscall.Chmod(dir, 0555))
+	defer func() { _ = syscall.Chmod(dir, 0755) }() // restore for cleanup
 
 	_, err = New(dbPath)
 	// May or may not fail depending on OS/filesystem — just exercise the code path.
@@ -87,8 +85,8 @@ func TestNew_Bad_ReadOnlyDir(t *testing.T) {
 	}
 }
 
-func TestNew_Good_WALMode(t *testing.T) {
-	dbPath := core.JoinPath(t.TempDir(), "wal.db")
+func TestStore_New_Good_WALMode(t *testing.T) {
+	dbPath := testPath(t, "wal.db")
 	s, err := New(dbPath)
 	require.NoError(t, err)
 	defer s.Close()
@@ -103,7 +101,7 @@ func TestNew_Good_WALMode(t *testing.T) {
 // Set / Get — core CRUD
 // ---------------------------------------------------------------------------
 
-func TestSetGet_Good(t *testing.T) {
+func TestStore_SetGet_Good(t *testing.T) {
 	s, err := New(":memory:")
 	require.NoError(t, err)
 	defer s.Close()
@@ -116,7 +114,7 @@ func TestSetGet_Good(t *testing.T) {
 	assert.Equal(t, "dark", val)
 }
 
-func TestSet_Good_Upsert(t *testing.T) {
+func TestStore_Set_Good_Upsert(t *testing.T) {
 	s, _ := New(":memory:")
 	defer s.Close()
 
@@ -132,7 +130,7 @@ func TestSet_Good_Upsert(t *testing.T) {
 	assert.Equal(t, 1, n, "upsert should not duplicate keys")
 }
 
-func TestGet_Bad_NotFound(t *testing.T) {
+func TestStore_Get_Bad_NotFound(t *testing.T) {
 	s, _ := New(":memory:")
 	defer s.Close()
 
@@ -141,7 +139,7 @@ func TestGet_Bad_NotFound(t *testing.T) {
 	assert.True(t, core.Is(err, ErrNotFound), "should wrap ErrNotFound")
 }
 
-func TestGet_Bad_NonExistentGroup(t *testing.T) {
+func TestStore_Get_Bad_NonExistentGroup(t *testing.T) {
 	s, _ := New(":memory:")
 	defer s.Close()
 
@@ -150,7 +148,7 @@ func TestGet_Bad_NonExistentGroup(t *testing.T) {
 	assert.True(t, core.Is(err, ErrNotFound))
 }
 
-func TestGet_Bad_ClosedStore(t *testing.T) {
+func TestStore_Get_Bad_ClosedStore(t *testing.T) {
 	s, _ := New(":memory:")
 	s.Close()
 
@@ -158,7 +156,7 @@ func TestGet_Bad_ClosedStore(t *testing.T) {
 	require.Error(t, err)
 }
 
-func TestSet_Bad_ClosedStore(t *testing.T) {
+func TestStore_Set_Bad_ClosedStore(t *testing.T) {
 	s, _ := New(":memory:")
 	s.Close()
 
@@ -170,7 +168,7 @@ func TestSet_Bad_ClosedStore(t *testing.T) {
 // Delete
 // ---------------------------------------------------------------------------
 
-func TestDelete_Good(t *testing.T) {
+func TestStore_Delete_Good(t *testing.T) {
 	s, _ := New(":memory:")
 	defer s.Close()
 
@@ -182,7 +180,7 @@ func TestDelete_Good(t *testing.T) {
 	assert.Error(t, err)
 }
 
-func TestDelete_Good_NonExistent(t *testing.T) {
+func TestStore_Delete_Good_NonExistent(t *testing.T) {
 	// Deleting a key that does not exist should not error.
 	s, _ := New(":memory:")
 	defer s.Close()
@@ -191,7 +189,7 @@ func TestDelete_Good_NonExistent(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-func TestDelete_Bad_ClosedStore(t *testing.T) {
+func TestStore_Delete_Bad_ClosedStore(t *testing.T) {
 	s, _ := New(":memory:")
 	s.Close()
 
@@ -203,7 +201,7 @@ func TestDelete_Bad_ClosedStore(t *testing.T) {
 // Count
 // ---------------------------------------------------------------------------
 
-func TestCount_Good(t *testing.T) {
+func TestStore_Count_Good(t *testing.T) {
 	s, _ := New(":memory:")
 	defer s.Close()
 
@@ -216,7 +214,7 @@ func TestCount_Good(t *testing.T) {
 	assert.Equal(t, 2, n)
 }
 
-func TestCount_Good_Empty(t *testing.T) {
+func TestStore_Count_Good_Empty(t *testing.T) {
 	s, _ := New(":memory:")
 	defer s.Close()
 
@@ -225,7 +223,7 @@ func TestCount_Good_Empty(t *testing.T) {
 	assert.Equal(t, 0, n)
 }
 
-func TestCount_Good_BulkInsert(t *testing.T) {
+func TestStore_Count_Good_BulkInsert(t *testing.T) {
 	s, _ := New(":memory:")
 	defer s.Close()
 
@@ -238,7 +236,7 @@ func TestCount_Good_BulkInsert(t *testing.T) {
 	assert.Equal(t, total, n)
 }
 
-func TestCount_Bad_ClosedStore(t *testing.T) {
+func TestStore_Count_Bad_ClosedStore(t *testing.T) {
 	s, _ := New(":memory:")
 	s.Close()
 
@@ -250,7 +248,7 @@ func TestCount_Bad_ClosedStore(t *testing.T) {
 // DeleteGroup
 // ---------------------------------------------------------------------------
 
-func TestDeleteGroup_Good(t *testing.T) {
+func TestStore_DeleteGroup_Good(t *testing.T) {
 	s, _ := New(":memory:")
 	defer s.Close()
 
@@ -263,7 +261,7 @@ func TestDeleteGroup_Good(t *testing.T) {
 	assert.Equal(t, 0, n)
 }
 
-func TestDeleteGroup_Good_ThenGetAllEmpty(t *testing.T) {
+func TestStore_DeleteGroup_Good_ThenGetAllEmpty(t *testing.T) {
 	s, _ := New(":memory:")
 	defer s.Close()
 
@@ -276,7 +274,7 @@ func TestDeleteGroup_Good_ThenGetAllEmpty(t *testing.T) {
 	assert.Empty(t, all)
 }
 
-func TestDeleteGroup_Good_IsolatesOtherGroups(t *testing.T) {
+func TestStore_DeleteGroup_Good_IsolatesOtherGroups(t *testing.T) {
 	s, _ := New(":memory:")
 	defer s.Close()
 
@@ -292,7 +290,7 @@ func TestDeleteGroup_Good_IsolatesOtherGroups(t *testing.T) {
 	assert.Equal(t, "2", val, "other group should be untouched")
 }
 
-func TestDeleteGroup_Bad_ClosedStore(t *testing.T) {
+func TestStore_DeleteGroup_Bad_ClosedStore(t *testing.T) {
 	s, _ := New(":memory:")
 	s.Close()
 
@@ -304,7 +302,7 @@ func TestDeleteGroup_Bad_ClosedStore(t *testing.T) {
 // GetAll
 // ---------------------------------------------------------------------------
 
-func TestGetAll_Good(t *testing.T) {
+func TestStore_GetAll_Good(t *testing.T) {
 	s, _ := New(":memory:")
 	defer s.Close()
 
@@ -317,7 +315,7 @@ func TestGetAll_Good(t *testing.T) {
 	assert.Equal(t, map[string]string{"a": "1", "b": "2"}, all)
 }
 
-func TestGetAll_Good_Empty(t *testing.T) {
+func TestStore_GetAll_Good_Empty(t *testing.T) {
 	s, _ := New(":memory:")
 	defer s.Close()
 
@@ -326,7 +324,7 @@ func TestGetAll_Good_Empty(t *testing.T) {
 	assert.Empty(t, all)
 }
 
-func TestGetAll_Bad_ClosedStore(t *testing.T) {
+func TestStore_GetAll_Bad_ClosedStore(t *testing.T) {
 	s, _ := New(":memory:")
 	s.Close()
 
@@ -338,7 +336,7 @@ func TestGetAll_Bad_ClosedStore(t *testing.T) {
 // Render
 // ---------------------------------------------------------------------------
 
-func TestRender_Good(t *testing.T) {
+func TestStore_Render_Good(t *testing.T) {
 	s, _ := New(":memory:")
 	defer s.Close()
 
@@ -352,7 +350,7 @@ func TestRender_Good(t *testing.T) {
 	assert.Contains(t, out, "iz...")
 }
 
-func TestRender_Good_EmptyGroup(t *testing.T) {
+func TestStore_Render_Good_EmptyGroup(t *testing.T) {
 	s, _ := New(":memory:")
 	defer s.Close()
 
@@ -362,7 +360,7 @@ func TestRender_Good_EmptyGroup(t *testing.T) {
 	assert.Equal(t, "static content", out)
 }
 
-func TestRender_Bad_InvalidTemplateSyntax(t *testing.T) {
+func TestStore_Render_Bad_InvalidTemplateSyntax(t *testing.T) {
 	s, _ := New(":memory:")
 	defer s.Close()
 
@@ -371,7 +369,7 @@ func TestRender_Bad_InvalidTemplateSyntax(t *testing.T) {
 	assert.Contains(t, err.Error(), "store.Render: parse")
 }
 
-func TestRender_Bad_MissingTemplateVar(t *testing.T) {
+func TestStore_Render_Bad_MissingTemplateVar(t *testing.T) {
 	s, _ := New(":memory:")
 	defer s.Close()
 
@@ -382,7 +380,7 @@ func TestRender_Bad_MissingTemplateVar(t *testing.T) {
 	assert.Contains(t, out, "hello")
 }
 
-func TestRender_Bad_ExecError(t *testing.T) {
+func TestStore_Render_Bad_ExecError(t *testing.T) {
 	s, _ := New(":memory:")
 	defer s.Close()
 
@@ -394,7 +392,7 @@ func TestRender_Bad_ExecError(t *testing.T) {
 	assert.Contains(t, err.Error(), "store.Render: exec")
 }
 
-func TestRender_Bad_ClosedStore(t *testing.T) {
+func TestStore_Render_Bad_ClosedStore(t *testing.T) {
 	s, _ := New(":memory:")
 	s.Close()
 
@@ -406,13 +404,13 @@ func TestRender_Bad_ClosedStore(t *testing.T) {
 // Close
 // ---------------------------------------------------------------------------
 
-func TestClose_Good(t *testing.T) {
+func TestStore_Close_Good(t *testing.T) {
 	s, _ := New(":memory:")
 	err := s.Close()
 	require.NoError(t, err)
 }
 
-func TestClose_Good_OperationsFailAfterClose(t *testing.T) {
+func TestStore_Close_Good_OperationsFailAfterClose(t *testing.T) {
 	s, _ := New(":memory:")
 	require.NoError(t, s.Close())
 
@@ -443,7 +441,7 @@ func TestClose_Good_OperationsFailAfterClose(t *testing.T) {
 // Edge cases
 // ---------------------------------------------------------------------------
 
-func TestSetGet_Good_EdgeCases(t *testing.T) {
+func TestStore_SetGet_Good_EdgeCases(t *testing.T) {
 	s, _ := New(":memory:")
 	defer s.Close()
 
@@ -468,9 +466,9 @@ func TestSetGet_Good_EdgeCases(t *testing.T) {
 		{"special SQL chars", "g", "'; DROP TABLE kv;--", "val"},
 		{"backslash", "g", "back\\slash", "val\\ue"},
 		{"percent", "g", "100%", "50%"},
-		{"long key", "g", strings.Repeat("k", 10000), "val"},
-		{"long value", "g", "longval", strings.Repeat("v", 100000)},
-		{"long group", strings.Repeat("g", 10000), "k", "val"},
+		{"long key", "g", repeatString("k", 10000), "val"},
+		{"long value", "g", "longval", repeatString("v", 100000)},
+		{"long group", repeatString("g", 10000), "k", "val"},
 	}
 
 	for _, tc := range tests {
@@ -489,7 +487,7 @@ func TestSetGet_Good_EdgeCases(t *testing.T) {
 // Group isolation
 // ---------------------------------------------------------------------------
 
-func TestStore_Good_GroupIsolation(t *testing.T) {
+func TestStore_GroupIsolation_Good(t *testing.T) {
 	s, _ := New(":memory:")
 	defer s.Close()
 
@@ -518,8 +516,8 @@ func TestStore_Good_GroupIsolation(t *testing.T) {
 // Concurrent access
 // ---------------------------------------------------------------------------
 
-func TestConcurrent_Good_ReadWrite(t *testing.T) {
-	dbPath := core.JoinPath(t.TempDir(), "concurrent.db")
+func TestStore_Concurrent_Good_ReadWrite(t *testing.T) {
+	dbPath := testPath(t, "concurrent.db")
 	s, err := New(dbPath)
 	require.NoError(t, err)
 	defer s.Close()
@@ -540,7 +538,7 @@ func TestConcurrent_Good_ReadWrite(t *testing.T) {
 				key := core.Sprintf("key-%d", i)
 				val := core.Sprintf("val-%d-%d", id, i)
 				if err := s.Set(group, key, val); err != nil {
-					errs <- core.Wrap(err, "writer", core.Sprintf("%d", id))
+					errs <- core.E("TestStore_Concurrent_Good_ReadWrite", core.Sprintf("writer %d", id), err)
 				}
 			}
 		}(g)
@@ -557,7 +555,7 @@ func TestConcurrent_Good_ReadWrite(t *testing.T) {
 				_, err := s.Get(group, key)
 				// ErrNotFound is acceptable — the writer may not have written yet.
 				if err != nil && !core.Is(err, ErrNotFound) {
-					errs <- core.Wrap(err, "reader", core.Sprintf("%d", id))
+					errs <- core.E("TestStore_Concurrent_Good_ReadWrite", core.Sprintf("reader %d", id), err)
 				}
 			}
 		}(g)
@@ -579,8 +577,8 @@ func TestConcurrent_Good_ReadWrite(t *testing.T) {
 	}
 }
 
-func TestConcurrent_Good_GetAll(t *testing.T) {
-	s, err := New(core.JoinPath(t.TempDir(), "getall.db"))
+func TestStore_Concurrent_Good_GetAll(t *testing.T) {
+	s, err := New(testPath(t, "getall.db"))
 	require.NoError(t, err)
 	defer s.Close()
 
@@ -605,8 +603,8 @@ func TestConcurrent_Good_GetAll(t *testing.T) {
 	wg.Wait()
 }
 
-func TestConcurrent_Good_DeleteGroup(t *testing.T) {
-	s, err := New(core.JoinPath(t.TempDir(), "delgrp.db"))
+func TestStore_Concurrent_Good_DeleteGroup(t *testing.T) {
+	s, err := New(testPath(t, "delgrp.db"))
 	require.NoError(t, err)
 	defer s.Close()
 
@@ -629,7 +627,7 @@ func TestConcurrent_Good_DeleteGroup(t *testing.T) {
 // ErrNotFound wrapping verification
 // ---------------------------------------------------------------------------
 
-func TestErrNotFound_Good_Is(t *testing.T) {
+func TestStore_ErrNotFound_Good_Is(t *testing.T) {
 	s, _ := New(":memory:")
 	defer s.Close()
 
@@ -685,7 +683,7 @@ func BenchmarkGetAll(b *testing.B) {
 }
 
 func BenchmarkSet_FileBacked(b *testing.B) {
-	dbPath := core.JoinPath(b.TempDir(), "bench.db")
+	dbPath := testPath(b, "bench.db")
 	s, _ := New(dbPath)
 	defer s.Close()
 
@@ -699,7 +697,7 @@ func BenchmarkSet_FileBacked(b *testing.B) {
 // TTL support (Phase 1)
 // ---------------------------------------------------------------------------
 
-func TestSetWithTTL_Good(t *testing.T) {
+func TestStore_SetWithTTL_Good(t *testing.T) {
 	s, _ := New(":memory:")
 	defer s.Close()
 
@@ -711,7 +709,7 @@ func TestSetWithTTL_Good(t *testing.T) {
 	assert.Equal(t, "v", val)
 }
 
-func TestSetWithTTL_Good_Upsert(t *testing.T) {
+func TestStore_SetWithTTL_Good_Upsert(t *testing.T) {
 	s, _ := New(":memory:")
 	defer s.Close()
 
@@ -727,7 +725,7 @@ func TestSetWithTTL_Good_Upsert(t *testing.T) {
 	assert.Equal(t, 1, n, "upsert should not duplicate keys")
 }
 
-func TestSetWithTTL_Good_ExpiresOnGet(t *testing.T) {
+func TestStore_SetWithTTL_Good_ExpiresOnGet(t *testing.T) {
 	s, _ := New(":memory:")
 	defer s.Close()
 
@@ -742,7 +740,7 @@ func TestSetWithTTL_Good_ExpiresOnGet(t *testing.T) {
 	assert.True(t, core.Is(err, ErrNotFound), "expired key should be ErrNotFound")
 }
 
-func TestSetWithTTL_Good_ExcludedFromCount(t *testing.T) {
+func TestStore_SetWithTTL_Good_ExcludedFromCount(t *testing.T) {
 	s, _ := New(":memory:")
 	defer s.Close()
 
@@ -755,7 +753,7 @@ func TestSetWithTTL_Good_ExcludedFromCount(t *testing.T) {
 	assert.Equal(t, 1, n, "expired key should not be counted")
 }
 
-func TestSetWithTTL_Good_ExcludedFromGetAll(t *testing.T) {
+func TestStore_SetWithTTL_Good_ExcludedFromGetAll(t *testing.T) {
 	s, _ := New(":memory:")
 	defer s.Close()
 
@@ -768,7 +766,7 @@ func TestSetWithTTL_Good_ExcludedFromGetAll(t *testing.T) {
 	assert.Equal(t, map[string]string{"a": "1"}, all, "expired key should be excluded")
 }
 
-func TestSetWithTTL_Good_ExcludedFromRender(t *testing.T) {
+func TestStore_SetWithTTL_Good_ExcludedFromRender(t *testing.T) {
 	s, _ := New(":memory:")
 	defer s.Close()
 
@@ -781,7 +779,7 @@ func TestSetWithTTL_Good_ExcludedFromRender(t *testing.T) {
 	assert.Equal(t, "Hello Alice", out)
 }
 
-func TestSetWithTTL_Good_SetClearsTTL(t *testing.T) {
+func TestStore_SetWithTTL_Good_SetClearsTTL(t *testing.T) {
 	s, _ := New(":memory:")
 	defer s.Close()
 
@@ -795,7 +793,7 @@ func TestSetWithTTL_Good_SetClearsTTL(t *testing.T) {
 	assert.Equal(t, "permanent", val, "plain Set should clear TTL")
 }
 
-func TestSetWithTTL_Good_FutureTTLAccessible(t *testing.T) {
+func TestStore_SetWithTTL_Good_FutureTTLAccessible(t *testing.T) {
 	s, _ := New(":memory:")
 	defer s.Close()
 
@@ -810,7 +808,7 @@ func TestSetWithTTL_Good_FutureTTLAccessible(t *testing.T) {
 	assert.Equal(t, 1, n)
 }
 
-func TestSetWithTTL_Bad_ClosedStore(t *testing.T) {
+func TestStore_SetWithTTL_Bad_ClosedStore(t *testing.T) {
 	s, _ := New(":memory:")
 	s.Close()
 
@@ -822,7 +820,7 @@ func TestSetWithTTL_Bad_ClosedStore(t *testing.T) {
 // PurgeExpired
 // ---------------------------------------------------------------------------
 
-func TestPurgeExpired_Good(t *testing.T) {
+func TestStore_PurgeExpired_Good(t *testing.T) {
 	s, _ := New(":memory:")
 	defer s.Close()
 
@@ -840,7 +838,7 @@ func TestPurgeExpired_Good(t *testing.T) {
 	assert.Equal(t, 1, n, "only non-expiring key should remain")
 }
 
-func TestPurgeExpired_Good_NoneExpired(t *testing.T) {
+func TestStore_PurgeExpired_Good_NoneExpired(t *testing.T) {
 	s, _ := New(":memory:")
 	defer s.Close()
 
@@ -852,7 +850,7 @@ func TestPurgeExpired_Good_NoneExpired(t *testing.T) {
 	assert.Equal(t, int64(0), removed)
 }
 
-func TestPurgeExpired_Good_Empty(t *testing.T) {
+func TestStore_PurgeExpired_Good_Empty(t *testing.T) {
 	s, _ := New(":memory:")
 	defer s.Close()
 
@@ -861,7 +859,7 @@ func TestPurgeExpired_Good_Empty(t *testing.T) {
 	assert.Equal(t, int64(0), removed)
 }
 
-func TestPurgeExpired_Bad_ClosedStore(t *testing.T) {
+func TestStore_PurgeExpired_Bad_ClosedStore(t *testing.T) {
 	s, _ := New(":memory:")
 	s.Close()
 
@@ -869,7 +867,7 @@ func TestPurgeExpired_Bad_ClosedStore(t *testing.T) {
 	require.Error(t, err)
 }
 
-func TestPurgeExpired_Good_BackgroundPurge(t *testing.T) {
+func TestStore_PurgeExpired_Good_BackgroundPurge(t *testing.T) {
 	s, _ := New(":memory:")
 	// Override purge interval for testing: restart the goroutine with a short interval.
 	s.cancel()
@@ -898,8 +896,8 @@ func TestPurgeExpired_Good_BackgroundPurge(t *testing.T) {
 // Schema migration — reopening an existing database
 // ---------------------------------------------------------------------------
 
-func TestSchemaUpgrade_Good_ExistingDB(t *testing.T) {
-	dbPath := core.JoinPath(t.TempDir(), "upgrade.db")
+func TestStore_SchemaUpgrade_Good_ExistingDB(t *testing.T) {
+	dbPath := testPath(t, "upgrade.db")
 
 	// Open, write, close.
 	s1, err := New(dbPath)
@@ -923,9 +921,9 @@ func TestSchemaUpgrade_Good_ExistingDB(t *testing.T) {
 	assert.Equal(t, "ttl-val", val2)
 }
 
-func TestSchemaUpgrade_Good_PreTTLDatabase(t *testing.T) {
+func TestStore_SchemaUpgrade_Good_PreTTLDatabase(t *testing.T) {
 	// Simulate a database created before TTL support (no expires_at column).
-	dbPath := core.JoinPath(t.TempDir(), "pre-ttl.db")
+	dbPath := testPath(t, "pre-ttl.db")
 	db, err := sql.Open("sqlite", dbPath)
 	require.NoError(t, err)
 	db.SetMaxOpenConns(1)
@@ -963,8 +961,8 @@ func TestSchemaUpgrade_Good_PreTTLDatabase(t *testing.T) {
 // Concurrent TTL access
 // ---------------------------------------------------------------------------
 
-func TestConcurrent_Good_TTL(t *testing.T) {
-	s, err := New(core.JoinPath(t.TempDir(), "concurrent-ttl.db"))
+func TestStore_Concurrent_Good_TTL(t *testing.T) {
+	s, err := New(testPath(t, "concurrent-ttl.db"))
 	require.NoError(t, err)
 	defer s.Close()
 

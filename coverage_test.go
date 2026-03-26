@@ -2,7 +2,6 @@ package store
 
 import (
 	"database/sql"
-	"os"
 	"testing"
 
 	core "dappco.re/go/core"
@@ -14,12 +13,11 @@ import (
 // New — schema error path
 // ---------------------------------------------------------------------------
 
-func TestNew_Bad_SchemaConflict(t *testing.T) {
+func TestCoverage_New_Bad_SchemaConflict(t *testing.T) {
 	// Pre-create a database with an INDEX named "kv". When New() runs
 	// CREATE TABLE IF NOT EXISTS kv, SQLite returns an error because the
 	// name "kv" is already taken by the index.
-	dir := t.TempDir()
-	dbPath := core.JoinPath(dir, "conflict.db")
+	dbPath := testPath(t, "conflict.db")
 
 	db, err := sql.Open("sqlite", dbPath)
 	require.NoError(t, err)
@@ -41,7 +39,7 @@ func TestNew_Bad_SchemaConflict(t *testing.T) {
 // GetAll — scan error path
 // ---------------------------------------------------------------------------
 
-func TestGetAll_Bad_ScanError(t *testing.T) {
+func TestCoverage_GetAll_Bad_ScanError(t *testing.T) {
 	// Trigger a scan error by inserting a row with a NULL key. The production
 	// code scans into plain strings, which cannot represent NULL.
 	s, err := New(":memory:")
@@ -77,11 +75,10 @@ func TestGetAll_Bad_ScanError(t *testing.T) {
 // GetAll — rows iteration error path
 // ---------------------------------------------------------------------------
 
-func TestGetAll_Bad_RowsError(t *testing.T) {
+func TestCoverage_GetAll_Bad_RowsError(t *testing.T) {
 	// Trigger rows.Err() by corrupting the database file so that iteration
 	// starts successfully but encounters a malformed page mid-scan.
-	dir := t.TempDir()
-	dbPath := core.JoinPath(dir, "corrupt-getall.db")
+	dbPath := testPath(t, "corrupt-getall.db")
 
 	s, err := New(dbPath)
 	require.NoError(t, err)
@@ -105,26 +102,24 @@ func TestGetAll_Bad_RowsError(t *testing.T) {
 
 	// Corrupt data pages in the latter portion of the file (skip the first
 	// pages which hold the schema).
-	info, err := os.Stat(dbPath)
-	require.NoError(t, err)
-	require.Greater(t, info.Size(), int64(16384), "DB should be large enough to corrupt")
-
-	f, err := os.OpenFile(dbPath, os.O_RDWR, 0644)
-	require.NoError(t, err)
+	data := requireCoreReadBytes(t, dbPath)
 	garbage := make([]byte, 4096)
 	for i := range garbage {
 		garbage[i] = 0xFF
 	}
-	offset := info.Size() * 3 / 4
-	_, err = f.WriteAt(garbage, offset)
-	require.NoError(t, err)
-	_, err = f.WriteAt(garbage, offset+4096)
-	require.NoError(t, err)
-	require.NoError(t, f.Close())
+	require.Greater(t, len(data), len(garbage)*2, "DB should be large enough to corrupt")
+	offset := len(data) * 3 / 4
+	maxOffset := len(data) - (len(garbage) * 2)
+	if offset > maxOffset {
+		offset = maxOffset
+	}
+	copy(data[offset:offset+len(garbage)], garbage)
+	copy(data[offset+len(garbage):offset+(len(garbage)*2)], garbage)
+	requireCoreWriteBytes(t, dbPath, data)
 
 	// Remove WAL/SHM so the reopened connection reads from the main file.
-	os.Remove(dbPath + "-wal")
-	os.Remove(dbPath + "-shm")
+	_ = testFS().Delete(dbPath + "-wal")
+	_ = testFS().Delete(dbPath + "-shm")
 
 	s2, err := New(dbPath)
 	require.NoError(t, err)
@@ -139,8 +134,8 @@ func TestGetAll_Bad_RowsError(t *testing.T) {
 // Render — scan error path
 // ---------------------------------------------------------------------------
 
-func TestRender_Bad_ScanError(t *testing.T) {
-	// Same NULL-key technique as TestGetAll_Bad_ScanError.
+func TestCoverage_Render_Bad_ScanError(t *testing.T) {
+	// Same NULL-key technique as TestCoverage_GetAll_Bad_ScanError.
 	s, err := New(":memory:")
 	require.NoError(t, err)
 	defer s.Close()
@@ -172,10 +167,9 @@ func TestRender_Bad_ScanError(t *testing.T) {
 // Render — rows iteration error path
 // ---------------------------------------------------------------------------
 
-func TestRender_Bad_RowsError(t *testing.T) {
-	// Same corruption technique as TestGetAll_Bad_RowsError.
-	dir := t.TempDir()
-	dbPath := core.JoinPath(dir, "corrupt-render.db")
+func TestCoverage_Render_Bad_RowsError(t *testing.T) {
+	// Same corruption technique as TestCoverage_GetAll_Bad_RowsError.
+	dbPath := testPath(t, "corrupt-render.db")
 
 	s, err := New(dbPath)
 	require.NoError(t, err)
@@ -195,24 +189,23 @@ func TestRender_Bad_RowsError(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, raw.Close())
 
-	info, err := os.Stat(dbPath)
-	require.NoError(t, err)
-
-	f, err := os.OpenFile(dbPath, os.O_RDWR, 0644)
-	require.NoError(t, err)
+	data := requireCoreReadBytes(t, dbPath)
 	garbage := make([]byte, 4096)
 	for i := range garbage {
 		garbage[i] = 0xFF
 	}
-	offset := info.Size() * 3 / 4
-	_, err = f.WriteAt(garbage, offset)
-	require.NoError(t, err)
-	_, err = f.WriteAt(garbage, offset+4096)
-	require.NoError(t, err)
-	require.NoError(t, f.Close())
+	require.Greater(t, len(data), len(garbage)*2, "DB should be large enough to corrupt")
+	offset := len(data) * 3 / 4
+	maxOffset := len(data) - (len(garbage) * 2)
+	if offset > maxOffset {
+		offset = maxOffset
+	}
+	copy(data[offset:offset+len(garbage)], garbage)
+	copy(data[offset+len(garbage):offset+(len(garbage)*2)], garbage)
+	requireCoreWriteBytes(t, dbPath, data)
 
-	os.Remove(dbPath + "-wal")
-	os.Remove(dbPath + "-shm")
+	_ = testFS().Delete(dbPath + "-wal")
+	_ = testFS().Delete(dbPath + "-shm")
 
 	s2, err := New(dbPath)
 	require.NoError(t, err)
