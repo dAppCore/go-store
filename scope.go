@@ -1,12 +1,11 @@
 package store
 
 import (
-	"errors"
-	"fmt"
 	"iter"
 	"regexp"
 	"time"
 
+	core "dappco.re/go/core"
 	coreerr "dappco.re/go/core/log"
 )
 
@@ -33,7 +32,7 @@ type ScopedStore struct {
 // characters and hyphens.
 func NewScoped(store *Store, namespace string) (*ScopedStore, error) {
 	if !validNamespace.MatchString(namespace) {
-		return nil, coreerr.E("store.NewScoped", fmt.Sprintf("namespace %q is invalid (must be non-empty, alphanumeric + hyphens)", namespace), nil)
+		return nil, coreerr.E("store.NewScoped", core.Sprintf("namespace %q is invalid (must be non-empty, alphanumeric + hyphens)", namespace), nil)
 	}
 	return &ScopedStore{store: store, namespace: namespace}, nil
 }
@@ -133,7 +132,7 @@ func (s *ScopedStore) checkQuota(group, key string) error {
 		// Key exists — this is an upsert, no quota check needed.
 		return nil
 	}
-	if !errors.Is(err, ErrNotFound) {
+	if !core.Is(err, ErrNotFound) {
 		// A database error occurred, not just a "not found" result.
 		return coreerr.E("store.ScopedStore", "quota check", err)
 	}
@@ -145,7 +144,7 @@ func (s *ScopedStore) checkQuota(group, key string) error {
 			return coreerr.E("store.ScopedStore", "quota check", err)
 		}
 		if count >= s.quota.MaxKeys {
-			return coreerr.E("store.ScopedStore", fmt.Sprintf("key limit (%d)", s.quota.MaxKeys), ErrQuotaExceeded)
+			return coreerr.E("store.ScopedStore", core.Sprintf("key limit (%d)", s.quota.MaxKeys), ErrQuotaExceeded)
 		}
 	}
 
@@ -165,7 +164,7 @@ func (s *ScopedStore) checkQuota(group, key string) error {
 				count++
 			}
 			if count >= s.quota.MaxGroups {
-				return coreerr.E("store.ScopedStore", fmt.Sprintf("group limit (%d)", s.quota.MaxGroups), ErrQuotaExceeded)
+				return coreerr.E("store.ScopedStore", core.Sprintf("group limit (%d)", s.quota.MaxGroups), ErrQuotaExceeded)
 			}
 		}
 	}

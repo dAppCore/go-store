@@ -5,26 +5,25 @@ import (
 	"go/parser"
 	"go/token"
 	"os"
-	"path/filepath"
 	"slices"
-	"strings"
 	"testing"
 
+	core "dappco.re/go/core"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestRepoConventions_Good_BannedImports(t *testing.T) {
 	files := repoGoFiles(t, func(name string) bool {
-		return strings.HasSuffix(name, ".go")
+		return core.HasSuffix(name, ".go")
 	})
 
 	var banned []string
 	for _, path := range files {
 		file := parseGoFile(t, path)
 		for _, spec := range file.Imports {
-			importPath := strings.Trim(spec.Path.Value, `"`)
-			if strings.HasPrefix(importPath, "forge.lthn.ai/") {
+			importPath := core.TrimPrefix(core.TrimSuffix(spec.Path.Value, `"`), `"`)
+			if core.HasPrefix(importPath, "forge.lthn.ai/") {
 				banned = append(banned, path+": "+importPath)
 			}
 		}
@@ -36,7 +35,7 @@ func TestRepoConventions_Good_BannedImports(t *testing.T) {
 
 func TestRepoConventions_Good_TestNaming(t *testing.T) {
 	files := repoGoFiles(t, func(name string) bool {
-		return strings.HasSuffix(name, "_test.go")
+		return core.HasSuffix(name, "_test.go")
 	})
 
 	var invalid []string
@@ -48,10 +47,10 @@ func TestRepoConventions_Good_TestNaming(t *testing.T) {
 				continue
 			}
 			name := fn.Name.Name
-			if !strings.HasPrefix(name, "Test") || name == "TestMain" {
+			if !core.HasPrefix(name, "Test") || name == "TestMain" {
 				continue
 			}
-			if strings.Contains(name, "_Good") || strings.Contains(name, "_Bad") || strings.Contains(name, "_Ugly") {
+			if core.Contains(name, "_Good") || core.Contains(name, "_Bad") || core.Contains(name, "_Ugly") {
 				continue
 			}
 			invalid = append(invalid, path+": "+name)
@@ -73,7 +72,7 @@ func repoGoFiles(t *testing.T, keep func(name string) bool) []string {
 		if entry.IsDir() || !keep(entry.Name()) {
 			continue
 		}
-		files = append(files, filepath.Clean(entry.Name()))
+		files = append(files, core.CleanPath(entry.Name(), "/"))
 	}
 
 	slices.Sort(files)

@@ -9,6 +9,7 @@ import (
 	"text/template"
 	"time"
 
+	core "dappco.re/go/core"
 	coreerr "dappco.re/go/core/log"
 	_ "modernc.org/sqlite"
 )
@@ -67,7 +68,7 @@ func New(dbPath string) (*Store, error) {
 	// Ensure the expires_at column exists for databases created before TTL support.
 	if _, err := db.Exec("ALTER TABLE kv ADD COLUMN expires_at INTEGER"); err != nil {
 		// SQLite returns "duplicate column name" if it already exists.
-		if !strings.Contains(err.Error(), "duplicate column name") {
+		if !core.Contains(err.Error(), "duplicate column name") {
 			db.Close()
 			return nil, coreerr.E("store.New", "migration", err)
 		}
@@ -347,9 +348,9 @@ func (s *Store) GroupsSeq(prefix string) iter.Seq2[string, error] {
 
 // escapeLike escapes SQLite LIKE wildcards and the escape character itself.
 func escapeLike(s string) string {
-	s = strings.ReplaceAll(s, "^", "^^")
-	s = strings.ReplaceAll(s, "%", "^%")
-	s = strings.ReplaceAll(s, "_", "^_")
+	s = core.Replace(s, "^", "^^")
+	s = core.Replace(s, "%", "^%")
+	s = core.Replace(s, "_", "^_")
 	return s
 }
 

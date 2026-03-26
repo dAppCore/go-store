@@ -2,11 +2,10 @@ package store
 
 import (
 	"database/sql"
-	"fmt"
 	"os"
-	"path/filepath"
 	"testing"
 
+	core "dappco.re/go/core"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -20,7 +19,7 @@ func TestNew_Bad_SchemaConflict(t *testing.T) {
 	// CREATE TABLE IF NOT EXISTS kv, SQLite returns an error because the
 	// name "kv" is already taken by the index.
 	dir := t.TempDir()
-	dbPath := filepath.Join(dir, "conflict.db")
+	dbPath := core.JoinPath(dir, "conflict.db")
 
 	db, err := sql.Open("sqlite", dbPath)
 	require.NoError(t, err)
@@ -82,7 +81,7 @@ func TestGetAll_Bad_RowsError(t *testing.T) {
 	// Trigger rows.Err() by corrupting the database file so that iteration
 	// starts successfully but encounters a malformed page mid-scan.
 	dir := t.TempDir()
-	dbPath := filepath.Join(dir, "corrupt-getall.db")
+	dbPath := core.JoinPath(dir, "corrupt-getall.db")
 
 	s, err := New(dbPath)
 	require.NoError(t, err)
@@ -91,8 +90,8 @@ func TestGetAll_Bad_RowsError(t *testing.T) {
 	const rows = 5000
 	for i := range rows {
 		require.NoError(t, s.Set("g",
-			fmt.Sprintf("key-%06d", i),
-			fmt.Sprintf("value-with-padding-%06d-xxxxxxxxxxxxxxxxxxxxxxxx", i)))
+			core.Sprintf("key-%06d", i),
+			core.Sprintf("value-with-padding-%06d-xxxxxxxxxxxxxxxxxxxxxxxx", i)))
 	}
 	s.Close()
 
@@ -176,7 +175,7 @@ func TestRender_Bad_ScanError(t *testing.T) {
 func TestRender_Bad_RowsError(t *testing.T) {
 	// Same corruption technique as TestGetAll_Bad_RowsError.
 	dir := t.TempDir()
-	dbPath := filepath.Join(dir, "corrupt-render.db")
+	dbPath := core.JoinPath(dir, "corrupt-render.db")
 
 	s, err := New(dbPath)
 	require.NoError(t, err)
@@ -184,8 +183,8 @@ func TestRender_Bad_RowsError(t *testing.T) {
 	const rows = 5000
 	for i := range rows {
 		require.NoError(t, s.Set("g",
-			fmt.Sprintf("key-%06d", i),
-			fmt.Sprintf("value-with-padding-%06d-xxxxxxxxxxxxxxxxxxxxxxxx", i)))
+			core.Sprintf("key-%06d", i),
+			core.Sprintf("value-with-padding-%06d-xxxxxxxxxxxxxxxxxxxxxxxx", i)))
 	}
 	s.Close()
 

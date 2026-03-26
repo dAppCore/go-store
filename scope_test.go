@@ -1,10 +1,10 @@
 package store
 
 import (
-	"errors"
 	"testing"
 	"time"
 
+	core "dappco.re/go/core"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -85,7 +85,7 @@ func TestScopedStore_Good_PrefixedInUnderlyingStore(t *testing.T) {
 
 	// Direct access without prefix should fail.
 	_, err = s.Get("config", "key")
-	assert.True(t, errors.Is(err, ErrNotFound))
+	assert.True(t, core.Is(err, ErrNotFound))
 }
 
 func TestScopedStore_Good_NamespaceIsolation(t *testing.T) {
@@ -116,7 +116,7 @@ func TestScopedStore_Good_Delete(t *testing.T) {
 	require.NoError(t, sc.Delete("g", "k"))
 
 	_, err := sc.Get("g", "k")
-	assert.True(t, errors.Is(err, ErrNotFound))
+	assert.True(t, core.Is(err, ErrNotFound))
 }
 
 func TestScopedStore_Good_DeleteGroup(t *testing.T) {
@@ -187,7 +187,7 @@ func TestScopedStore_Good_SetWithTTL_Expires(t *testing.T) {
 	time.Sleep(5 * time.Millisecond)
 
 	_, err := sc.Get("g", "k")
-	assert.True(t, errors.Is(err, ErrNotFound))
+	assert.True(t, core.Is(err, ErrNotFound))
 }
 
 func TestScopedStore_Good_Render(t *testing.T) {
@@ -221,7 +221,7 @@ func TestQuota_Good_MaxKeys(t *testing.T) {
 	// 6th key should fail.
 	err = sc.Set("g", "overflow", "v")
 	require.Error(t, err)
-	assert.True(t, errors.Is(err, ErrQuotaExceeded), "expected ErrQuotaExceeded, got: %v", err)
+	assert.True(t, core.Is(err, ErrQuotaExceeded), "expected ErrQuotaExceeded, got: %v", err)
 }
 
 func TestQuota_Good_MaxKeys_AcrossGroups(t *testing.T) {
@@ -236,7 +236,7 @@ func TestQuota_Good_MaxKeys_AcrossGroups(t *testing.T) {
 
 	// Total is now 3 — any new key should fail regardless of group.
 	err := sc.Set("g4", "d", "4")
-	assert.True(t, errors.Is(err, ErrQuotaExceeded))
+	assert.True(t, core.Is(err, ErrQuotaExceeded))
 }
 
 func TestQuota_Good_UpsertDoesNotCount(t *testing.T) {
@@ -303,7 +303,7 @@ func TestQuota_Good_ExpiredKeysExcluded(t *testing.T) {
 
 	// Now at 3 — next should fail.
 	err := sc.Set("g", "new3", "v")
-	assert.True(t, errors.Is(err, ErrQuotaExceeded))
+	assert.True(t, core.Is(err, ErrQuotaExceeded))
 }
 
 func TestQuota_Good_SetWithTTL_Enforced(t *testing.T) {
@@ -316,7 +316,7 @@ func TestQuota_Good_SetWithTTL_Enforced(t *testing.T) {
 	require.NoError(t, sc.SetWithTTL("g", "b", "2", time.Hour))
 
 	err := sc.SetWithTTL("g", "c", "3", time.Hour)
-	assert.True(t, errors.Is(err, ErrQuotaExceeded))
+	assert.True(t, core.Is(err, ErrQuotaExceeded))
 }
 
 // ---------------------------------------------------------------------------
@@ -336,7 +336,7 @@ func TestQuota_Good_MaxGroups(t *testing.T) {
 	// 4th group should fail.
 	err := sc.Set("g4", "k", "v")
 	require.Error(t, err)
-	assert.True(t, errors.Is(err, ErrQuotaExceeded))
+	assert.True(t, core.Is(err, ErrQuotaExceeded))
 }
 
 func TestQuota_Good_MaxGroups_ExistingGroupOK(t *testing.T) {
@@ -405,7 +405,7 @@ func TestQuota_Good_BothLimits(t *testing.T) {
 
 	// Group limit hit.
 	err := sc.Set("g3", "c", "3")
-	assert.True(t, errors.Is(err, ErrQuotaExceeded))
+	assert.True(t, core.Is(err, ErrQuotaExceeded))
 
 	// But adding to existing groups is fine (within key limit).
 	require.NoError(t, sc.Set("g1", "d", "4"))
@@ -425,11 +425,11 @@ func TestQuota_Good_DoesNotAffectOtherNamespaces(t *testing.T) {
 
 	// a is at limit — but b's keys don't count against a.
 	err := a.Set("g", "a3", "v")
-	assert.True(t, errors.Is(err, ErrQuotaExceeded))
+	assert.True(t, core.Is(err, ErrQuotaExceeded))
 
 	// b is also at limit independently.
 	err = b.Set("g", "b3", "v")
-	assert.True(t, errors.Is(err, ErrQuotaExceeded))
+	assert.True(t, core.Is(err, ErrQuotaExceeded))
 }
 
 // ---------------------------------------------------------------------------

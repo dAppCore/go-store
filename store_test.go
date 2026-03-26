@@ -3,15 +3,13 @@ package store
 import (
 	"context"
 	"database/sql"
-	"errors"
-	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
+	core "dappco.re/go/core"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -28,7 +26,7 @@ func TestNew_Good_Memory(t *testing.T) {
 }
 
 func TestNew_Good_FileBacked(t *testing.T) {
-	dbPath := filepath.Join(t.TempDir(), "test.db")
+	dbPath := core.JoinPath(t.TempDir(), "test.db")
 	s, err := New(dbPath)
 	require.NoError(t, err)
 	require.NotNil(t, s)
@@ -58,7 +56,7 @@ func TestNew_Bad_InvalidPath(t *testing.T) {
 func TestNew_Bad_CorruptFile(t *testing.T) {
 	// A file that exists but is not a valid SQLite database should fail.
 	dir := t.TempDir()
-	dbPath := filepath.Join(dir, "corrupt.db")
+	dbPath := core.JoinPath(dir, "corrupt.db")
 	require.NoError(t, os.WriteFile(dbPath, []byte("not a sqlite database"), 0644))
 
 	_, err := New(dbPath)
@@ -69,7 +67,7 @@ func TestNew_Bad_CorruptFile(t *testing.T) {
 func TestNew_Bad_ReadOnlyDir(t *testing.T) {
 	// A path in a read-only directory should fail when SQLite tries to create the WAL file.
 	dir := t.TempDir()
-	dbPath := filepath.Join(dir, "readonly.db")
+	dbPath := core.JoinPath(dir, "readonly.db")
 
 	// Create a valid DB first, then make the directory read-only.
 	s, err := New(dbPath)
@@ -90,7 +88,7 @@ func TestNew_Bad_ReadOnlyDir(t *testing.T) {
 }
 
 func TestNew_Good_WALMode(t *testing.T) {
-	dbPath := filepath.Join(t.TempDir(), "wal.db")
+	dbPath := core.JoinPath(t.TempDir(), "wal.db")
 	s, err := New(dbPath)
 	require.NoError(t, err)
 	defer s.Close()
@@ -140,7 +138,7 @@ func TestGet_Bad_NotFound(t *testing.T) {
 
 	_, err := s.Get("config", "missing")
 	require.Error(t, err)
-	assert.True(t, errors.Is(err, ErrNotFound), "should wrap ErrNotFound")
+	assert.True(t, core.Is(err, ErrNotFound), "should wrap ErrNotFound")
 }
 
 func TestGet_Bad_NonExistentGroup(t *testing.T) {
@@ -149,7 +147,7 @@ func TestGet_Bad_NonExistentGroup(t *testing.T) {
 
 	_, err := s.Get("no-such-group", "key")
 	require.Error(t, err)
-	assert.True(t, errors.Is(err, ErrNotFound))
+	assert.True(t, core.Is(err, ErrNotFound))
 }
 
 func TestGet_Bad_ClosedStore(t *testing.T) {
@@ -233,7 +231,7 @@ func TestCount_Good_BulkInsert(t *testing.T) {
 
 	const total = 500
 	for i := range total {
-		require.NoError(t, s.Set("bulk", fmt.Sprintf("key-%04d", i), "v"))
+		require.NoError(t, s.Set("bulk", core.Sprintf("key-%04d", i), "v"))
 	}
 	n, err := s.Count("bulk")
 	require.NoError(t, err)
@@ -521,7 +519,7 @@ func TestStore_Good_GroupIsolation(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestConcurrent_Good_ReadWrite(t *testing.T) {
-	dbPath := filepath.Join(t.TempDir(), "concurrent.db")
+	dbPath := core.JoinPath(t.TempDir(), "concurrent.db")
 	s, err := New(dbPath)
 	require.NoError(t, err)
 	defer s.Close()
@@ -537,12 +535,12 @@ func TestConcurrent_Good_ReadWrite(t *testing.T) {
 		wg.Add(1)
 		go func(id int) {
 			defer wg.Done()
-			group := fmt.Sprintf("grp-%d", id)
+			group := core.Sprintf("grp-%d", id)
 			for i := range opsPerGoroutine {
-				key := fmt.Sprintf("key-%d", i)
-				val := fmt.Sprintf("val-%d-%d", id, i)
+				key := core.Sprintf("key-%d", i)
+				val := core.Sprintf("val-%d-%d", id, i)
 				if err := s.Set(group, key, val); err != nil {
-					errs <- fmt.Errorf("writer %d: %w", id, err)
+					errs <- core.Wrap(err, "writer", core.Sprintf("%d", id))
 				}
 			}
 		}(g)
@@ -553,13 +551,13 @@ func TestConcurrent_Good_ReadWrite(t *testing.T) {
 		wg.Add(1)
 		go func(id int) {
 			defer wg.Done()
-			group := fmt.Sprintf("grp-%d", id)
+			group := core.Sprintf("grp-%d", id)
 			for i := range opsPerGoroutine {
-				key := fmt.Sprintf("key-%d", i)
+				key := core.Sprintf("key-%d", i)
 				_, err := s.Get(group, key)
 				// ErrNotFound is acceptable — the writer may not have written yet.
-				if err != nil && !errors.Is(err, ErrNotFound) {
-					errs <- fmt.Errorf("reader %d: %w", id, err)
+				if err != nil && !core.Is(err, ErrNotFound) {
+					errs <- core.Wrap(err, "reader", core.Sprintf("%d", id))
 				}
 			}
 		}(g)
@@ -574,7 +572,7 @@ func TestConcurrent_Good_ReadWrite(t *testing.T) {
 
 	// After all writers finish, every key should be present.
 	for g := range goroutines {
-		group := fmt.Sprintf("grp-%d", g)
+		group := core.Sprintf("grp-%d", g)
 		n, err := s.Count(group)
 		require.NoError(t, err)
 		assert.Equal(t, opsPerGoroutine, n, "group %s should have all keys", group)
@@ -582,13 +580,13 @@ func TestConcurrent_Good_ReadWrite(t *testing.T) {
 }
 
 func TestConcurrent_Good_GetAll(t *testing.T) {
-	s, err := New(filepath.Join(t.TempDir(), "getall.db"))
+	s, err := New(core.JoinPath(t.TempDir(), "getall.db"))
 	require.NoError(t, err)
 	defer s.Close()
 
 	// Seed data.
 	for i := range 50 {
-		require.NoError(t, s.Set("shared", fmt.Sprintf("k%d", i), fmt.Sprintf("v%d", i)))
+		require.NoError(t, s.Set("shared", core.Sprintf("k%d", i), core.Sprintf("v%d", i)))
 	}
 
 	var wg sync.WaitGroup
@@ -608,7 +606,7 @@ func TestConcurrent_Good_GetAll(t *testing.T) {
 }
 
 func TestConcurrent_Good_DeleteGroup(t *testing.T) {
-	s, err := New(filepath.Join(t.TempDir(), "delgrp.db"))
+	s, err := New(core.JoinPath(t.TempDir(), "delgrp.db"))
 	require.NoError(t, err)
 	defer s.Close()
 
@@ -617,9 +615,9 @@ func TestConcurrent_Good_DeleteGroup(t *testing.T) {
 		wg.Add(1)
 		go func(id int) {
 			defer wg.Done()
-			grp := fmt.Sprintf("g%d", id)
+			grp := core.Sprintf("g%d", id)
 			for i := range 20 {
-				_ = s.Set(grp, fmt.Sprintf("k%d", i), "v")
+				_ = s.Set(grp, core.Sprintf("k%d", i), "v")
 			}
 			_ = s.DeleteGroup(grp)
 		}(g)
@@ -637,7 +635,7 @@ func TestErrNotFound_Good_Is(t *testing.T) {
 
 	_, err := s.Get("g", "k")
 	require.Error(t, err)
-	assert.True(t, errors.Is(err, ErrNotFound), "error should be ErrNotFound via errors.Is")
+	assert.True(t, core.Is(err, ErrNotFound), "error should be ErrNotFound via core.Is")
 	assert.Contains(t, err.Error(), "g/k", "error message should include group/key")
 }
 
@@ -651,7 +649,7 @@ func BenchmarkSet(b *testing.B) {
 
 	b.ResetTimer()
 	for i := range b.N {
-		_ = s.Set("bench", fmt.Sprintf("key-%d", i), "value")
+		_ = s.Set("bench", core.Sprintf("key-%d", i), "value")
 	}
 }
 
@@ -662,12 +660,12 @@ func BenchmarkGet(b *testing.B) {
 	// Pre-populate.
 	const keys = 10000
 	for i := range keys {
-		_ = s.Set("bench", fmt.Sprintf("key-%d", i), "value")
+		_ = s.Set("bench", core.Sprintf("key-%d", i), "value")
 	}
 
 	b.ResetTimer()
 	for i := range b.N {
-		_, _ = s.Get("bench", fmt.Sprintf("key-%d", i%keys))
+		_, _ = s.Get("bench", core.Sprintf("key-%d", i%keys))
 	}
 }
 
@@ -677,7 +675,7 @@ func BenchmarkGetAll(b *testing.B) {
 
 	const keys = 10000
 	for i := range keys {
-		_ = s.Set("bench", fmt.Sprintf("key-%d", i), "value")
+		_ = s.Set("bench", core.Sprintf("key-%d", i), "value")
 	}
 
 	b.ResetTimer()
@@ -687,13 +685,13 @@ func BenchmarkGetAll(b *testing.B) {
 }
 
 func BenchmarkSet_FileBacked(b *testing.B) {
-	dbPath := filepath.Join(b.TempDir(), "bench.db")
+	dbPath := core.JoinPath(b.TempDir(), "bench.db")
 	s, _ := New(dbPath)
 	defer s.Close()
 
 	b.ResetTimer()
 	for i := range b.N {
-		_ = s.Set("bench", fmt.Sprintf("key-%d", i), "value")
+		_ = s.Set("bench", core.Sprintf("key-%d", i), "value")
 	}
 }
 
@@ -741,7 +739,7 @@ func TestSetWithTTL_Good_ExpiresOnGet(t *testing.T) {
 
 	_, err := s.Get("g", "ephemeral")
 	require.Error(t, err)
-	assert.True(t, errors.Is(err, ErrNotFound), "expired key should be ErrNotFound")
+	assert.True(t, core.Is(err, ErrNotFound), "expired key should be ErrNotFound")
 }
 
 func TestSetWithTTL_Good_ExcludedFromCount(t *testing.T) {
@@ -901,7 +899,7 @@ func TestPurgeExpired_Good_BackgroundPurge(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestSchemaUpgrade_Good_ExistingDB(t *testing.T) {
-	dbPath := filepath.Join(t.TempDir(), "upgrade.db")
+	dbPath := core.JoinPath(t.TempDir(), "upgrade.db")
 
 	// Open, write, close.
 	s1, err := New(dbPath)
@@ -927,7 +925,7 @@ func TestSchemaUpgrade_Good_ExistingDB(t *testing.T) {
 
 func TestSchemaUpgrade_Good_PreTTLDatabase(t *testing.T) {
 	// Simulate a database created before TTL support (no expires_at column).
-	dbPath := filepath.Join(t.TempDir(), "pre-ttl.db")
+	dbPath := core.JoinPath(t.TempDir(), "pre-ttl.db")
 	db, err := sql.Open("sqlite", dbPath)
 	require.NoError(t, err)
 	db.SetMaxOpenConns(1)
@@ -966,7 +964,7 @@ func TestSchemaUpgrade_Good_PreTTLDatabase(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestConcurrent_Good_TTL(t *testing.T) {
-	s, err := New(filepath.Join(t.TempDir(), "concurrent-ttl.db"))
+	s, err := New(core.JoinPath(t.TempDir(), "concurrent-ttl.db"))
 	require.NoError(t, err)
 	defer s.Close()
 
@@ -978,9 +976,9 @@ func TestConcurrent_Good_TTL(t *testing.T) {
 		wg.Add(1)
 		go func(id int) {
 			defer wg.Done()
-			grp := fmt.Sprintf("ttl-%d", id)
+			grp := core.Sprintf("ttl-%d", id)
 			for i := range ops {
-				key := fmt.Sprintf("k%d", i)
+				key := core.Sprintf("k%d", i)
 				if i%2 == 0 {
 					_ = s.SetWithTTL(grp, key, "v", 50*time.Millisecond)
 				} else {
@@ -995,7 +993,7 @@ func TestConcurrent_Good_TTL(t *testing.T) {
 	time.Sleep(60 * time.Millisecond)
 
 	for g := range goroutines {
-		grp := fmt.Sprintf("ttl-%d", g)
+		grp := core.Sprintf("ttl-%d", g)
 		n, err := s.Count(grp)
 		require.NoError(t, err)
 		assert.Equal(t, ops/2, n, "only non-TTL keys should remain in %s", grp)

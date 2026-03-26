@@ -1,12 +1,12 @@
 package store
 
 import (
-	"fmt"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 
+	core "dappco.re/go/core"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -248,7 +248,7 @@ func TestWatch_Good_BufferFullDoesNotBlock(t *testing.T) {
 	go func() {
 		defer close(done)
 		for i := range 32 {
-			require.NoError(t, s.Set("g", fmt.Sprintf("k%d", i), "v"))
+			require.NoError(t, s.Set("g", core.Sprintf("k%d", i), "v"))
 		}
 	}()
 
@@ -318,7 +318,7 @@ func TestWatch_Good_ConcurrentWatchUnwatch(t *testing.T) {
 	// Writers — continuously mutate the store.
 	wg.Go(func() {
 		for i := range goroutines * ops {
-			_ = s.Set("g", fmt.Sprintf("k%d", i), "v")
+			_ = s.Set("g", core.Sprintf("k%d", i), "v")
 		}
 	})
 
