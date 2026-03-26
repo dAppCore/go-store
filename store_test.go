@@ -445,7 +445,7 @@ func TestClose_Good_OperationsFailAfterClose(t *testing.T) {
 // Edge cases
 // ---------------------------------------------------------------------------
 
-func TestEdgeCases(t *testing.T) {
+func TestSetGet_Good_EdgeCases(t *testing.T) {
 	s, _ := New(":memory:")
 	defer s.Close()
 
@@ -491,7 +491,7 @@ func TestEdgeCases(t *testing.T) {
 // Group isolation
 // ---------------------------------------------------------------------------
 
-func TestGroupIsolation(t *testing.T) {
+func TestStore_Good_GroupIsolation(t *testing.T) {
 	s, _ := New(":memory:")
 	defer s.Close()
 
@@ -520,7 +520,7 @@ func TestGroupIsolation(t *testing.T) {
 // Concurrent access
 // ---------------------------------------------------------------------------
 
-func TestConcurrent_ReadWrite(t *testing.T) {
+func TestConcurrent_Good_ReadWrite(t *testing.T) {
 	dbPath := filepath.Join(t.TempDir(), "concurrent.db")
 	s, err := New(dbPath)
 	require.NoError(t, err)
@@ -581,7 +581,7 @@ func TestConcurrent_ReadWrite(t *testing.T) {
 	}
 }
 
-func TestConcurrent_GetAll(t *testing.T) {
+func TestConcurrent_Good_GetAll(t *testing.T) {
 	s, err := New(filepath.Join(t.TempDir(), "getall.db"))
 	require.NoError(t, err)
 	defer s.Close()
@@ -607,7 +607,7 @@ func TestConcurrent_GetAll(t *testing.T) {
 	wg.Wait()
 }
 
-func TestConcurrent_DeleteGroup(t *testing.T) {
+func TestConcurrent_Good_DeleteGroup(t *testing.T) {
 	s, err := New(filepath.Join(t.TempDir(), "delgrp.db"))
 	require.NoError(t, err)
 	defer s.Close()
@@ -631,7 +631,7 @@ func TestConcurrent_DeleteGroup(t *testing.T) {
 // ErrNotFound wrapping verification
 // ---------------------------------------------------------------------------
 
-func TestErrNotFound_Is(t *testing.T) {
+func TestErrNotFound_Good_Is(t *testing.T) {
 	s, _ := New(":memory:")
 	defer s.Close()
 
@@ -900,7 +900,7 @@ func TestPurgeExpired_Good_BackgroundPurge(t *testing.T) {
 // Schema migration — reopening an existing database
 // ---------------------------------------------------------------------------
 
-func TestSchemaUpgrade_ExistingDB(t *testing.T) {
+func TestSchemaUpgrade_Good_ExistingDB(t *testing.T) {
 	dbPath := filepath.Join(t.TempDir(), "upgrade.db")
 
 	// Open, write, close.
@@ -925,7 +925,7 @@ func TestSchemaUpgrade_ExistingDB(t *testing.T) {
 	assert.Equal(t, "ttl-val", val2)
 }
 
-func TestSchemaUpgrade_PreTTLDatabase(t *testing.T) {
+func TestSchemaUpgrade_Good_PreTTLDatabase(t *testing.T) {
 	// Simulate a database created before TTL support (no expires_at column).
 	dbPath := filepath.Join(t.TempDir(), "pre-ttl.db")
 	db, err := sql.Open("sqlite", dbPath)
@@ -965,7 +965,7 @@ func TestSchemaUpgrade_PreTTLDatabase(t *testing.T) {
 // Concurrent TTL access
 // ---------------------------------------------------------------------------
 
-func TestConcurrent_TTL(t *testing.T) {
+func TestConcurrent_Good_TTL(t *testing.T) {
 	s, err := New(filepath.Join(t.TempDir(), "concurrent-ttl.db"))
 	require.NoError(t, err)
 	defer s.Close()

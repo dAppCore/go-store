@@ -375,7 +375,7 @@ func TestWatch_Good_ScopedStoreEvents(t *testing.T) {
 // EventType.String()
 // ---------------------------------------------------------------------------
 
-func TestEventType_String(t *testing.T) {
+func TestEventType_Good_String(t *testing.T) {
 	assert.Equal(t, "set", EventSet.String())
 	assert.Equal(t, "delete", EventDelete.String())
 	assert.Equal(t, "delete_group", EventDeleteGroup.String())
