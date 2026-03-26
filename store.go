@@ -14,9 +14,11 @@ import (
 )
 
 // ErrNotFound is returned when a key does not exist in the store.
+// Use errors.Is(err, ErrNotFound) to test for it.
 var ErrNotFound = coreerr.E("store", "not found", nil)
 
 // ErrQuotaExceeded is returned when a namespace quota limit is reached.
+// Use errors.Is(err, ErrQuotaExceeded) to test for it.
 var ErrQuotaExceeded = coreerr.E("store", "quota exceeded", nil)
 
 // Store is a group-namespaced key-value store backed by SQLite.
@@ -343,6 +345,7 @@ func (s *Store) GroupsSeq(prefix string) iter.Seq2[string, error] {
 	}
 }
 
+// escapeLike escapes SQLite LIKE wildcards and the escape character itself.
 func escapeLike(s string) string {
 	s = strings.ReplaceAll(s, "^", "^^")
 	s = strings.ReplaceAll(s, "%", "^%")
