@@ -16,31 +16,31 @@ import (
 // ---------------------------------------------------------------------------
 
 func TestEvents_Watch_Good_SpecificKey(t *testing.T) {
-	s, _ := New(":memory:")
-	defer s.Close()
+	storeInstance, _ := New(":memory:")
+	defer storeInstance.Close()
 
-	w := s.Watch("config", "theme")
-	defer s.Unwatch(w)
+	watcher := storeInstance.Watch("config", "theme")
+	defer storeInstance.Unwatch(watcher)
 
-	require.NoError(t, s.Set("config", "theme", "dark"))
+	require.NoError(t, storeInstance.Set("config", "theme", "dark"))
 
 	select {
-	case e := <-w.Events:
-		assert.Equal(t, EventSet, e.Type)
-		assert.Equal(t, "config", e.Group)
-		assert.Equal(t, "theme", e.Key)
-		assert.Equal(t, "dark", e.Value)
-		assert.False(t, e.Timestamp.IsZero())
+	case event := <-watcher.Events:
+		assert.Equal(t, EventSet, event.Type)
+		assert.Equal(t, "config", event.Group)
+		assert.Equal(t, "theme", event.Key)
+		assert.Equal(t, "dark", event.Value)
+		assert.False(t, event.Timestamp.IsZero())
 	case <-time.After(time.Second):
 		t.Fatal("timed out waiting for event")
 	}
 
 	// A Set to a different key in the same group should NOT trigger this watcher.
-	require.NoError(t, s.Set("config", "colour", "blue"))
+	require.NoError(t, storeInstance.Set("config", "colour", "blue"))
 
 	select {
-	case e := <-w.Events:
-		t.Fatalf("unexpected event for non-matching key: %+v", e)
+	case event := <-watcher.Events:
+		t.Fatalf("unexpected event for non-matching key: %+v", event)
 	case <-time.After(50 * time.Millisecond):
 		// Expected: no event.
 	}
@@ -51,33 +51,33 @@ func TestEvents_Watch_Good_SpecificKey(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestEvents_Watch_Good_WildcardKey(t *testing.T) {
-	s, _ := New(":memory:")
-	defer s.Close()
+	storeInstance, _ := New(":memory:")
+	defer storeInstance.Close()
 
-	w := s.Watch("config", "*")
-	defer s.Unwatch(w)
+	watcher := storeInstance.Watch("config", "*")
+	defer storeInstance.Unwatch(watcher)
 
-	require.NoError(t, s.Set("config", "theme", "dark"))
-	require.NoError(t, s.Set("config", "colour", "blue"))
+	require.NoError(t, storeInstance.Set("config", "theme", "dark"))
+	require.NoError(t, storeInstance.Set("config", "colour", "blue"))
 
-	received := drainEvents(w.Events, 2, time.Second)
+	received := drainEvents(watcher.Events, 2, time.Second)
 	require.Len(t, received, 2)
 	assert.Equal(t, "theme", received[0].Key)
 	assert.Equal(t, "colour", received[1].Key)
 }
 
 func TestEvents_Watch_Good_GroupMismatch(t *testing.T) {
-	s, _ := New(":memory:")
-	defer s.Close()
+	storeInstance, _ := New(":memory:")
+	defer storeInstance.Close()
 
-	w := s.Watch("config", "*")
-	defer s.Unwatch(w)
+	watcher := storeInstance.Watch("config", "*")
+	defer storeInstance.Unwatch(watcher)
 
-	require.NoError(t, s.Set("other", "theme", "dark"))
+	require.NoError(t, storeInstance.Set("other", "theme", "dark"))
 
 	select {
-	case e := <-w.Events:
-		t.Fatalf("unexpected event for non-matching group: %+v", e)
+	case event := <-watcher.Events:
+		t.Fatalf("unexpected event for non-matching group: %+v", event)
 	case <-time.After(50 * time.Millisecond):
 		// Expected: no event.
 	}
@@ -88,18 +88,18 @@ func TestEvents_Watch_Good_GroupMismatch(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestEvents_Watch_Good_WildcardAll(t *testing.T) {
-	s, _ := New(":memory:")
-	defer s.Close()
+	storeInstance, _ := New(":memory:")
+	defer storeInstance.Close()
 
-	w := s.Watch("*", "*")
-	defer s.Unwatch(w)
+	watcher := storeInstance.Watch("*", "*")
+	defer storeInstance.Unwatch(watcher)
 
-	require.NoError(t, s.Set("g1", "k1", "v1"))
-	require.NoError(t, s.Set("g2", "k2", "v2"))
-	require.NoError(t, s.Delete("g1", "k1"))
-	require.NoError(t, s.DeleteGroup("g2"))
+	require.NoError(t, storeInstance.Set("g1", "k1", "v1"))
+	require.NoError(t, storeInstance.Set("g2", "k2", "v2"))
+	require.NoError(t, storeInstance.Delete("g1", "k1"))
+	require.NoError(t, storeInstance.DeleteGroup("g2"))
 
-	received := drainEvents(w.Events, 4, time.Second)
+	received := drainEvents(watcher.Events, 4, time.Second)
 	require.Len(t, received, 4)
 	assert.Equal(t, EventSet, received[0].Type)
 	assert.Equal(t, EventSet, received[1].Type)
@@ -112,36 +112,36 @@ func TestEvents_Watch_Good_WildcardAll(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestEvents_Unwatch_Good_StopsDelivery(t *testing.T) {
-	s, _ := New(":memory:")
-	defer s.Close()
+	storeInstance, _ := New(":memory:")
+	defer storeInstance.Close()
 
-	w := s.Watch("g", "k")
-	s.Unwatch(w)
+	watcher := storeInstance.Watch("g", "k")
+	storeInstance.Unwatch(watcher)
 
 	// Channel should be closed.
-	_, open := <-w.Events
+	_, open := <-watcher.Events
 	assert.False(t, open, "channel should be closed after Unwatch")
 
 	// Set after Unwatch should not panic or block.
-	require.NoError(t, s.Set("g", "k", "v"))
+	require.NoError(t, storeInstance.Set("g", "k", "v"))
 }
 
 func TestEvents_Unwatch_Good_Idempotent(t *testing.T) {
-	s, _ := New(":memory:")
-	defer s.Close()
+	storeInstance, _ := New(":memory:")
+	defer storeInstance.Close()
 
-	w := s.Watch("g", "k")
+	watcher := storeInstance.Watch("g", "k")
 
 	// Calling Unwatch multiple times should not panic.
-	s.Unwatch(w)
-	s.Unwatch(w) // second call is a no-op
+	storeInstance.Unwatch(watcher)
+	storeInstance.Unwatch(watcher) // second call is a no-op
 }
 
 func TestEvents_Unwatch_Good_NilWatcher(t *testing.T) {
-	s, _ := New(":memory:")
-	defer s.Close()
+	storeInstance, _ := New(":memory:")
+	defer storeInstance.Close()
 
-	s.Unwatch(nil)
+	storeInstance.Unwatch(nil)
 }
 
 // ---------------------------------------------------------------------------
@@ -149,24 +149,24 @@ func TestEvents_Unwatch_Good_NilWatcher(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestEvents_Watch_Good_DeleteEvent(t *testing.T) {
-	s, _ := New(":memory:")
-	defer s.Close()
+	storeInstance, _ := New(":memory:")
+	defer storeInstance.Close()
 
-	w := s.Watch("g", "k")
-	defer s.Unwatch(w)
+	watcher := storeInstance.Watch("g", "k")
+	defer storeInstance.Unwatch(watcher)
 
-	require.NoError(t, s.Set("g", "k", "v"))
+	require.NoError(t, storeInstance.Set("g", "k", "v"))
 	// Drain the Set event.
-	<-w.Events
+	<-watcher.Events
 
-	require.NoError(t, s.Delete("g", "k"))
+	require.NoError(t, storeInstance.Delete("g", "k"))
 
 	select {
-	case e := <-w.Events:
-		assert.Equal(t, EventDelete, e.Type)
-		assert.Equal(t, "g", e.Group)
-		assert.Equal(t, "k", e.Key)
-		assert.Empty(t, e.Value, "Delete events should have empty Value")
+	case event := <-watcher.Events:
+		assert.Equal(t, EventDelete, event.Type)
+		assert.Equal(t, "g", event.Group)
+		assert.Equal(t, "k", event.Key)
+		assert.Empty(t, event.Value, "Delete events should have empty Value")
 	case <-time.After(time.Second):
 		t.Fatal("timed out waiting for delete event")
 	}
@@ -177,26 +177,26 @@ func TestEvents_Watch_Good_DeleteEvent(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestEvents_Watch_Good_DeleteGroupEvent(t *testing.T) {
-	s, _ := New(":memory:")
-	defer s.Close()
+	storeInstance, _ := New(":memory:")
+	defer storeInstance.Close()
 
 	// A wildcard-key watcher for the group should receive DeleteGroup events.
-	w := s.Watch("g", "*")
-	defer s.Unwatch(w)
+	watcher := storeInstance.Watch("g", "*")
+	defer storeInstance.Unwatch(watcher)
 
-	require.NoError(t, s.Set("g", "a", "1"))
-	require.NoError(t, s.Set("g", "b", "2"))
+	require.NoError(t, storeInstance.Set("g", "a", "1"))
+	require.NoError(t, storeInstance.Set("g", "b", "2"))
 	// Drain Set events.
-	<-w.Events
-	<-w.Events
+	<-watcher.Events
+	<-watcher.Events
 
-	require.NoError(t, s.DeleteGroup("g"))
+	require.NoError(t, storeInstance.DeleteGroup("g"))
 
 	select {
-	case e := <-w.Events:
-		assert.Equal(t, EventDeleteGroup, e.Type)
-		assert.Equal(t, "g", e.Group)
-		assert.Empty(t, e.Key, "DeleteGroup events should have empty Key")
+	case event := <-watcher.Events:
+		assert.Equal(t, EventDeleteGroup, event.Type)
+		assert.Equal(t, "g", event.Group)
+		assert.Empty(t, event.Key, "DeleteGroup events should have empty Key")
 	case <-time.After(time.Second):
 		t.Fatal("timed out waiting for delete_group event")
 	}
@@ -207,21 +207,21 @@ func TestEvents_Watch_Good_DeleteGroupEvent(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestEvents_OnChange_Good_Fires(t *testing.T) {
-	s, _ := New(":memory:")
-	defer s.Close()
+	storeInstance, _ := New(":memory:")
+	defer storeInstance.Close()
 
 	var events []Event
 	var mu sync.Mutex
 
-	unreg := s.OnChange(func(e Event) {
+	unregister := storeInstance.OnChange(func(event Event) {
 		mu.Lock()
-		events = append(events, e)
+		events = append(events, event)
 		mu.Unlock()
 	})
-	defer unreg()
+	defer unregister()
 
-	require.NoError(t, s.Set("g", "k", "v"))
-	require.NoError(t, s.Delete("g", "k"))
+	require.NoError(t, storeInstance.Set("g", "k", "v"))
+	require.NoError(t, storeInstance.Delete("g", "k"))
 
 	mu.Lock()
 	defer mu.Unlock()
@@ -235,25 +235,25 @@ func TestEvents_OnChange_Good_Fires(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestEvents_OnChange_Good_Unregister(t *testing.T) {
-	s, _ := New(":memory:")
-	defer s.Close()
+	storeInstance, _ := New(":memory:")
+	defer storeInstance.Close()
 
 	var count atomic.Int32
 
-	unreg := s.OnChange(func(e Event) {
+	unregister := storeInstance.OnChange(func(event Event) {
 		count.Add(1)
 	})
 
-	require.NoError(t, s.Set("g", "k", "v1"))
+	require.NoError(t, storeInstance.Set("g", "k", "v1"))
 	assert.Equal(t, int32(1), count.Load())
 
-	unreg()
+	unregister()
 
-	require.NoError(t, s.Set("g", "k", "v2"))
+	require.NoError(t, storeInstance.Set("g", "k", "v2"))
 	assert.Equal(t, int32(1), count.Load(), "callback should not fire after unregister")
 
-	// Calling unreg again should not panic.
-	unreg()
+	// Calling unregister again should not panic.
+	unregister()
 }
 
 // ---------------------------------------------------------------------------
@@ -261,16 +261,16 @@ func TestEvents_OnChange_Good_Unregister(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestEvents_OnChange_Good_ReentrantSubscriptions(t *testing.T) {
-	s, _ := New(":memory:")
-	defer s.Close()
+	storeInstance, _ := New(":memory:")
+	defer storeInstance.Close()
 
 	var callbackCount atomic.Int32
 	var unregister func()
-	unregister = s.OnChange(func(event Event) {
+	unregister = storeInstance.OnChange(func(event Event) {
 		callbackCount.Add(1)
 
-		nestedWatcher := s.Watch("nested", "*")
-		s.Unwatch(nestedWatcher)
+		nestedWatcher := storeInstance.Watch("nested", "*")
+		storeInstance.Unwatch(nestedWatcher)
 
 		if unregister != nil {
 			unregister()
@@ -279,7 +279,7 @@ func TestEvents_OnChange_Good_ReentrantSubscriptions(t *testing.T) {
 
 	writeDone := make(chan error, 1)
 	go func() {
-		writeDone <- s.Set("g", "k", "v")
+		writeDone <- storeInstance.Set("g", "k", "v")
 	}()
 
 	select {
@@ -292,7 +292,7 @@ func TestEvents_OnChange_Good_ReentrantSubscriptions(t *testing.T) {
 	assert.Equal(t, int32(1), callbackCount.Load())
 
 	// The callback unregistered itself, so later writes should not increment it.
-	require.NoError(t, s.Set("g", "k", "v2"))
+	require.NoError(t, storeInstance.Set("g", "k", "v2"))
 	assert.Equal(t, int32(1), callbackCount.Load())
 }
 
@@ -301,18 +301,18 @@ func TestEvents_OnChange_Good_ReentrantSubscriptions(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestEvents_Watch_Good_BufferFullDoesNotBlock(t *testing.T) {
-	s, _ := New(":memory:")
-	defer s.Close()
+	storeInstance, _ := New(":memory:")
+	defer storeInstance.Close()
 
-	w := s.Watch("g", "*")
-	defer s.Unwatch(w)
+	watcher := storeInstance.Watch("g", "*")
+	defer storeInstance.Unwatch(watcher)
 
 	// Fill the buffer (cap 16) plus extra writes. None should block.
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
 		for i := range 32 {
-			require.NoError(t, s.Set("g", core.Sprintf("k%d", i), "v"))
+			require.NoError(t, storeInstance.Set("g", core.Sprintf("k%d", i), "v"))
 		}
 	}()
 
@@ -327,7 +327,7 @@ func TestEvents_Watch_Good_BufferFullDoesNotBlock(t *testing.T) {
 	var received int
 	for range watcherEventBufferCapacity {
 		select {
-		case <-w.Events:
+		case <-watcher.Events:
 			received++
 		default:
 		}
@@ -340,29 +340,29 @@ func TestEvents_Watch_Good_BufferFullDoesNotBlock(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestEvents_Watch_Good_MultipleWatchersSameKey(t *testing.T) {
-	s, _ := New(":memory:")
-	defer s.Close()
+	storeInstance, _ := New(":memory:")
+	defer storeInstance.Close()
 
-	w1 := s.Watch("g", "k")
-	w2 := s.Watch("g", "k")
-	defer s.Unwatch(w1)
-	defer s.Unwatch(w2)
+	firstWatcher := storeInstance.Watch("g", "k")
+	secondWatcher := storeInstance.Watch("g", "k")
+	defer storeInstance.Unwatch(firstWatcher)
+	defer storeInstance.Unwatch(secondWatcher)
 
-	require.NoError(t, s.Set("g", "k", "v"))
+	require.NoError(t, storeInstance.Set("g", "k", "v"))
 
 	// Both watchers should receive the event independently.
 	select {
-	case e := <-w1.Events:
-		assert.Equal(t, EventSet, e.Type)
+	case event := <-firstWatcher.Events:
+		assert.Equal(t, EventSet, event.Type)
 	case <-time.After(time.Second):
-		t.Fatal("w1 timed out")
+		t.Fatal("firstWatcher timed out")
 	}
 
 	select {
-	case e := <-w2.Events:
-		assert.Equal(t, EventSet, e.Type)
+	case event := <-secondWatcher.Events:
+		assert.Equal(t, EventSet, event.Type)
 	case <-time.After(time.Second):
-		t.Fatal("w2 timed out")
+		t.Fatal("secondWatcher timed out")
 	}
 }
 
@@ -371,39 +371,39 @@ func TestEvents_Watch_Good_MultipleWatchersSameKey(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestEvents_Watch_Good_ConcurrentWatchUnwatch(t *testing.T) {
-	s, _ := New(":memory:")
-	defer s.Close()
+	storeInstance, _ := New(":memory:")
+	defer storeInstance.Close()
 
 	const goroutines = 10
 	const ops = 50
 
-	var wg sync.WaitGroup
+	var waitGroup sync.WaitGroup
 
 	// Writers — continuously mutate the store.
-	wg.Go(func() {
+	waitGroup.Go(func() {
 		for i := range goroutines * ops {
-			_ = s.Set("g", core.Sprintf("k%d", i), "v")
+			_ = storeInstance.Set("g", core.Sprintf("k%d", i), "v")
 		}
 	})
 
 	// Watchers — add and remove watchers concurrently.
 	for range goroutines {
-		wg.Go(func() {
+		waitGroup.Go(func() {
 			for range ops {
-				w := s.Watch("g", "*")
+				watcher := storeInstance.Watch("g", "*")
 				// Drain a few events to exercise the channel path.
 				for range 3 {
 					select {
-					case <-w.Events:
+					case <-watcher.Events:
 					case <-time.After(time.Millisecond):
 					}
 				}
-				s.Unwatch(w)
+				storeInstance.Unwatch(watcher)
 			}
 		})
 	}
 
-	wg.Wait()
+	waitGroup.Wait()
 	// If we got here without a data race or panic, the test passes.
 }
 
@@ -412,24 +412,24 @@ func TestEvents_Watch_Good_ConcurrentWatchUnwatch(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestEvents_Watch_Good_ScopedStoreEvents(t *testing.T) {
-	s, _ := New(":memory:")
-	defer s.Close()
+	storeInstance, _ := New(":memory:")
+	defer storeInstance.Close()
 
-	sc, err := NewScoped(s, "tenant-a")
+	scopedStore, err := NewScoped(storeInstance, "tenant-a")
 	require.NoError(t, err)
 
 	// Watch on the underlying store with the full prefixed group name.
-	w := s.Watch("tenant-a:config", "theme")
-	defer s.Unwatch(w)
+	watcher := storeInstance.Watch("tenant-a:config", "theme")
+	defer storeInstance.Unwatch(watcher)
 
-	require.NoError(t, sc.Set("config", "theme", "dark"))
+	require.NoError(t, scopedStore.Set("config", "theme", "dark"))
 
 	select {
-	case e := <-w.Events:
-		assert.Equal(t, EventSet, e.Type)
-		assert.Equal(t, "tenant-a:config", e.Group)
-		assert.Equal(t, "theme", e.Key)
-		assert.Equal(t, "dark", e.Value)
+	case event := <-watcher.Events:
+		assert.Equal(t, EventSet, event.Type)
+		assert.Equal(t, "tenant-a:config", event.Group)
+		assert.Equal(t, "theme", event.Key)
+		assert.Equal(t, "dark", event.Value)
 	case <-time.After(time.Second):
 		t.Fatal("timed out waiting for scoped store event")
 	}
@@ -451,20 +451,20 @@ func TestEvents_EventType_Good_String(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestEvents_Watch_Good_SetWithTTLEmitsEvent(t *testing.T) {
-	s, _ := New(":memory:")
-	defer s.Close()
+	storeInstance, _ := New(":memory:")
+	defer storeInstance.Close()
 
-	w := s.Watch("g", "k")
-	defer s.Unwatch(w)
+	watcher := storeInstance.Watch("g", "k")
+	defer storeInstance.Unwatch(watcher)
 
-	require.NoError(t, s.SetWithTTL("g", "k", "ttl-val", time.Hour))
+	require.NoError(t, storeInstance.SetWithTTL("g", "k", "ttl-val", time.Hour))
 
 	select {
-	case e := <-w.Events:
-		assert.Equal(t, EventSet, e.Type)
-		assert.Equal(t, "g", e.Group)
-		assert.Equal(t, "k", e.Key)
-		assert.Equal(t, "ttl-val", e.Value)
+	case event := <-watcher.Events:
+		assert.Equal(t, EventSet, event.Type)
+		assert.Equal(t, "g", event.Group)
+		assert.Equal(t, "k", event.Key)
+		assert.Equal(t, "ttl-val", event.Value)
 	case <-time.After(time.Second):
 		t.Fatal("timed out waiting for SetWithTTL event")
 	}
@@ -475,13 +475,13 @@ func TestEvents_Watch_Good_SetWithTTLEmitsEvent(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 // drainEvents collects up to n events from ch within the given timeout.
-func drainEvents(ch <-chan Event, n int, timeout time.Duration) []Event {
+func drainEvents(ch <-chan Event, count int, timeout time.Duration) []Event {
 	var events []Event
 	deadline := time.After(timeout)
-	for range n {
+	for range count {
 		select {
-		case e := <-ch:
-			events = append(events, e)
+		case event := <-ch:
+			events = append(events, event)
 		case <-deadline:
 			return events
 		}
