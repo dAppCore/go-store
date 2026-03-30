@@ -53,6 +53,14 @@ func (scopedStore *ScopedStore) namespacedGroup(group string) string {
 	return scopedStore.namespace + ":" + group
 }
 
+func (scopedStore *ScopedStore) namespacePrefix() string {
+	return scopedStore.namespace + ":"
+}
+
+func (scopedStore *ScopedStore) trimNamespacePrefix(groupName string) string {
+	return core.TrimPrefix(groupName, scopedStore.namespacePrefix())
+}
+
 // Namespace returns the namespace string.
 // Usage example: `scopedStore, err := store.NewScoped(storeInstance, "tenant-a"); if err != nil { return }; namespace := scopedStore.Namespace(); fmt.Println(namespace)`
 func (scopedStore *ScopedStore) Namespace() string {
@@ -105,9 +113,59 @@ func (scopedStore *ScopedStore) Count(group string) (int, error) {
 	return scopedStore.storeInstance.Count(scopedStore.namespacedGroup(group))
 }
 
+// Usage example: `keyCount, err := scopedStore.CountAll("config")`
+func (scopedStore *ScopedStore) CountAll(groupPrefix string) (int, error) {
+	return scopedStore.storeInstance.CountAll(scopedStore.namespacedGroup(groupPrefix))
+}
+
+// Usage example: `groupNames, err := scopedStore.Groups("config")`
+func (scopedStore *ScopedStore) Groups(groupPrefix string) ([]string, error) {
+	groupNames, err := scopedStore.storeInstance.Groups(scopedStore.namespacedGroup(groupPrefix))
+	if err != nil {
+		return nil, err
+	}
+	for i, groupName := range groupNames {
+		groupNames[i] = scopedStore.trimNamespacePrefix(groupName)
+	}
+	return groupNames, nil
+}
+
+// Usage example: `for groupName, err := range scopedStore.GroupsSeq("config") { if err != nil { break }; fmt.Println(groupName) }`
+func (scopedStore *ScopedStore) GroupsSeq(groupPrefix string) iter.Seq2[string, error] {
+	return func(yield func(string, error) bool) {
+		namespacePrefix := scopedStore.namespacePrefix()
+		for groupName, err := range scopedStore.storeInstance.GroupsSeq(scopedStore.namespacedGroup(groupPrefix)) {
+			if err != nil {
+				if !yield("", err) {
+					return
+				}
+				continue
+			}
+			if !yield(core.TrimPrefix(groupName, namespacePrefix), nil) {
+				return
+			}
+		}
+	}
+}
+
 // Usage example: `renderedTemplate, err := scopedStore.Render("Hello {{ .name }}", "user")`
 func (scopedStore *ScopedStore) Render(templateSource, group string) (string, error) {
 	return scopedStore.storeInstance.Render(templateSource, scopedStore.namespacedGroup(group))
+}
+
+// Usage example: `parts, err := scopedStore.GetSplit("config", "hosts", ","); if err != nil { return }; for part := range parts { fmt.Println(part) }`
+func (scopedStore *ScopedStore) GetSplit(group, key, separator string) (iter.Seq[string], error) {
+	return scopedStore.storeInstance.GetSplit(scopedStore.namespacedGroup(group), key, separator)
+}
+
+// Usage example: `fields, err := scopedStore.GetFields("config", "flags"); if err != nil { return }; for field := range fields { fmt.Println(field) }`
+func (scopedStore *ScopedStore) GetFields(group, key string) (iter.Seq[string], error) {
+	return scopedStore.storeInstance.GetFields(scopedStore.namespacedGroup(group), key)
+}
+
+// Usage example: `removedRows, err := scopedStore.PurgeExpired(); if err != nil { return }; fmt.Println(removedRows)`
+func (scopedStore *ScopedStore) PurgeExpired() (int64, error) {
+	return scopedStore.storeInstance.PurgeExpired()
 }
 
 // checkQuota("store.ScopedStore.Set", "config", "colour") returns nil when the
@@ -120,7 +178,7 @@ func (scopedStore *ScopedStore) checkQuota(operation, group, key string) error {
 	}
 
 	namespacedGroup := scopedStore.namespacedGroup(group)
-	namespacePrefix := scopedStore.namespace + ":"
+	namespacePrefix := scopedStore.namespacePrefix()
 
 	// Check if this is an upsert (key already exists) — upserts never exceed quota.
 	_, err := scopedStore.storeInstance.Get(namespacedGroup, key)

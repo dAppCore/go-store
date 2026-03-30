@@ -208,7 +208,7 @@ Namespace strings must match `^[a-zA-Z0-9-]+$`. Invalid namespaces are rejected 
 
 `ScopedStore` delegates all operations to the underlying `Store` after prefixing. Events emitted by scoped operations carry the full prefixed group name in `Event.Group`, enabling watchers on the underlying store to observe scoped mutations.
 
-`ScopedStore` exposes the same API surface as `Store` for: `Get`, `Set`, `SetWithTTL`, `Delete`, `DeleteGroup`, `GetAll`, `All`, `Count`, and `Render`. The `Namespace()` method returns the namespace string.
+`ScopedStore` exposes the same read helpers as `Store` for `Get`, `Set`, `SetWithTTL`, `Delete`, `DeleteGroup`, `GetAll`, `All`, `Count`, `CountAll`, `Groups`, `GroupsSeq`, `GetSplit`, `GetFields`, `Render`, and `PurgeExpired`. Methods that return group names strip the namespace prefix before returning results. The `Namespace()` method returns the namespace string.
 
 ### Quota Enforcement
 
@@ -246,7 +246,7 @@ All operations are safe to call from multiple goroutines concurrently. The race 
 doc.go           Package comment with concrete usage examples
 store.go          Core Store type, CRUD, TTL, background purge, iterators, rendering
 events.go         EventType, Event, Watcher, OnChange, notify
-scope.go          ScopedStore, QuotaConfig, quota enforcement
+scope.go          ScopedStore, QuotaConfig, namespace-local helper delegation, quota enforcement
 store_test.go     Tests: CRUD, TTL, concurrency, edge cases, persistence
 events_test.go    Tests: Watch, Unwatch, OnChange, event dispatch
 scope_test.go     Tests: namespace isolation, quota enforcement
