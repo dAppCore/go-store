@@ -43,9 +43,9 @@ type Event struct {
 	Timestamp time.Time
 }
 
-// Usage example: `watcher := storeInstance.Watch("config", "*"); defer storeInstance.Unwatch(watcher); for event := range watcher.Events { _ = event }`
+// Usage example: `watcher := storeInstance.Watch("config", "*"); defer storeInstance.Unwatch(watcher); for event := range watcher.Events { if event.Type == EventDeleteGroup { return } }`
 type Watcher struct {
-	// Usage example: `for event := range watcher.Events { _ = event }`
+	// Usage example: `for event := range watcher.Events { if event.Key == "theme" { return } }`
 	Events <-chan Event
 
 	// eventChannel is the internal write channel (same underlying channel as Events).

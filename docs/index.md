@@ -29,37 +29,65 @@ func main() {
     // Open a store. Use ":memory:" for ephemeral data or a file path for persistence.
     storeInstance, err := store.New("/tmp/app.db")
     if err != nil {
-        panic(err)
+        return
     }
     defer storeInstance.Close()
 
     // Basic CRUD
-    _ = storeInstance.Set("config", "theme", "dark")
-    themeValue, _ := storeInstance.Get("config", "theme")
+    if err := storeInstance.Set("config", "theme", "dark"); err != nil {
+        return
+    }
+    themeValue, err := storeInstance.Get("config", "theme")
+    if err != nil {
+        return
+    }
     core.Println(themeValue) // "dark"
 
     // TTL expiry -- key disappears after the duration elapses
-    _ = storeInstance.SetWithTTL("session", "token", "abc123", 24*time.Hour)
+    if err := storeInstance.SetWithTTL("session", "token", "abc123", 24*time.Hour); err != nil {
+        return
+    }
 
     // Fetch all keys in a group
-    configEntries, _ := storeInstance.GetAll("config")
+    configEntries, err := storeInstance.GetAll("config")
+    if err != nil {
+        return
+    }
     core.Println(configEntries) // map[theme:dark]
 
     // Template rendering from stored values
-    storeInstance.Set("mail", "host", "smtp.example.com")
-    storeInstance.Set("mail", "port", "587")
-    renderedTemplate, _ := storeInstance.Render(`{{ .host }}:{{ .port }}`, "mail")
+    if err := storeInstance.Set("mail", "host", "smtp.example.com"); err != nil {
+        return
+    }
+    if err := storeInstance.Set("mail", "port", "587"); err != nil {
+        return
+    }
+    renderedTemplate, err := storeInstance.Render(`{{ .host }}:{{ .port }}`, "mail")
+    if err != nil {
+        return
+    }
     core.Println(renderedTemplate) // "smtp.example.com:587"
 
     // Namespace isolation for multi-tenant use
-    scopedStore, _ := store.NewScoped(storeInstance, "tenant-42")
-    _ = scopedStore.Set("prefs", "locale", "en-GB")
+    scopedStore, err := store.NewScoped(storeInstance, "tenant-42")
+    if err != nil {
+        return
+    }
+    if err := scopedStore.Set("prefs", "locale", "en-GB"); err != nil {
+        return
+    }
     // Stored internally as group "tenant-42:prefs", key "locale"
 
     // Quota enforcement
     quota := store.QuotaConfig{MaxKeys: 100, MaxGroups: 5}
-    quotaScopedStore, _ := store.NewScopedWithQuota(storeInstance, "tenant-99", quota)
-    err = quotaScopedStore.Set("g", "k", "v") // returns store.QuotaExceededError if limits are hit
+    quotaScopedStore, err := store.NewScopedWithQuota(storeInstance, "tenant-99", quota)
+    if err != nil {
+        return
+    }
+    // returns store.QuotaExceededError if limits are hit
+    if err := quotaScopedStore.Set("g", "k", "v"); err != nil {
+        return
+    }
 
     // Watch for mutations via a buffered channel
     watcher := storeInstance.Watch("config", "*")

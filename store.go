@@ -27,7 +27,7 @@ const (
 	entryValueColumn       = "entry_value"
 )
 
-// Usage example: `storeInstance, _ := store.New(":memory:"); _ = storeInstance.Set("config", "theme", "dark")`
+// Usage example: `storeInstance, err := store.New(":memory:"); if err != nil { return }; if err := storeInstance.Set("config", "theme", "dark"); err != nil { return }`
 type Store struct {
 	database       *sql.DB
 	cancelPurge    context.CancelFunc
@@ -42,7 +42,7 @@ type Store struct {
 	nextRegistrationID uint64       // monotonic ID for watchers and callbacks
 }
 
-// Usage example: `storeInstance, _ := store.New(":memory:")`
+// Usage example: `storeInstance, err := store.New(":memory:"); if err != nil { return }`
 func New(databasePath string) (*Store, error) {
 	sqliteDatabase, err := sql.Open("sqlite", databasePath)
 	if err != nil {
@@ -72,7 +72,7 @@ func New(databasePath string) (*Store, error) {
 	return storeInstance, nil
 }
 
-// Usage example: `storeInstance, _ := store.New(":memory:"); defer storeInstance.Close()`
+// Usage example: `storeInstance, err := store.New(":memory:"); if err != nil { return }; defer storeInstance.Close()`
 func (storeInstance *Store) Close() error {
 	storeInstance.cancelPurge()
 	storeInstance.purgeWaitGroup.Wait()
@@ -97,13 +97,15 @@ func (storeInstance *Store) Get(group, key string) (string, error) {
 		return "", core.E("store.Get", "query", err)
 	}
 	if expiresAt.Valid && expiresAt.Int64 <= time.Now().UnixMilli() {
-		_, _ = storeInstance.database.Exec("DELETE FROM "+entriesTableName+" WHERE "+entryGroupColumn+" = ? AND "+entryKeyColumn+" = ?", group, key)
+		if _, err := storeInstance.database.Exec("DELETE FROM "+entriesTableName+" WHERE "+entryGroupColumn+" = ? AND "+entryKeyColumn+" = ?", group, key); err != nil {
+			return "", core.E("store.Get", "lazy delete", err)
+		}
 		return "", core.E("store.Get", core.Concat(group, "/", key), NotFoundError)
 	}
 	return value, nil
 }
 
-// Usage example: `_ = storeInstance.Set("config", "theme", "dark")`
+// Usage example: `if err := storeInstance.Set("config", "theme", "dark"); err != nil { return }`
 func (storeInstance *Store) Set(group, key, value string) error {
 	_, err := storeInstance.database.Exec(
 		"INSERT INTO "+entriesTableName+" ("+entryGroupColumn+", "+entryKeyColumn+", "+entryValueColumn+", expires_at) VALUES (?, ?, ?, NULL) "+
@@ -117,7 +119,7 @@ func (storeInstance *Store) Set(group, key, value string) error {
 	return nil
 }
 
-// Usage example: `_ = storeInstance.SetWithTTL("session", "token", "abc123", time.Minute)`
+// Usage example: `if err := storeInstance.SetWithTTL("session", "token", "abc123", time.Minute); err != nil { return }`
 func (storeInstance *Store) SetWithTTL(group, key, value string, ttl time.Duration) error {
 	expiresAt := time.Now().Add(ttl).UnixMilli()
 	_, err := storeInstance.database.Exec(
@@ -132,7 +134,7 @@ func (storeInstance *Store) SetWithTTL(group, key, value string, ttl time.Durati
 	return nil
 }
 
-// Usage example: `_ = storeInstance.Delete("config", "theme")`
+// Usage example: `if err := storeInstance.Delete("config", "theme"); err != nil { return }`
 func (storeInstance *Store) Delete(group, key string) error {
 	_, err := storeInstance.database.Exec("DELETE FROM "+entriesTableName+" WHERE "+entryGroupColumn+" = ? AND "+entryKeyColumn+" = ?", group, key)
 	if err != nil {
@@ -155,7 +157,7 @@ func (storeInstance *Store) Count(group string) (int, error) {
 	return count, nil
 }
 
-// Usage example: `_ = storeInstance.DeleteGroup("cache")`
+// Usage example: `if err := storeInstance.DeleteGroup("cache"); err != nil { return }`
 func (storeInstance *Store) DeleteGroup(group string) error {
 	_, err := storeInstance.database.Exec("DELETE FROM "+entriesTableName+" WHERE "+entryGroupColumn+" = ?", group)
 	if err != nil {
@@ -165,7 +167,7 @@ func (storeInstance *Store) DeleteGroup(group string) error {
 	return nil
 }
 
-// Usage example: `for entry, err := range storeInstance.All("config") { if err != nil { break }; _ = entry }`
+// Usage example: `for entry, err := range storeInstance.All("config") { if err != nil { break }; core.Println(entry.Key, entry.Value) }`
 type KeyValue struct {
 	Key, Value string
 }
@@ -182,7 +184,7 @@ func (storeInstance *Store) GetAll(group string) (map[string]string, error) {
 	return entriesByKey, nil
 }
 
-// Usage example: `for entry, err := range storeInstance.All("config") { if err != nil { break }; _ = entry }`
+// Usage example: `for entry, err := range storeInstance.All("config") { if err != nil { break }; core.Println(entry.Key, entry.Value) }`
 func (storeInstance *Store) All(group string) iter.Seq2[KeyValue, error] {
 	return func(yield func(KeyValue, error) bool) {
 		rows, err := storeInstance.database.Query(
@@ -213,7 +215,7 @@ func (storeInstance *Store) All(group string) iter.Seq2[KeyValue, error] {
 	}
 }
 
-// Usage example: `parts, _ := storeInstance.GetSplit("config", "hosts", ",")`
+// Usage example: `parts, err := storeInstance.GetSplit("config", "hosts", ","); if err != nil { return }; for part := range parts { core.Println(part) }`
 func (storeInstance *Store) GetSplit(group, key, separator string) (iter.Seq[string], error) {
 	value, err := storeInstance.Get(group, key)
 	if err != nil {
@@ -222,7 +224,7 @@ func (storeInstance *Store) GetSplit(group, key, separator string) (iter.Seq[str
 	return splitSeq(value, separator), nil
 }
 
-// Usage example: `fields, _ := storeInstance.GetFields("config", "flags")`
+// Usage example: `fields, err := storeInstance.GetFields("config", "flags"); if err != nil { return }; for field := range fields { core.Println(field) }`
 func (storeInstance *Store) GetFields(group, key string) (iter.Seq[string], error) {
 	value, err := storeInstance.Get(group, key)
 	if err != nil {
@@ -285,7 +287,7 @@ func (storeInstance *Store) Groups(groupPrefix string) ([]string, error) {
 	return groupNames, nil
 }
 
-// Usage example: `for tenantGroupName, err := range storeInstance.GroupsSeq("tenant-a:") { if err != nil { break }; _ = tenantGroupName }`
+// Usage example: `for tenantGroupName, err := range storeInstance.GroupsSeq("tenant-a:") { if err != nil { break }; core.Println(tenantGroupName) }`
 func (storeInstance *Store) GroupsSeq(groupPrefix string) iter.Seq2[string, error] {
 	return func(yield func(string, error) bool) {
 		var rows *sql.Rows
@@ -489,7 +491,9 @@ func migrateLegacyEntriesTable(database *sql.DB) error {
 	committed := false
 	defer func() {
 		if !committed {
-			_ = transaction.Rollback()
+			if rollbackErr := transaction.Rollback(); rollbackErr != nil {
+				// Ignore rollback failures; the original error is already being returned.
+			}
 		}
 	}()
 

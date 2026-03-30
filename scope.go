@@ -17,14 +17,14 @@ type QuotaConfig struct {
 	MaxGroups int // maximum distinct groups in the namespace
 }
 
-// Usage example: `scopedStore, _ := store.NewScoped(storeInstance, "tenant-a"); _ = scopedStore.Set("config", "theme", "dark")`
+// Usage example: `scopedStore, err := store.NewScoped(storeInstance, "tenant-a"); if err != nil { return }; if err := scopedStore.Set("config", "theme", "dark"); err != nil { return }`
 type ScopedStore struct {
 	storeInstance *Store
 	namespace     string
 	quota         QuotaConfig
 }
 
-// Usage example: `scopedStore, _ := store.NewScoped(storeInstance, "tenant-a")`
+// Usage example: `scopedStore, err := store.NewScoped(storeInstance, "tenant-a"); if err != nil { return }`
 func NewScoped(storeInstance *Store, namespace string) (*ScopedStore, error) {
 	if !validNamespace.MatchString(namespace) {
 		return nil, core.E("store.NewScoped", core.Sprintf("namespace %q is invalid (must be non-empty, alphanumeric + hyphens)", namespace), nil)
@@ -33,7 +33,7 @@ func NewScoped(storeInstance *Store, namespace string) (*ScopedStore, error) {
 	return scopedStore, nil
 }
 
-// Usage example: `scopedStore, _ := store.NewScopedWithQuota(storeInstance, "tenant-a", store.QuotaConfig{MaxKeys: 100, MaxGroups: 10})`
+// Usage example: `scopedStore, err := store.NewScopedWithQuota(storeInstance, "tenant-a", store.QuotaConfig{MaxKeys: 100, MaxGroups: 10}); if err != nil { return }`
 func NewScopedWithQuota(storeInstance *Store, namespace string, quota QuotaConfig) (*ScopedStore, error) {
 	scopedStore, err := NewScoped(storeInstance, namespace)
 	if err != nil {
@@ -47,7 +47,7 @@ func (scopedStore *ScopedStore) namespacedGroup(group string) string {
 	return scopedStore.namespace + ":" + group
 }
 
-// Usage example: `scopedStore, _ := store.NewScoped(storeInstance, "tenant-a"); namespace := scopedStore.Namespace()`
+// Usage example: `scopedStore, err := store.NewScoped(storeInstance, "tenant-a"); if err != nil { return }; namespace := scopedStore.Namespace(); core.Println(namespace)`
 func (scopedStore *ScopedStore) Namespace() string {
 	return scopedStore.namespace
 }
@@ -57,7 +57,7 @@ func (scopedStore *ScopedStore) Get(group, key string) (string, error) {
 	return scopedStore.storeInstance.Get(scopedStore.namespacedGroup(group), key)
 }
 
-// Usage example: `_ = scopedStore.Set("config", "theme", "dark")`
+// Usage example: `if err := scopedStore.Set("config", "theme", "dark"); err != nil { return }`
 func (scopedStore *ScopedStore) Set(group, key, value string) error {
 	if err := scopedStore.checkQuota("store.ScopedStore.Set", group, key); err != nil {
 		return err
@@ -65,7 +65,7 @@ func (scopedStore *ScopedStore) Set(group, key, value string) error {
 	return scopedStore.storeInstance.Set(scopedStore.namespacedGroup(group), key, value)
 }
 
-// Usage example: `_ = scopedStore.SetWithTTL("sessions", "token", "abc123", time.Hour)`
+// Usage example: `if err := scopedStore.SetWithTTL("sessions", "token", "abc123", time.Hour); err != nil { return }`
 func (scopedStore *ScopedStore) SetWithTTL(group, key, value string, ttl time.Duration) error {
 	if err := scopedStore.checkQuota("store.ScopedStore.SetWithTTL", group, key); err != nil {
 		return err
@@ -73,12 +73,12 @@ func (scopedStore *ScopedStore) SetWithTTL(group, key, value string, ttl time.Du
 	return scopedStore.storeInstance.SetWithTTL(scopedStore.namespacedGroup(group), key, value, ttl)
 }
 
-// Usage example: `_ = scopedStore.Delete("config", "theme")`
+// Usage example: `if err := scopedStore.Delete("config", "theme"); err != nil { return }`
 func (scopedStore *ScopedStore) Delete(group, key string) error {
 	return scopedStore.storeInstance.Delete(scopedStore.namespacedGroup(group), key)
 }
 
-// Usage example: `_ = scopedStore.DeleteGroup("cache")`
+// Usage example: `if err := scopedStore.DeleteGroup("cache"); err != nil { return }`
 func (scopedStore *ScopedStore) DeleteGroup(group string) error {
 	return scopedStore.storeInstance.DeleteGroup(scopedStore.namespacedGroup(group))
 }
@@ -88,7 +88,7 @@ func (scopedStore *ScopedStore) GetAll(group string) (map[string]string, error) 
 	return scopedStore.storeInstance.GetAll(scopedStore.namespacedGroup(group))
 }
 
-// Usage example: `for entry, err := range scopedStore.All("config") { if err != nil { break }; _ = entry }`
+// Usage example: `for entry, err := range scopedStore.All("config") { if err != nil { break }; core.Println(entry.Key, entry.Value) }`
 func (scopedStore *ScopedStore) All(group string) iter.Seq2[KeyValue, error] {
 	return scopedStore.storeInstance.All(scopedStore.namespacedGroup(group))
 }

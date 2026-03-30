@@ -103,9 +103,16 @@ Both return `NotFoundError` if the key does not exist or has expired.
 `Render(templateSource, group)` is a convenience method that fetches all non-expired key-value pairs from a group and renders a Go `text/template` against them. The template data is a `map[string]string` keyed by the field name.
 
 ```go
-storeInstance.Set("miner", "pool", "pool.lthn.io:3333")
-storeInstance.Set("miner", "wallet", "iz...")
-renderedTemplate, _ := storeInstance.Render(`{"pool":"{{ .pool }}","wallet":"{{ .wallet }}"}`, "miner")
+if err := storeInstance.Set("miner", "pool", "pool.lthn.io:3333"); err != nil {
+    return
+}
+if err := storeInstance.Set("miner", "wallet", "iz..."); err != nil {
+    return
+}
+renderedTemplate, err := storeInstance.Render(`{"pool":"{{ .pool }}","wallet":"{{ .wallet }}"}`, "miner")
+if err != nil {
+    return
+}
 // renderedTemplate: {"pool":"pool.lthn.io:3333","wallet":"iz..."}
 ```
 
@@ -187,8 +194,13 @@ Watcher matching is handled by the `watcherMatches` helper, which checks the gro
 `ScopedStore` wraps a `*Store` and automatically prefixes all group names with `namespace + ":"`. This prevents key collisions when multiple tenants share a single underlying database.
 
 ```go
-scopedStore, _ := store.NewScoped(storeInstance, "tenant-42")
-scopedStore.Set("config", "theme", "dark")
+scopedStore, err := store.NewScoped(storeInstance, "tenant-42")
+if err != nil {
+    return
+}
+if err := scopedStore.Set("config", "theme", "dark"); err != nil {
+    return
+}
 // Stored in underlying store as group="tenant-42:config", key="theme"
 ```
 

@@ -3,15 +3,36 @@
 //
 // Usage example:
 //
-//	storeInstance, _ := store.New(":memory:")
-//	defer storeInstance.Close()
+//	func main() {
+//		storeInstance, err := store.New(":memory:")
+//		if err != nil {
+//			return
+//		}
+//		defer storeInstance.Close()
 //
-//	_ = storeInstance.Set("config", "theme", "dark")
-//	themeValue, _ := storeInstance.Get("config", "theme")
+//		if err := storeInstance.Set("config", "theme", "dark"); err != nil {
+//			return
+//		}
+//		themeValue, err := storeInstance.Get("config", "theme")
+//		if err != nil {
+//			return
+//		}
+//		core.Println(themeValue)
 //
-//	scopedStore, _ := store.NewScoped(storeInstance, "tenant-a")
-//	_ = scopedStore.Set("config", "theme", "dark")
+//		scopedStore, err := store.NewScoped(storeInstance, "tenant-a")
+//		if err != nil {
+//			return
+//		}
+//		if err := scopedStore.Set("config", "theme", "dark"); err != nil {
+//			return
+//		}
 //
-//	quotaScopedStore, _ := store.NewScopedWithQuota(storeInstance, "tenant-b", store.QuotaConfig{MaxKeys: 100, MaxGroups: 10})
-//	_ = quotaScopedStore.Set("prefs", "locale", "en-GB")
+//		quotaScopedStore, err := store.NewScopedWithQuota(storeInstance, "tenant-b", store.QuotaConfig{MaxKeys: 100, MaxGroups: 10})
+//		if err != nil {
+//			return
+//		}
+//		if err := quotaScopedStore.Set("prefs", "locale", "en-GB"); err != nil {
+//			return
+//		}
+//	}
 package store

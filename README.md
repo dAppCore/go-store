@@ -8,7 +8,7 @@ Group-namespaced SQLite key-value store with TTL expiry, namespace isolation, qu
 
 **Module**: `dappco.re/go/core/store`
 **Licence**: EUPL-1.2
-**Language**: Go 1.25
+**Language**: Go 1.26
 
 ## Quick Start
 
@@ -25,14 +25,21 @@ import (
 func main() {
 	storeInstance, err := store.New("/path/to/store.db") // or store.New(":memory:")
 	if err != nil {
-		panic(err)
+		return
 	}
 	defer storeInstance.Close()
 
-	_ = storeInstance.Set("config", "theme", "dark")
-	_ = storeInstance.SetWithTTL("session", "token", "abc123", 24*time.Hour)
+	if err := storeInstance.Set("config", "theme", "dark"); err != nil {
+		return
+	}
+	if err := storeInstance.SetWithTTL("session", "token", "abc123", 24*time.Hour); err != nil {
+		return
+	}
 	themeValue, err := storeInstance.Get("config", "theme")
-	fmt.Println(themeValue, err)
+	if err != nil {
+		return
+	}
+	fmt.Println(themeValue)
 
 	// Watch for mutations
 	watcher := storeInstance.Watch("config", "*")
@@ -44,8 +51,13 @@ func main() {
 	}()
 
 	// Scoped store for tenant isolation
-	scopedStore, _ := store.NewScoped(storeInstance, "tenant-42")
-	_ = scopedStore.Set("prefs", "locale", "en-GB")
+	scopedStore, err := store.NewScoped(storeInstance, "tenant-42")
+	if err != nil {
+		return
+	}
+	if err := scopedStore.Set("prefs", "locale", "en-GB"); err != nil {
+		return
+	}
 }
 ```
 
