@@ -8,7 +8,7 @@ import (
 	core "dappco.re/go/core"
 )
 
-// validNamespace matches alphanumeric characters and hyphens (non-empty).
+// validNamespace.MatchString("tenant-a") is true; validNamespace.MatchString("tenant_a") is false.
 var validNamespace = regexp.MustCompile(`^[a-zA-Z0-9-]+$`)
 
 // Usage example: `quota := store.QuotaConfig{MaxKeys: 100, MaxGroups: 10}`
@@ -105,9 +105,10 @@ func (scopedStore *ScopedStore) Render(templateSource, group string) (string, er
 	return scopedStore.storeInstance.Render(templateSource, scopedStore.namespacedGroup(group))
 }
 
-// checkQuota verifies that inserting key into group would not exceed the
-// namespace's quota limits. It returns nil if no quota is set or the operation
-// is within bounds. Existing keys (upserts) are not counted as new.
+// checkQuota("store.ScopedStore.Set", "config", "theme") returns nil when the
+// namespace still has quota available and QuotaExceededError when a new key or
+// group would exceed the configured limit. Existing keys are treated as
+// upserts and do not consume quota.
 func (scopedStore *ScopedStore) checkQuota(operation, group, key string) error {
 	if scopedStore.quota.MaxKeys == 0 && scopedStore.quota.MaxGroups == 0 {
 		return nil

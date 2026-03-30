@@ -1141,7 +1141,7 @@ func TestStore_PurgeExpired_Good_BackgroundPurge(t *testing.T) {
 	s.purgeInterval = 20 * time.Millisecond
 	ctx, cancel := context.WithCancel(context.Background())
 	s.cancelPurge = cancel
-	s.startPurge(ctx)
+	s.startBackgroundPurge(ctx)
 	defer s.Close()
 
 	require.NoError(t, s.SetWithTTL("g", "ephemeral", "v", 1*time.Millisecond))

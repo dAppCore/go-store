@@ -35,11 +35,12 @@ type Store struct {
 	purgeInterval  time.Duration // interval between background purge cycles
 
 	// Event dispatch state.
-	watchers           []*Watcher
-	callbacks          []changeCallbackRegistration
-	watchersLock       sync.RWMutex // protects watcher registration and dispatch
-	callbacksLock      sync.RWMutex // protects callback registration and dispatch
-	nextRegistrationID uint64       // monotonic ID for watchers and callbacks
+	watchers       []*Watcher
+	callbacks      []changeCallbackRegistration
+	watchersLock   sync.RWMutex // protects watcher registration and dispatch
+	callbacksLock  sync.RWMutex // protects callback registration and dispatch
+	nextWatcherID  uint64       // monotonic ID for watcher registrations
+	nextCallbackID uint64       // monotonic ID for callback registrations
 }
 
 // Usage example: `storeInstance, err := store.New(":memory:"); if err != nil { return }`
@@ -68,7 +69,7 @@ func New(databasePath string) (*Store, error) {
 
 	purgeContext, cancel := context.WithCancel(context.Background())
 	storeInstance := &Store{database: sqliteDatabase, cancelPurge: cancel, purgeInterval: 60 * time.Second}
-	storeInstance.startPurge(purgeContext)
+	storeInstance.startBackgroundPurge(purgeContext)
 	return storeInstance, nil
 }
 
@@ -224,7 +225,7 @@ func (storeInstance *Store) GetSplit(group, key, separator string) (iter.Seq[str
 	if err != nil {
 		return nil, err
 	}
-	return splitSeq(value, separator), nil
+	return splitValueSeq(value, separator), nil
 }
 
 // Usage example: `fields, err := storeInstance.GetFields("config", "flags"); if err != nil { return }; for field := range fields { fmt.Println(field) }`
@@ -233,7 +234,7 @@ func (storeInstance *Store) GetFields(group, key string) (iter.Seq[string], erro
 	if err != nil {
 		return nil, err
 	}
-	return fieldsSeq(value), nil
+	return fieldsValueSeq(value), nil
 }
 
 // Usage example: `renderedTemplate, err := storeInstance.Render("Hello {{ .name }}", "user")`
@@ -354,9 +355,9 @@ func (storeInstance *Store) PurgeExpired() (int64, error) {
 	return removedRows, nil
 }
 
-// startPurge keeps calling PurgeExpired every 60 seconds until Close cancels
-// the context.
-func (storeInstance *Store) startPurge(purgeContext context.Context) {
+// startBackgroundPurge(purgeContext) keeps PurgeExpired running every 60
+// seconds until Close cancels the context.
+func (storeInstance *Store) startBackgroundPurge(purgeContext context.Context) {
 	storeInstance.purgeWaitGroup.Go(func() {
 		ticker := time.NewTicker(storeInstance.purgeInterval)
 		defer ticker.Stop()
@@ -376,9 +377,9 @@ func (storeInstance *Store) startPurge(purgeContext context.Context) {
 	})
 }
 
-// splitSeq("red,green,blue", ",") yields "red", "green", "blue" without
+// splitValueSeq("red,green,blue", ",") yields "red", "green", "blue" without
 // importing strings directly.
-func splitSeq(value, separator string) iter.Seq[string] {
+func splitValueSeq(value, separator string) iter.Seq[string] {
 	return func(yield func(string) bool) {
 		for _, part := range core.Split(value, separator) {
 			if !yield(part) {
@@ -388,9 +389,9 @@ func splitSeq(value, separator string) iter.Seq[string] {
 	}
 }
 
-// fieldsSeq("alpha  beta\tgamma") yields "alpha", "beta", "gamma" without
+// fieldsValueSeq("alpha  beta\tgamma") yields "alpha", "beta", "gamma" without
 // importing strings directly.
-func fieldsSeq(value string) iter.Seq[string] {
+func fieldsValueSeq(value string) iter.Seq[string] {
 	return func(yield func(string) bool) {
 		start := -1
 		for i, r := range value {

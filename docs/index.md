@@ -26,14 +26,14 @@ import (
 )
 
 func main() {
-    // Open a store. Use ":memory:" for ephemeral data or a file path for persistence.
+    // Open /tmp/app.db for persistence, or use ":memory:" for ephemeral data.
     storeInstance, err := store.New("/tmp/app.db")
     if err != nil {
         return
     }
     defer storeInstance.Close()
 
-    // Basic CRUD
+    // Store and read back a theme value.
     if err := storeInstance.Set("config", "theme", "dark"); err != nil {
         return
     }
@@ -43,19 +43,19 @@ func main() {
     }
     fmt.Println(themeValue) // "dark"
 
-    // TTL expiry -- key disappears after the duration elapses
+    // Store a session token that expires after 24 hours.
     if err := storeInstance.SetWithTTL("session", "token", "abc123", 24*time.Hour); err != nil {
         return
     }
 
-    // Fetch all keys in a group
+    // Read the config group into a map.
     configEntries, err := storeInstance.GetAll("config")
     if err != nil {
         return
     }
     fmt.Println(configEntries) // map[theme:dark]
 
-    // Template rendering from stored values
+    // Render the mail host and port into smtp.example.com:587.
     if err := storeInstance.Set("mail", "host", "smtp.example.com"); err != nil {
         return
     }
@@ -68,7 +68,7 @@ func main() {
     }
     fmt.Println(renderedTemplate) // "smtp.example.com:587"
 
-    // Namespace isolation for multi-tenant use
+    // Prefix tenant-42 preferences with tenant-42:.
     scopedStore, err := store.NewScoped(storeInstance, "tenant-42")
     if err != nil {
         return
@@ -78,7 +78,7 @@ func main() {
     }
     // Stored internally as group "tenant-42:prefs", key "locale"
 
-    // Quota enforcement
+    // Cap tenant-99 at 100 keys and 5 groups.
     quotaScopedStore, err := store.NewScopedWithQuota(storeInstance, "tenant-99", store.QuotaConfig{MaxKeys: 100, MaxGroups: 5})
     if err != nil {
         return
@@ -97,7 +97,7 @@ func main() {
         }
     }()
 
-    // Or register a synchronous callback for the same events.
+    // Or register a synchronous callback for the same mutations.
     unregister := storeInstance.OnChange(func(event store.Event) {
         fmt.Println("changed", event.Group, event.Key, event.Value)
     })

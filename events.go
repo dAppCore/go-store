@@ -61,8 +61,8 @@ type Watcher struct {
 	id    uint64
 }
 
-// changeCallbackRegistration keeps a callback and its registration ID together
-// so OnChange can unregister it later.
+// changeCallbackRegistration{id: 7, callback: fn} keeps one OnChange callback
+// so unregister can remove the exact entry later.
 type changeCallbackRegistration struct {
 	id       uint64
 	callback func(Event)
@@ -80,7 +80,7 @@ func (storeInstance *Store) Watch(group, key string) *Watcher {
 		eventChannel: eventChannel,
 		group:        group,
 		key:          key,
-		id:           atomic.AddUint64(&storeInstance.nextRegistrationID, 1),
+		id:           atomic.AddUint64(&storeInstance.nextWatcherID, 1),
 	}
 
 	storeInstance.watchersLock.Lock()
@@ -110,7 +110,7 @@ func (storeInstance *Store) Unwatch(watcher *Watcher) {
 
 // Usage example: `events := make(chan store.Event, 1); unregister := storeInstance.OnChange(func(event store.Event) { events <- event }); defer unregister()`
 func (storeInstance *Store) OnChange(callback func(Event)) func() {
-	registrationID := atomic.AddUint64(&storeInstance.nextRegistrationID, 1)
+	registrationID := atomic.AddUint64(&storeInstance.nextCallbackID, 1)
 	callbackRegistration := changeCallbackRegistration{id: registrationID, callback: callback}
 
 	storeInstance.callbacksLock.Lock()
@@ -130,12 +130,12 @@ func (storeInstance *Store) OnChange(callback func(Event)) func() {
 	}
 }
 
-// notify dispatches an event to all matching watchers and callbacks. It must be
-// called after a successful DB write. Watcher sends are non-blocking — if a
-// channel buffer is full the event is silently dropped to avoid blocking the
-// writer. Callbacks are copied under a separate lock and invoked after the
-// lock is released, so a callback can register or unregister other watchers or
-// callbacks without deadlocking.
+// notify(Event{Type: EventSet, Group: "config", Key: "theme", Value: "dark"})
+// dispatches matching watchers and callbacks after a successful write. If a
+// watcher buffer is full, the event is dropped instead of blocking the writer.
+// Callbacks are copied under a separate lock and invoked after the lock is
+// released, so they can register or unregister subscriptions without
+// deadlocking.
 func (storeInstance *Store) notify(event Event) {
 	storeInstance.watchersLock.RLock()
 	for _, watcher := range storeInstance.watchers {
