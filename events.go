@@ -68,8 +68,8 @@ type changeCallbackRegistration struct {
 	callback func(Event)
 }
 
-// Each watcher keeps 16 pending events before non-blocking sends start
-// dropping new ones.
+// Watch("config", "*") can hold 16 pending events before non-blocking sends
+// start dropping new ones.
 const watcherEventBufferCapacity = 16
 
 // Usage example: `watcher := storeInstance.Watch("*", "*")`

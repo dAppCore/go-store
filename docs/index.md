@@ -88,7 +88,7 @@ func main() {
         return
     }
 
-    // Watch the config group via a buffered channel.
+    // Watch "config" changes and print each event as it arrives.
     watcher := storeInstance.Watch("config", "*")
     defer storeInstance.Unwatch(watcher)
     go func() {

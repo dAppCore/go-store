@@ -144,7 +144,7 @@ The only permitted runtime dependency is `modernc.org/sqlite`. Test-only depende
 ## Adding a New Method
 
 1. Implement the method on `*Store` in `store.go` (or `scope.go` if it is namespace-scoped).
-2. If it is a mutating operation, call `s.notify(Event{...})` after the successful database write.
+2. If it is a mutating operation, call `storeInstance.notify(Event{...})` after the successful database write.
 3. Add a corresponding delegation method to `ScopedStore` in `scope.go` that prefixes the group.
 4. Write tests covering the happy path, error conditions, and closed-store behaviour.
 5. Update quota checks in `checkQuota` if the operation affects key or group counts.

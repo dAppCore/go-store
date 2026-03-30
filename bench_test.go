@@ -16,32 +16,32 @@ func BenchmarkGetAll_VaryingSize(b *testing.B) {
 
 	for _, size := range sizes {
 		b.Run(core.Sprintf("size=%d", size), func(b *testing.B) {
-			s, err := New(":memory:")
+			storeInstance, err := New(":memory:")
 			if err != nil {
 				b.Fatal(err)
 			}
-			defer s.Close()
+			defer storeInstance.Close()
 
 			for i := range size {
-				_ = s.Set("bench", core.Sprintf("key-%d", i), "value")
+				_ = storeInstance.Set("bench", core.Sprintf("key-%d", i), "value")
 			}
 
 			b.ReportAllocs()
 			b.ResetTimer()
 
 			for range b.N {
-				_, _ = s.GetAll("bench")
+				_, _ = storeInstance.GetAll("bench")
 			}
 		})
 	}
 }
 
 func BenchmarkSetGet_Parallel(b *testing.B) {
-	s, err := New(":memory:")
+	storeInstance, err := New(":memory:")
 	if err != nil {
 		b.Fatal(err)
 	}
-	defer s.Close()
+	defer storeInstance.Close()
 
 	b.ReportAllocs()
 	b.ResetTimer()
@@ -50,84 +50,84 @@ func BenchmarkSetGet_Parallel(b *testing.B) {
 		i := 0
 		for pb.Next() {
 			key := core.Sprintf("key-%d", i)
-			_ = s.Set("parallel", key, "value")
-			_, _ = s.Get("parallel", key)
+			_ = storeInstance.Set("parallel", key, "value")
+			_, _ = storeInstance.Get("parallel", key)
 			i++
 		}
 	})
 }
 
 func BenchmarkCount_10K(b *testing.B) {
-	s, err := New(":memory:")
+	storeInstance, err := New(":memory:")
 	if err != nil {
 		b.Fatal(err)
 	}
-	defer s.Close()
+	defer storeInstance.Close()
 
 	for i := range 10_000 {
-		_ = s.Set("bench", core.Sprintf("key-%d", i), "value")
+		_ = storeInstance.Set("bench", core.Sprintf("key-%d", i), "value")
 	}
 
 	b.ReportAllocs()
 	b.ResetTimer()
 
 	for range b.N {
-		_, _ = s.Count("bench")
+		_, _ = storeInstance.Count("bench")
 	}
 }
 
 func BenchmarkDelete(b *testing.B) {
-	s, err := New(":memory:")
+	storeInstance, err := New(":memory:")
 	if err != nil {
 		b.Fatal(err)
 	}
-	defer s.Close()
+	defer storeInstance.Close()
 
 	// Pre-populate keys that will be deleted.
 	for i := range b.N {
-		_ = s.Set("bench", core.Sprintf("key-%d", i), "value")
+		_ = storeInstance.Set("bench", core.Sprintf("key-%d", i), "value")
 	}
 
 	b.ReportAllocs()
 	b.ResetTimer()
 
 	for i := range b.N {
-		_ = s.Delete("bench", core.Sprintf("key-%d", i))
+		_ = storeInstance.Delete("bench", core.Sprintf("key-%d", i))
 	}
 }
 
 func BenchmarkSetWithTTL(b *testing.B) {
-	s, err := New(":memory:")
+	storeInstance, err := New(":memory:")
 	if err != nil {
 		b.Fatal(err)
 	}
-	defer s.Close()
+	defer storeInstance.Close()
 
 	b.ReportAllocs()
 	b.ResetTimer()
 
 	for i := range b.N {
-		_ = s.SetWithTTL("bench", core.Sprintf("key-%d", i), "value", 60_000_000_000) // 60s
+		_ = storeInstance.SetWithTTL("bench", core.Sprintf("key-%d", i), "value", 60_000_000_000) // 60s
 	}
 }
 
 func BenchmarkRender(b *testing.B) {
-	s, err := New(":memory:")
+	storeInstance, err := New(":memory:")
 	if err != nil {
 		b.Fatal(err)
 	}
-	defer s.Close()
+	defer storeInstance.Close()
 
 	for i := range 50 {
-		_ = s.Set("bench", core.Sprintf("key%d", i), core.Sprintf("val%d", i))
+		_ = storeInstance.Set("bench", core.Sprintf("key%d", i), core.Sprintf("val%d", i))
 	}
 
-	tmpl := `{{ .key0 }} {{ .key25 }} {{ .key49 }}`
+	templateSource := `{{ .key0 }} {{ .key25 }} {{ .key49 }}`
 
 	b.ReportAllocs()
 	b.ResetTimer()
 
 	for range b.N {
-		_, _ = s.Render(tmpl, "bench")
+		_, _ = storeInstance.Render(templateSource, "bench")
 	}
 }

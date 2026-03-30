@@ -21,20 +21,20 @@ func TestCoverage_New_Bad_SchemaConflict(t *testing.T) {
 	// Pre-create a database with an INDEX named "entries". When New() runs
 	// CREATE TABLE IF NOT EXISTS entries, SQLite returns an error because the
 	// name "entries" is already taken by the index.
-	dbPath := testPath(t, "conflict.db")
+	databasePath := testPath(t, "conflict.db")
 
-	db, err := sql.Open("sqlite", dbPath)
+	database, err := sql.Open("sqlite", databasePath)
 	require.NoError(t, err)
-	db.SetMaxOpenConns(1)
-	_, err = db.Exec("PRAGMA journal_mode=WAL")
+	database.SetMaxOpenConns(1)
+	_, err = database.Exec("PRAGMA journal_mode=WAL")
 	require.NoError(t, err)
-	_, err = db.Exec("CREATE TABLE dummy (id INTEGER)")
+	_, err = database.Exec("CREATE TABLE dummy (id INTEGER)")
 	require.NoError(t, err)
-	_, err = db.Exec("CREATE INDEX entries ON dummy(id)")
+	_, err = database.Exec("CREATE INDEX entries ON dummy(id)")
 	require.NoError(t, err)
-	require.NoError(t, db.Close())
+	require.NoError(t, database.Close())
 
-	_, err = New(dbPath)
+	_, err = New(databasePath)
 	require.Error(t, err, "New should fail when an index named entries already exists")
 	assert.Contains(t, err.Error(), "store.New: schema")
 }
@@ -46,31 +46,31 @@ func TestCoverage_New_Bad_SchemaConflict(t *testing.T) {
 func TestCoverage_GetAll_Bad_ScanError(t *testing.T) {
 	// Trigger a scan error by inserting a row with a NULL key. The production
 	// code scans into plain strings, which cannot represent NULL.
-	s, err := New(":memory:")
+	storeInstance, err := New(":memory:")
 	require.NoError(t, err)
-	defer s.Close()
+	defer storeInstance.Close()
 
 	// Insert a normal row first so the query returns results.
-	require.NoError(t, s.Set("g", "good", "value"))
+	require.NoError(t, storeInstance.Set("g", "good", "value"))
 
 	// Restructure the table to allow NULLs, then insert a NULL-key row.
-	_, err = s.database.Exec("ALTER TABLE entries RENAME TO entries_backup")
+	_, err = storeInstance.database.Exec("ALTER TABLE entries RENAME TO entries_backup")
 	require.NoError(t, err)
-	_, err = s.database.Exec(`CREATE TABLE entries (
+	_, err = storeInstance.database.Exec(`CREATE TABLE entries (
 		group_name  TEXT,
 		entry_key   TEXT,
 		entry_value TEXT,
 		expires_at  INTEGER
 	)`)
 	require.NoError(t, err)
-	_, err = s.database.Exec("INSERT INTO entries SELECT * FROM entries_backup")
+	_, err = storeInstance.database.Exec("INSERT INTO entries SELECT * FROM entries_backup")
 	require.NoError(t, err)
-	_, err = s.database.Exec("INSERT INTO entries (group_name, entry_key, entry_value) VALUES ('g', NULL, 'null-key-val')")
+	_, err = storeInstance.database.Exec("INSERT INTO entries (group_name, entry_key, entry_value) VALUES ('g', NULL, 'null-key-val')")
 	require.NoError(t, err)
-	_, err = s.database.Exec("DROP TABLE entries_backup")
+	_, err = storeInstance.database.Exec("DROP TABLE entries_backup")
 	require.NoError(t, err)
 
-	_, err = s.GetAll("g")
+	_, err = storeInstance.GetAll("g")
 	require.Error(t, err, "GetAll should fail when a row contains a NULL key")
 	assert.Contains(t, err.Error(), "store.All: scan")
 }
@@ -82,31 +82,31 @@ func TestCoverage_GetAll_Bad_ScanError(t *testing.T) {
 func TestCoverage_GetAll_Bad_RowsError(t *testing.T) {
 	// Trigger rows.Err() by corrupting the database file so that iteration
 	// starts successfully but encounters a malformed page mid-scan.
-	dbPath := testPath(t, "corrupt-getall.db")
+	databasePath := testPath(t, "corrupt-getall.db")
 
-	s, err := New(dbPath)
+	storeInstance, err := New(databasePath)
 	require.NoError(t, err)
 
 	// Insert enough rows to span multiple database pages.
 	const rows = 5000
 	for i := range rows {
-		require.NoError(t, s.Set("g",
+		require.NoError(t, storeInstance.Set("g",
 			core.Sprintf("key-%06d", i),
 			core.Sprintf("value-with-padding-%06d-xxxxxxxxxxxxxxxxxxxxxxxx", i)))
 	}
-	s.Close()
+	storeInstance.Close()
 
 	// Force a WAL checkpoint so all data is in the main database file.
-	raw, err := sql.Open("sqlite", dbPath)
+	rawDatabase, err := sql.Open("sqlite", databasePath)
 	require.NoError(t, err)
-	raw.SetMaxOpenConns(1)
-	_, err = raw.Exec("PRAGMA wal_checkpoint(TRUNCATE)")
+	rawDatabase.SetMaxOpenConns(1)
+	_, err = rawDatabase.Exec("PRAGMA wal_checkpoint(TRUNCATE)")
 	require.NoError(t, err)
-	require.NoError(t, raw.Close())
+	require.NoError(t, rawDatabase.Close())
 
 	// Corrupt data pages in the latter portion of the file (skip the first
 	// pages which hold the schema).
-	data := requireCoreReadBytes(t, dbPath)
+	data := requireCoreReadBytes(t, databasePath)
 	garbage := make([]byte, 4096)
 	for i := range garbage {
 		garbage[i] = 0xFF
@@ -119,17 +119,17 @@ func TestCoverage_GetAll_Bad_RowsError(t *testing.T) {
 	}
 	copy(data[offset:offset+len(garbage)], garbage)
 	copy(data[offset+len(garbage):offset+(len(garbage)*2)], garbage)
-	requireCoreWriteBytes(t, dbPath, data)
+	requireCoreWriteBytes(t, databasePath, data)
 
 	// Remove WAL/SHM so the reopened connection reads from the main file.
-	_ = testFilesystem().Delete(dbPath + "-wal")
-	_ = testFilesystem().Delete(dbPath + "-shm")
+	_ = testFilesystem().Delete(databasePath + "-wal")
+	_ = testFilesystem().Delete(databasePath + "-shm")
 
-	s2, err := New(dbPath)
+	reopenedStore, err := New(databasePath)
 	require.NoError(t, err)
-	defer s2.Close()
+	defer reopenedStore.Close()
 
-	_, err = s2.GetAll("g")
+	_, err = reopenedStore.GetAll("g")
 	require.Error(t, err, "GetAll should fail on corrupted database pages")
 	assert.Contains(t, err.Error(), "store.All: rows")
 }
@@ -140,29 +140,29 @@ func TestCoverage_GetAll_Bad_RowsError(t *testing.T) {
 
 func TestCoverage_Render_Bad_ScanError(t *testing.T) {
 	// Same NULL-key technique as TestCoverage_GetAll_Bad_ScanError.
-	s, err := New(":memory:")
+	storeInstance, err := New(":memory:")
 	require.NoError(t, err)
-	defer s.Close()
+	defer storeInstance.Close()
 
-	require.NoError(t, s.Set("g", "good", "value"))
+	require.NoError(t, storeInstance.Set("g", "good", "value"))
 
-	_, err = s.database.Exec("ALTER TABLE entries RENAME TO entries_backup")
+	_, err = storeInstance.database.Exec("ALTER TABLE entries RENAME TO entries_backup")
 	require.NoError(t, err)
-	_, err = s.database.Exec(`CREATE TABLE entries (
+	_, err = storeInstance.database.Exec(`CREATE TABLE entries (
 		group_name  TEXT,
 		entry_key   TEXT,
 		entry_value TEXT,
 		expires_at  INTEGER
 	)`)
 	require.NoError(t, err)
-	_, err = s.database.Exec("INSERT INTO entries SELECT * FROM entries_backup")
+	_, err = storeInstance.database.Exec("INSERT INTO entries SELECT * FROM entries_backup")
 	require.NoError(t, err)
-	_, err = s.database.Exec("INSERT INTO entries (group_name, entry_key, entry_value) VALUES ('g', NULL, 'null-key-val')")
+	_, err = storeInstance.database.Exec("INSERT INTO entries (group_name, entry_key, entry_value) VALUES ('g', NULL, 'null-key-val')")
 	require.NoError(t, err)
-	_, err = s.database.Exec("DROP TABLE entries_backup")
+	_, err = storeInstance.database.Exec("DROP TABLE entries_backup")
 	require.NoError(t, err)
 
-	_, err = s.Render("{{ .good }}", "g")
+	_, err = storeInstance.Render("{{ .good }}", "g")
 	require.Error(t, err, "Render should fail when a row contains a NULL key")
 	assert.Contains(t, err.Error(), "store.All: scan")
 }
@@ -173,27 +173,27 @@ func TestCoverage_Render_Bad_ScanError(t *testing.T) {
 
 func TestCoverage_Render_Bad_RowsError(t *testing.T) {
 	// Same corruption technique as TestCoverage_GetAll_Bad_RowsError.
-	dbPath := testPath(t, "corrupt-render.db")
+	databasePath := testPath(t, "corrupt-render.db")
 
-	s, err := New(dbPath)
+	storeInstance, err := New(databasePath)
 	require.NoError(t, err)
 
 	const rows = 5000
 	for i := range rows {
-		require.NoError(t, s.Set("g",
+		require.NoError(t, storeInstance.Set("g",
 			core.Sprintf("key-%06d", i),
 			core.Sprintf("value-with-padding-%06d-xxxxxxxxxxxxxxxxxxxxxxxx", i)))
 	}
-	s.Close()
+	storeInstance.Close()
 
-	raw, err := sql.Open("sqlite", dbPath)
+	rawDatabase, err := sql.Open("sqlite", databasePath)
 	require.NoError(t, err)
-	raw.SetMaxOpenConns(1)
-	_, err = raw.Exec("PRAGMA wal_checkpoint(TRUNCATE)")
+	rawDatabase.SetMaxOpenConns(1)
+	_, err = rawDatabase.Exec("PRAGMA wal_checkpoint(TRUNCATE)")
 	require.NoError(t, err)
-	require.NoError(t, raw.Close())
+	require.NoError(t, rawDatabase.Close())
 
-	data := requireCoreReadBytes(t, dbPath)
+	data := requireCoreReadBytes(t, databasePath)
 	garbage := make([]byte, 4096)
 	for i := range garbage {
 		garbage[i] = 0xFF
@@ -206,16 +206,16 @@ func TestCoverage_Render_Bad_RowsError(t *testing.T) {
 	}
 	copy(data[offset:offset+len(garbage)], garbage)
 	copy(data[offset+len(garbage):offset+(len(garbage)*2)], garbage)
-	requireCoreWriteBytes(t, dbPath, data)
+	requireCoreWriteBytes(t, databasePath, data)
 
-	_ = testFilesystem().Delete(dbPath + "-wal")
-	_ = testFilesystem().Delete(dbPath + "-shm")
+	_ = testFilesystem().Delete(databasePath + "-wal")
+	_ = testFilesystem().Delete(databasePath + "-shm")
 
-	s2, err := New(dbPath)
+	reopenedStore, err := New(databasePath)
 	require.NoError(t, err)
-	defer s2.Close()
+	defer reopenedStore.Close()
 
-	_, err = s2.Render("{{ . }}", "g")
+	_, err = reopenedStore.Render("{{ . }}", "g")
 	require.Error(t, err, "Render should fail on corrupted database pages")
 	assert.Contains(t, err.Error(), "store.All: rows")
 }
@@ -227,27 +227,27 @@ func TestCoverage_Render_Bad_RowsError(t *testing.T) {
 func TestCoverage_GroupsSeq_Bad_ScanError(t *testing.T) {
 	// Trigger a scan error by inserting a row with a NULL group name. The
 	// production code scans into a plain string, which cannot represent NULL.
-	s, err := New(":memory:")
+	storeInstance, err := New(":memory:")
 	require.NoError(t, err)
-	defer s.Close()
+	defer storeInstance.Close()
 
-	_, err = s.database.Exec("ALTER TABLE entries RENAME TO entries_backup")
+	_, err = storeInstance.database.Exec("ALTER TABLE entries RENAME TO entries_backup")
 	require.NoError(t, err)
-	_, err = s.database.Exec(`CREATE TABLE entries (
+	_, err = storeInstance.database.Exec(`CREATE TABLE entries (
 		group_name  TEXT,
 		entry_key   TEXT,
 		entry_value TEXT,
 		expires_at  INTEGER
 	)`)
 	require.NoError(t, err)
-	_, err = s.database.Exec("INSERT INTO entries SELECT * FROM entries_backup")
+	_, err = storeInstance.database.Exec("INSERT INTO entries SELECT * FROM entries_backup")
 	require.NoError(t, err)
-	_, err = s.database.Exec("INSERT INTO entries (group_name, entry_key, entry_value) VALUES (NULL, 'k', 'v')")
+	_, err = storeInstance.database.Exec("INSERT INTO entries (group_name, entry_key, entry_value) VALUES (NULL, 'k', 'v')")
 	require.NoError(t, err)
-	_, err = s.database.Exec("DROP TABLE entries_backup")
+	_, err = storeInstance.database.Exec("DROP TABLE entries_backup")
 	require.NoError(t, err)
 
-	for groupName, iterationErr := range s.GroupsSeq("") {
+	for groupName, iterationErr := range storeInstance.GroupsSeq("") {
 		require.Error(t, iterationErr)
 		assert.Empty(t, groupName)
 		break

@@ -355,8 +355,8 @@ func (storeInstance *Store) PurgeExpired() (int64, error) {
 	return removedRows, nil
 }
 
-// startBackgroundPurge(purgeContext) keeps PurgeExpired running every 60
-// seconds until Close cancels the context.
+// New(":memory:") starts a background goroutine that calls PurgeExpired every
+// 60 seconds until Close stops the store.
 func (storeInstance *Store) startBackgroundPurge(purgeContext context.Context) {
 	storeInstance.purgeWaitGroup.Go(func() {
 		ticker := time.NewTicker(storeInstance.purgeInterval)
@@ -367,10 +367,8 @@ func (storeInstance *Store) startBackgroundPurge(purgeContext context.Context) {
 				return
 			case <-ticker.C:
 				if _, err := storeInstance.PurgeExpired(); err != nil {
-					// We can't return the error as we are in a background goroutine,
-					// but we should at least prevent it from being completely silent
-					// in a real app (e.g. by logging it). For this module, we keep it
-					// running to try again on the next tick.
+					// For example, a logger could record the failure here. The loop
+					// keeps running so the next tick can retry.
 				}
 			}
 		}

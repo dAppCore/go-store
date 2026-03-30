@@ -42,7 +42,7 @@ func main() {
 	}
 	fmt.Println(themeValue)
 
-	// Watch config mutations on a buffered channel.
+	// Watch "config" changes and print each event as it arrives.
 	watcher := storeInstance.Watch("config", "*")
 	defer storeInstance.Unwatch(watcher)
 	go func() {

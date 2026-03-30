@@ -131,7 +131,7 @@ func main() {
 ## Adding a New Method
 
 1. Implement on `*Store` in `store.go`
-2. If mutating, call `s.notify(Event{...})` after successful database write
+2. If mutating, call `storeInstance.notify(Event{...})` after successful database write
 3. Add delegation method on `ScopedStore` in `scope.go` (prefix the group)
 4. Update `checkQuota` in `scope.go` if it affects key/group counts
 5. Write `Test<File>_<Function>_<Good|Bad|Ugly>` tests
