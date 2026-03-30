@@ -91,7 +91,7 @@ All bulk operations (`GetAll`, `All`, `Count`, `Render`, `CountAll`, `Groups`, `
 
 Two convenience methods build on `Get` to return iterators over parts of a stored value:
 
-- **`GetSplit(group, key, sep)`** splits the value by a custom separator, returning an `iter.Seq[string]` via `core.Split`.
+- **`GetSplit(group, key, separator)`** splits the value by a custom separator, returning an `iter.Seq[string]` via `core.Split`.
 - **`GetFields(group, key)`** splits the value by whitespace, returning an `iter.Seq[string]` via the package's internal field iterator.
 
 `core.Split` keeps the package free of direct `strings` imports while preserving the same agent-facing API shape.
