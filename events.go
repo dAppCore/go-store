@@ -52,7 +52,7 @@ type Event struct {
 // Watcher receives events matching a group/key filter. Use Store.Watch to
 // create one and Store.Unwatch to stop delivery. Events is the primary
 // read-only channel.
-// Usage example: `watcher := st.Watch("config", "*"); for event := range watcher.Events { _ = event }`
+// Usage example: `watcher := storeInstance.Watch("config", "*"); for event := range watcher.Events { _ = event }`
 type Watcher struct {
 	// Events is the public read-only channel that consumers select on.
 	Events <-chan Event
@@ -78,36 +78,36 @@ const watcherBufferSize = 16
 // key. Use "*" as a wildcard: ("mygroup", "*") matches all keys in that group,
 // ("*", "*") matches every mutation. The returned Watcher has a buffered
 // channel (cap 16); events are dropped if the consumer falls behind.
-// Usage example: `watcher := st.Watch("config", "*")`
-func (s *Store) Watch(group, key string) *Watcher {
+// Usage example: `watcher := storeInstance.Watch("config", "*")`
+func (storeInstance *Store) Watch(group, key string) *Watcher {
 	eventsChannel := make(chan Event, watcherBufferSize)
 	watcher := &Watcher{
 		Events:        eventsChannel,
 		eventsChannel: eventsChannel,
 		group:         group,
 		key:           key,
-		id:            atomic.AddUint64(&s.nextRegistrationID, 1),
+		id:            atomic.AddUint64(&storeInstance.nextRegistrationID, 1),
 	}
 
-	s.mu.Lock()
-	s.watchers = append(s.watchers, watcher)
-	s.mu.Unlock()
+	storeInstance.registryLock.Lock()
+	storeInstance.watchers = append(storeInstance.watchers, watcher)
+	storeInstance.registryLock.Unlock()
 
 	return watcher
 }
 
 // Unwatch removes a watcher and closes its channel. Safe to call multiple
 // times; subsequent calls are no-ops.
-// Usage example: `st.Unwatch(watcher)`
-func (s *Store) Unwatch(watcher *Watcher) {
+// Usage example: `storeInstance.Unwatch(watcher)`
+func (storeInstance *Store) Unwatch(watcher *Watcher) {
 	if watcher == nil {
 		return
 	}
 
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	storeInstance.registryLock.Lock()
+	defer storeInstance.registryLock.Unlock()
 
-	s.watchers = slices.DeleteFunc(s.watchers, func(existing *Watcher) bool {
+	storeInstance.watchers = slices.DeleteFunc(storeInstance.watchers, func(existing *Watcher) bool {
 		if existing.id == watcher.id {
 			close(watcher.eventsChannel)
 			return true
@@ -120,29 +120,29 @@ func (s *Store) Unwatch(watcher *Watcher) {
 // are called synchronously in the goroutine that performed the write, so the
 // caller controls concurrency. Returns an unregister function; calling it stops
 // future invocations.
-// Usage example: `unreg := st.OnChange(func(event store.Event) {})`
+// Usage example: `unregister := storeInstance.OnChange(func(event store.Event) {})`
 //
 // This is the integration point for go-ws and similar consumers:
 //
-//	unreg := store.OnChange(func(event store.Event) {
+//	unregister := storeInstance.OnChange(func(event store.Event) {
 //	    hub.SendToChannel("store-events", event)
 //	})
-//	defer unreg()
-func (s *Store) OnChange(callback func(Event)) func() {
-	registrationID := atomic.AddUint64(&s.nextRegistrationID, 1)
+//	defer unregister()
+func (storeInstance *Store) OnChange(callback func(Event)) func() {
+	registrationID := atomic.AddUint64(&storeInstance.nextRegistrationID, 1)
 	registrationRecord := callbackEntry{id: registrationID, callback: callback}
 
-	s.mu.Lock()
-	s.callbacks = append(s.callbacks, registrationRecord)
-	s.mu.Unlock()
+	storeInstance.registryLock.Lock()
+	storeInstance.callbacks = append(storeInstance.callbacks, registrationRecord)
+	storeInstance.registryLock.Unlock()
 
 	// Return an idempotent unregister function.
 	var once sync.Once
 	return func() {
 		once.Do(func() {
-			s.mu.Lock()
-			defer s.mu.Unlock()
-			s.callbacks = slices.DeleteFunc(s.callbacks, func(existing callbackEntry) bool {
+			storeInstance.registryLock.Lock()
+			defer storeInstance.registryLock.Unlock()
+			storeInstance.callbacks = slices.DeleteFunc(storeInstance.callbacks, func(existing callbackEntry) bool {
 				return existing.id == registrationID
 			})
 		})
@@ -153,23 +153,23 @@ func (s *Store) OnChange(callback func(Event)) func() {
 // called after a successful DB write. Watcher sends are non-blocking — if a
 // channel buffer is full the event is silently dropped to avoid blocking the
 // writer.
-func (s *Store) notify(e Event) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
+func (storeInstance *Store) notify(event Event) {
+	storeInstance.registryLock.RLock()
+	defer storeInstance.registryLock.RUnlock()
 
-	for _, watcher := range s.watchers {
-		if !watcherMatches(watcher, e) {
+	for _, watcher := range storeInstance.watchers {
+		if !watcherMatches(watcher, event) {
 			continue
 		}
 		// Non-blocking send: drop the event rather than block the writer.
 		select {
-		case watcher.eventsChannel <- e:
+		case watcher.eventsChannel <- event:
 		default:
 		}
 	}
 
-	for _, callback := range s.callbacks {
-		callback.callback(e)
+	for _, callback := range storeInstance.callbacks {
+		callback.callback(event)
 	}
 }
 

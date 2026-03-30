@@ -22,24 +22,24 @@ var NotFoundError = core.E("store", "not found", nil)
 var QuotaExceededError = core.E("store", "quota exceeded", nil)
 
 // Store is a group-namespaced key-value store backed by SQLite.
-// Usage example: `st, _ := store.New(":memory:")`
+// Usage example: `storeInstance, _ := store.New(":memory:")`
 type Store struct {
-	db            *sql.DB
-	cancel        context.CancelFunc
-	wg            sync.WaitGroup
-	purgeInterval time.Duration // interval between background purge cycles
+	database       *sql.DB
+	cancelPurge    context.CancelFunc
+	purgeWaitGroup sync.WaitGroup
+	purgeInterval  time.Duration // interval between background purge cycles
 
 	// Event dispatch state.
 	watchers           []*Watcher
 	callbacks          []callbackEntry
-	mu                 sync.RWMutex // protects watchers and callbacks
+	registryLock       sync.RWMutex // protects watchers and callbacks
 	nextRegistrationID uint64       // monotonic ID for watchers and callbacks
 }
 
 // New creates a Store at the given SQLite path. Use ":memory:" for tests.
-// Usage example: `st, _ := store.New("/tmp/config.db")`
+// Usage example: `storeInstance, _ := store.New("/tmp/config.db")`
 func New(dbPath string) (*Store, error) {
-	db, err := sql.Open("sqlite", dbPath)
+	database, err := sql.Open("sqlite", dbPath)
 	if err != nil {
 		return nil, core.E("store.New", "open", err)
 	}
@@ -47,55 +47,55 @@ func New(dbPath string) (*Store, error) {
 	// one writer at a time; using a pool causes SQLITE_BUSY under contention
 	// because pragmas (journal_mode, busy_timeout) are per-connection and the
 	// pool hands out different connections for each call.
-	db.SetMaxOpenConns(1)
-	if _, err := db.Exec("PRAGMA journal_mode=WAL"); err != nil {
-		db.Close()
+	database.SetMaxOpenConns(1)
+	if _, err := database.Exec("PRAGMA journal_mode=WAL"); err != nil {
+		database.Close()
 		return nil, core.E("store.New", "WAL", err)
 	}
-	if _, err := db.Exec("PRAGMA busy_timeout=5000"); err != nil {
-		db.Close()
+	if _, err := database.Exec("PRAGMA busy_timeout=5000"); err != nil {
+		database.Close()
 		return nil, core.E("store.New", "busy_timeout", err)
 	}
-	if _, err := db.Exec(`CREATE TABLE IF NOT EXISTS kv (
+	if _, err := database.Exec(`CREATE TABLE IF NOT EXISTS kv (
 		grp        TEXT NOT NULL,
 		key        TEXT NOT NULL,
 		value      TEXT NOT NULL,
 		expires_at INTEGER,
 		PRIMARY KEY (grp, key)
 	)`); err != nil {
-		db.Close()
+		database.Close()
 		return nil, core.E("store.New", "schema", err)
 	}
 	// Ensure the expires_at column exists for databases created before TTL support.
-	if _, err := db.Exec("ALTER TABLE kv ADD COLUMN expires_at INTEGER"); err != nil {
+	if _, err := database.Exec("ALTER TABLE kv ADD COLUMN expires_at INTEGER"); err != nil {
 		// SQLite returns "duplicate column name" if it already exists.
 		if !core.Contains(err.Error(), "duplicate column name") {
-			db.Close()
+			database.Close()
 			return nil, core.E("store.New", "migration", err)
 		}
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
-	s := &Store{db: db, cancel: cancel, purgeInterval: 60 * time.Second}
-	s.startPurge(ctx)
-	return s, nil
+	storeInstance := &Store{database: database, cancelPurge: cancel, purgeInterval: 60 * time.Second}
+	storeInstance.startPurge(ctx)
+	return storeInstance, nil
 }
 
 // Close stops the background purge goroutine and closes the underlying database.
-// Usage example: `defer st.Close()`
-func (s *Store) Close() error {
-	s.cancel()
-	s.wg.Wait()
-	return s.db.Close()
+// Usage example: `defer storeInstance.Close()`
+func (storeInstance *Store) Close() error {
+	storeInstance.cancelPurge()
+	storeInstance.purgeWaitGroup.Wait()
+	return storeInstance.database.Close()
 }
 
 // Get returns the live value for a group/key pair. Expired keys are lazily
 // deleted and treated as not found.
-// Usage example: `value, err := st.Get("config", "theme")`
-func (s *Store) Get(group, key string) (string, error) {
+// Usage example: `value, err := storeInstance.Get("config", "theme")`
+func (storeInstance *Store) Get(group, key string) (string, error) {
 	var value string
 	var expiresAt sql.NullInt64
-	err := s.db.QueryRow(
+	err := storeInstance.database.QueryRow(
 		"SELECT value, expires_at FROM kv WHERE grp = ? AND key = ?",
 		group, key,
 	).Scan(&value, &expiresAt)
@@ -106,7 +106,7 @@ func (s *Store) Get(group, key string) (string, error) {
 		return "", core.E("store.Get", "query", err)
 	}
 	if expiresAt.Valid && expiresAt.Int64 <= time.Now().UnixMilli() {
-		_, _ = s.db.Exec("DELETE FROM kv WHERE grp = ? AND key = ?", group, key)
+		_, _ = storeInstance.database.Exec("DELETE FROM kv WHERE grp = ? AND key = ?", group, key)
 		return "", core.E("store.Get", core.Concat(group, "/", key), NotFoundError)
 	}
 	return value, nil
@@ -114,9 +114,9 @@ func (s *Store) Get(group, key string) (string, error) {
 
 // Set stores a value by group and key, overwriting any existing row and
 // clearing its expiry.
-// Usage example: `err := st.Set("config", "theme", "dark")`
-func (s *Store) Set(group, key, value string) error {
-	_, err := s.db.Exec(
+// Usage example: `err := storeInstance.Set("config", "theme", "dark")`
+func (storeInstance *Store) Set(group, key, value string) error {
+	_, err := storeInstance.database.Exec(
 		`INSERT INTO kv (grp, key, value, expires_at) VALUES (?, ?, ?, NULL)
 		 ON CONFLICT(grp, key) DO UPDATE SET value = excluded.value, expires_at = NULL`,
 		group, key, value,
@@ -124,17 +124,17 @@ func (s *Store) Set(group, key, value string) error {
 	if err != nil {
 		return core.E("store.Set", "exec", err)
 	}
-	s.notify(Event{Type: EventSet, Group: group, Key: key, Value: value, Timestamp: time.Now()})
+	storeInstance.notify(Event{Type: EventSet, Group: group, Key: key, Value: value, Timestamp: time.Now()})
 	return nil
 }
 
 // SetWithTTL stores a value that expires after the given duration. After
 // expiry, the key is lazily removed on the next Get and periodically by the
 // background purge goroutine.
-// Usage example: `err := st.SetWithTTL("session", "token", "abc", time.Hour)`
-func (s *Store) SetWithTTL(group, key, value string, ttl time.Duration) error {
+// Usage example: `err := storeInstance.SetWithTTL("session", "token", "abc", time.Hour)`
+func (storeInstance *Store) SetWithTTL(group, key, value string, ttl time.Duration) error {
 	expiresAt := time.Now().Add(ttl).UnixMilli()
-	_, err := s.db.Exec(
+	_, err := storeInstance.database.Exec(
 		`INSERT INTO kv (grp, key, value, expires_at) VALUES (?, ?, ?, ?)
 		 ON CONFLICT(grp, key) DO UPDATE SET value = excluded.value, expires_at = excluded.expires_at`,
 		group, key, value, expiresAt,
@@ -142,26 +142,26 @@ func (s *Store) SetWithTTL(group, key, value string, ttl time.Duration) error {
 	if err != nil {
 		return core.E("store.SetWithTTL", "exec", err)
 	}
-	s.notify(Event{Type: EventSet, Group: group, Key: key, Value: value, Timestamp: time.Now()})
+	storeInstance.notify(Event{Type: EventSet, Group: group, Key: key, Value: value, Timestamp: time.Now()})
 	return nil
 }
 
 // Delete removes a single key from a group.
-// Usage example: `err := st.Delete("config", "theme")`
-func (s *Store) Delete(group, key string) error {
-	_, err := s.db.Exec("DELETE FROM kv WHERE grp = ? AND key = ?", group, key)
+// Usage example: `err := storeInstance.Delete("config", "theme")`
+func (storeInstance *Store) Delete(group, key string) error {
+	_, err := storeInstance.database.Exec("DELETE FROM kv WHERE grp = ? AND key = ?", group, key)
 	if err != nil {
 		return core.E("store.Delete", "exec", err)
 	}
-	s.notify(Event{Type: EventDelete, Group: group, Key: key, Timestamp: time.Now()})
+	storeInstance.notify(Event{Type: EventDelete, Group: group, Key: key, Timestamp: time.Now()})
 	return nil
 }
 
 // Count returns the number of live keys in a group.
-// Usage example: `count, err := st.Count("config")`
-func (s *Store) Count(group string) (int, error) {
+// Usage example: `count, err := storeInstance.Count("config")`
+func (storeInstance *Store) Count(group string) (int, error) {
 	var count int
-	err := s.db.QueryRow(
+	err := storeInstance.database.QueryRow(
 		"SELECT COUNT(*) FROM kv WHERE grp = ? AND (expires_at IS NULL OR expires_at > ?)",
 		group, time.Now().UnixMilli(),
 	).Scan(&count)
@@ -172,27 +172,27 @@ func (s *Store) Count(group string) (int, error) {
 }
 
 // DeleteGroup removes all keys in a group.
-// Usage example: `err := st.DeleteGroup("cache")`
-func (s *Store) DeleteGroup(group string) error {
-	_, err := s.db.Exec("DELETE FROM kv WHERE grp = ?", group)
+// Usage example: `err := storeInstance.DeleteGroup("cache")`
+func (storeInstance *Store) DeleteGroup(group string) error {
+	_, err := storeInstance.database.Exec("DELETE FROM kv WHERE grp = ?", group)
 	if err != nil {
 		return core.E("store.DeleteGroup", "exec", err)
 	}
-	s.notify(Event{Type: EventDeleteGroup, Group: group, Timestamp: time.Now()})
+	storeInstance.notify(Event{Type: EventDeleteGroup, Group: group, Timestamp: time.Now()})
 	return nil
 }
 
 // KeyValue represents a key-value pair.
-// Usage example: `for entry, err := range st.All("config") { _ = entry }`
+// Usage example: `for entry, err := range storeInstance.All("config") { _ = entry }`
 type KeyValue struct {
 	Key, Value string
 }
 
 // GetAll returns all non-expired key-value pairs in a group.
-// Usage example: `entries, err := st.GetAll("config")`
-func (s *Store) GetAll(group string) (map[string]string, error) {
+// Usage example: `entries, err := storeInstance.GetAll("config")`
+func (storeInstance *Store) GetAll(group string) (map[string]string, error) {
 	entriesByKey := make(map[string]string)
-	for entry, err := range s.All(group) {
+	for entry, err := range storeInstance.All(group) {
 		if err != nil {
 			return nil, core.E("store.GetAll", "iterate", err)
 		}
@@ -202,10 +202,10 @@ func (s *Store) GetAll(group string) (map[string]string, error) {
 }
 
 // All returns an iterator over all non-expired key-value pairs in a group.
-// Usage example: `for entry, err := range st.All("config") { _ = entry; _ = err }`
-func (s *Store) All(group string) iter.Seq2[KeyValue, error] {
+// Usage example: `for entry, err := range storeInstance.All("config") { _ = entry; _ = err }`
+func (storeInstance *Store) All(group string) iter.Seq2[KeyValue, error] {
 	return func(yield func(KeyValue, error) bool) {
-		rows, err := s.db.Query(
+		rows, err := storeInstance.database.Query(
 			"SELECT key, value FROM kv WHERE grp = ? AND (expires_at IS NULL OR expires_at > ?)",
 			group, time.Now().UnixMilli(),
 		)
@@ -235,9 +235,9 @@ func (s *Store) All(group string) iter.Seq2[KeyValue, error] {
 
 // GetSplit retrieves a value and returns an iterator over its parts, split by
 // separator.
-// Usage example: `parts, _ := st.GetSplit("config", "hosts", ",")`
-func (s *Store) GetSplit(group, key, separator string) (iter.Seq[string], error) {
-	value, err := s.Get(group, key)
+// Usage example: `parts, _ := storeInstance.GetSplit("config", "hosts", ",")`
+func (storeInstance *Store) GetSplit(group, key, separator string) (iter.Seq[string], error) {
+	value, err := storeInstance.Get(group, key)
 	if err != nil {
 		return nil, err
 	}
@@ -246,9 +246,9 @@ func (s *Store) GetSplit(group, key, separator string) (iter.Seq[string], error)
 
 // GetFields retrieves a value and returns an iterator over its parts, split by
 // whitespace.
-// Usage example: `fields, _ := st.GetFields("config", "flags")`
-func (s *Store) GetFields(group, key string) (iter.Seq[string], error) {
-	value, err := s.Get(group, key)
+// Usage example: `fields, _ := storeInstance.GetFields("config", "flags")`
+func (storeInstance *Store) GetFields(group, key string) (iter.Seq[string], error) {
+	value, err := storeInstance.Get(group, key)
 	if err != nil {
 		return nil, err
 	}
@@ -257,22 +257,22 @@ func (s *Store) GetFields(group, key string) (iter.Seq[string], error) {
 
 // Render loads all non-expired key-value pairs from a group and renders a Go
 // template.
-// Usage example: `out, err := st.Render("Hello {{ .name }}", "user")`
-func (s *Store) Render(templateSource, group string) (string, error) {
+// Usage example: `out, err := storeInstance.Render("Hello {{ .name }}", "user")`
+func (storeInstance *Store) Render(templateSource, group string) (string, error) {
 	templateData := make(map[string]string)
-	for entry, err := range s.All(group) {
+	for entry, err := range storeInstance.All(group) {
 		if err != nil {
 			return "", core.E("store.Render", "iterate", err)
 		}
 		templateData[entry.Key] = entry.Value
 	}
 
-	tmpl, err := template.New("render").Parse(templateSource)
+	renderTemplate, err := template.New("render").Parse(templateSource)
 	if err != nil {
 		return "", core.E("store.Render", "parse", err)
 	}
 	builder := core.NewBuilder()
-	if err := tmpl.Execute(builder, templateData); err != nil {
+	if err := renderTemplate.Execute(builder, templateData); err != nil {
 		return "", core.E("store.Render", "exec", err)
 	}
 	return builder.String(), nil
@@ -280,17 +280,17 @@ func (s *Store) Render(templateSource, group string) (string, error) {
 
 // CountAll returns the total number of non-expired keys across all groups whose
 // name starts with the given prefix. Pass an empty string to count everything.
-// Usage example: `count, err := st.CountAll("tenant-a:")`
-func (s *Store) CountAll(groupPrefix string) (int, error) {
+// Usage example: `count, err := storeInstance.CountAll("tenant-a:")`
+func (storeInstance *Store) CountAll(groupPrefix string) (int, error) {
 	var count int
 	var err error
 	if groupPrefix == "" {
-		err = s.db.QueryRow(
+		err = storeInstance.database.QueryRow(
 			"SELECT COUNT(*) FROM kv WHERE (expires_at IS NULL OR expires_at > ?)",
 			time.Now().UnixMilli(),
 		).Scan(&count)
 	} else {
-		err = s.db.QueryRow(
+		err = storeInstance.database.QueryRow(
 			"SELECT COUNT(*) FROM kv WHERE grp LIKE ? ESCAPE '^' AND (expires_at IS NULL OR expires_at > ?)",
 			escapeLike(groupPrefix)+"%", time.Now().UnixMilli(),
 		).Scan(&count)
@@ -303,10 +303,10 @@ func (s *Store) CountAll(groupPrefix string) (int, error) {
 
 // Groups returns the distinct group names of all non-expired keys. If prefix is
 // non-empty, only groups starting with that prefix are returned.
-// Usage example: `groupNames, err := st.Groups("tenant-a:")`
-func (s *Store) Groups(groupPrefix string) ([]string, error) {
+// Usage example: `groupNames, err := storeInstance.Groups("tenant-a:")`
+func (storeInstance *Store) Groups(groupPrefix string) ([]string, error) {
 	var groupNames []string
-	for groupName, err := range s.GroupsSeq(groupPrefix) {
+	for groupName, err := range storeInstance.GroupsSeq(groupPrefix) {
 		if err != nil {
 			return nil, err
 		}
@@ -317,19 +317,19 @@ func (s *Store) Groups(groupPrefix string) ([]string, error) {
 
 // GroupsSeq returns an iterator over the distinct group names of all
 // non-expired keys.
-// Usage example: `for groupName, err := range st.GroupsSeq("tenant-a:") { _ = groupName }`
-func (s *Store) GroupsSeq(groupPrefix string) iter.Seq2[string, error] {
+// Usage example: `for groupName, err := range storeInstance.GroupsSeq("tenant-a:") { _ = groupName }`
+func (storeInstance *Store) GroupsSeq(groupPrefix string) iter.Seq2[string, error] {
 	return func(yield func(string, error) bool) {
 		var rows *sql.Rows
 		var err error
 		now := time.Now().UnixMilli()
 		if groupPrefix == "" {
-			rows, err = s.db.Query(
+			rows, err = storeInstance.database.Query(
 				"SELECT DISTINCT grp FROM kv WHERE (expires_at IS NULL OR expires_at > ?)",
 				now,
 			)
 		} else {
-			rows, err = s.db.Query(
+			rows, err = storeInstance.database.Query(
 				"SELECT DISTINCT grp FROM kv WHERE grp LIKE ? ESCAPE '^' AND (expires_at IS NULL OR expires_at > ?)",
 				escapeLike(groupPrefix)+"%", now,
 			)
@@ -359,18 +359,18 @@ func (s *Store) GroupsSeq(groupPrefix string) iter.Seq2[string, error] {
 }
 
 // escapeLike escapes SQLite LIKE wildcards and the escape character itself.
-func escapeLike(s string) string {
-	s = core.Replace(s, "^", "^^")
-	s = core.Replace(s, "%", "^%")
-	s = core.Replace(s, "_", "^_")
-	return s
+func escapeLike(text string) string {
+	text = core.Replace(text, "^", "^^")
+	text = core.Replace(text, "%", "^%")
+	text = core.Replace(text, "_", "^_")
+	return text
 }
 
 // PurgeExpired deletes all expired keys across all groups. Returns the number
 // of rows removed.
-// Usage example: `removed, err := st.PurgeExpired()`
-func (s *Store) PurgeExpired() (int64, error) {
-	result, err := s.db.Exec("DELETE FROM kv WHERE expires_at IS NOT NULL AND expires_at <= ?",
+// Usage example: `removed, err := storeInstance.PurgeExpired()`
+func (storeInstance *Store) PurgeExpired() (int64, error) {
+	result, err := storeInstance.database.Exec("DELETE FROM kv WHERE expires_at IS NOT NULL AND expires_at <= ?",
 		time.Now().UnixMilli())
 	if err != nil {
 		return 0, core.E("store.PurgeExpired", "exec", err)
@@ -380,16 +380,16 @@ func (s *Store) PurgeExpired() (int64, error) {
 
 // startPurge launches a background goroutine that purges expired entries at the
 // store's configured purge interval. It stops when the context is cancelled.
-func (s *Store) startPurge(ctx context.Context) {
-	s.wg.Go(func() {
-		ticker := time.NewTicker(s.purgeInterval)
+func (storeInstance *Store) startPurge(ctx context.Context) {
+	storeInstance.purgeWaitGroup.Go(func() {
+		ticker := time.NewTicker(storeInstance.purgeInterval)
 		defer ticker.Stop()
 		for {
 			select {
 			case <-ctx.Done():
 				return
 			case <-ticker.C:
-				if _, err := s.PurgeExpired(); err != nil {
+				if _, err := storeInstance.PurgeExpired(); err != nil {
 					// We can't return the error as we are in a background goroutine,
 					// but we should at least prevent it from being completely silent
 					// in a real app (e.g. by logging it). For this module, we keep it
@@ -401,9 +401,9 @@ func (s *Store) startPurge(ctx context.Context) {
 }
 
 // splitSeq preserves the iter.Seq API without importing strings directly.
-func splitSeq(value, sep string) iter.Seq[string] {
+func splitSeq(value, separator string) iter.Seq[string] {
 	return func(yield func(string) bool) {
-		for _, part := range core.Split(value, sep) {
+		for _, part := range core.Split(value, separator) {
 			if !yield(part) {
 				return
 			}

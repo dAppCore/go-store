@@ -23,20 +23,20 @@ import (
 )
 
 func main() {
-	st, err := store.New("/path/to/store.db") // or store.New(":memory:")
+	storeInstance, err := store.New("/path/to/store.db") // or store.New(":memory:")
 	if err != nil {
 		panic(err)
 	}
-	defer st.Close()
+	defer storeInstance.Close()
 
-	st.Set("config", "theme", "dark")
-	st.SetWithTTL("session", "token", "abc123", 24*time.Hour)
-	value, err := st.Get("config", "theme")
+	storeInstance.Set("config", "theme", "dark")
+	storeInstance.SetWithTTL("session", "token", "abc123", 24*time.Hour)
+	value, err := storeInstance.Get("config", "theme")
 	fmt.Println(value, err)
 
 	// Watch for mutations
-	watcher := st.Watch("config", "*")
-	defer st.Unwatch(watcher)
+	watcher := storeInstance.Watch("config", "*")
+	defer storeInstance.Unwatch(watcher)
 	go func() {
 		for event := range watcher.Events {
 			fmt.Println(event.Type, event.Key)
@@ -44,7 +44,7 @@ func main() {
 	}()
 
 	// Scoped store for tenant isolation
-	scopedStore, _ := store.NewScoped(st, "tenant-42")
+	scopedStore, _ := store.NewScoped(storeInstance, "tenant-42")
 	scopedStore.Set("prefs", "locale", "en-GB")
 }
 ```

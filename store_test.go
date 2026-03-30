@@ -92,7 +92,7 @@ func TestStore_New_Good_WALMode(t *testing.T) {
 	defer s.Close()
 
 	var mode string
-	err = s.db.QueryRow("PRAGMA journal_mode").Scan(&mode)
+	err = s.database.QueryRow("PRAGMA journal_mode").Scan(&mode)
 	require.NoError(t, err)
 	assert.Equal(t, "wal", mode, "journal_mode should be WAL")
 }
@@ -343,8 +343,8 @@ func TestStore_Render_Good(t *testing.T) {
 	_ = s.Set("user", "pool", "pool.lthn.io:3333")
 	_ = s.Set("user", "wallet", "iz...")
 
-	tmpl := `{"pool":"{{ .pool }}","wallet":"{{ .wallet }}"}`
-	out, err := s.Render(tmpl, "user")
+	templateSource := `{"pool":"{{ .pool }}","wallet":"{{ .wallet }}"}`
+	out, err := s.Render(templateSource, "user")
 	require.NoError(t, err)
 	assert.Contains(t, out, "pool.lthn.io:3333")
 	assert.Contains(t, out, "iz...")
@@ -870,11 +870,11 @@ func TestStore_PurgeExpired_Bad_ClosedStore(t *testing.T) {
 func TestStore_PurgeExpired_Good_BackgroundPurge(t *testing.T) {
 	s, _ := New(":memory:")
 	// Override purge interval for testing: restart the goroutine with a short interval.
-	s.cancel()
-	s.wg.Wait()
+	s.cancelPurge()
+	s.purgeWaitGroup.Wait()
 	s.purgeInterval = 20 * time.Millisecond
 	ctx, cancel := context.WithCancel(context.Background())
-	s.cancel = cancel
+	s.cancelPurge = cancel
 	s.startPurge(ctx)
 	defer s.Close()
 
@@ -887,7 +887,7 @@ func TestStore_PurgeExpired_Good_BackgroundPurge(t *testing.T) {
 	// The expired key should have been removed by the background goroutine.
 	// Use a raw query to check the row is actually gone (not just filtered by Get).
 	var count int
-	err := s.db.QueryRow("SELECT COUNT(*) FROM kv WHERE grp = ?", "g").Scan(&count)
+	err := s.database.QueryRow("SELECT COUNT(*) FROM kv WHERE grp = ?", "g").Scan(&count)
 	require.NoError(t, err)
 	assert.Equal(t, 1, count, "background purge should have deleted the expired row")
 }

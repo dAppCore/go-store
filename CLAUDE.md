@@ -32,7 +32,7 @@ go vet ./...                         # Vet
 
 **Three-layer design:**
 - `store.go` — Core `Store` type: CRUD on a `(grp, key)` compound-PK table, TTL via `expires_at` (Unix ms), background purge goroutine (60s interval), `text/template` rendering, `iter.Seq2` iterators
-- `events.go` — Event system: `Watch`/`Unwatch` (buffered chan, cap 16, non-blocking sends drop events) and `OnChange` callbacks (synchronous in writer goroutine). `notify()` holds `s.mu` read-lock; **calling Watch/Unwatch/OnChange from inside a callback will deadlock** (they need write-lock)
+- `events.go` — Event system: `Watch`/`Unwatch` (buffered chan, cap 16, non-blocking sends drop events) and `OnChange` callbacks (synchronous in writer goroutine). `notify()` holds `registryLock` read-lock; **calling Watch/Unwatch/OnChange from inside a callback will deadlock** (they need write-lock)
 - `scope.go` — `ScopedStore` wraps `*Store`, prefixes groups with `namespace:`. Quota enforcement (`MaxKeys`/`MaxGroups`) checked before writes; upserts bypass quota. Namespace regex: `^[a-zA-Z0-9-]+$`
 
 **TTL enforcement is triple-layered:** lazy delete on `Get`, query-time `WHERE` filtering on bulk reads, and background purge goroutine.
@@ -42,36 +42,36 @@ go vet ./...                         # Vet
 ## Key API
 
 ```go
-st, _ := store.New(":memory:")      // or store.New("/path/to/db")
-defer st.Close()
+storeInstance, _ := store.New(":memory:")      // or store.New("/path/to/db")
+defer storeInstance.Close()
 
-st.Set("group", "key", "value")                         // no expiry
-st.SetWithTTL("group", "key", "value", 5*time.Minute)   // expires after TTL
-value, _ := st.Get("group", "key")                       // lazy-deletes expired
-st.Delete("group", "key")
-st.DeleteGroup("group")
-entries, _ := st.GetAll("group")    // excludes expired
-count, _ := st.Count("group")       // excludes expired
-output, _ := st.Render(tmpl, "group") // excludes expired
-removed, _ := st.PurgeExpired()     // manual purge
-total, _ := st.CountAll("prefix:")  // count keys matching prefix (excludes expired)
-groupNames, _ := st.Groups("prefix:") // distinct group names matching prefix
+storeInstance.Set("group", "key", "value")                         // no expiry
+storeInstance.SetWithTTL("group", "key", "value", 5*time.Minute)   // expires after TTL
+value, _ := storeInstance.Get("group", "key")                       // lazy-deletes expired
+storeInstance.Delete("group", "key")
+storeInstance.DeleteGroup("group")
+entries, _ := storeInstance.GetAll("group")    // excludes expired
+count, _ := storeInstance.Count("group")       // excludes expired
+output, _ := storeInstance.Render("Hello {{ .name }}", "group") // excludes expired
+removed, _ := storeInstance.PurgeExpired()     // manual purge
+total, _ := storeInstance.CountAll("prefix:")  // count keys matching prefix (excludes expired)
+groupNames, _ := storeInstance.Groups("prefix:") // distinct group names matching prefix
 
 // Namespace isolation (auto-prefixes groups with "tenant:")
-scopedStore, _ := store.NewScoped(st, "tenant")
+scopedStore, _ := store.NewScoped(storeInstance, "tenant")
 scopedStore.Set("config", "key", "value") // stored as "tenant:config" in underlying store
 
 // With quota enforcement
-quotaScopedStore, _ := store.NewScopedWithQuota(st, "tenant", store.QuotaConfig{MaxKeys: 100, MaxGroups: 10})
+quotaScopedStore, _ := store.NewScopedWithQuota(storeInstance, "tenant", store.QuotaConfig{MaxKeys: 100, MaxGroups: 10})
 quotaScopedStore.Set("g", "k", "v") // returns QuotaExceededError if limits hit
 
 // Event hooks
-watcher := st.Watch("group", "*") // wildcard: all keys in group ("*","*" for all)
-defer st.Unwatch(watcher)
+watcher := storeInstance.Watch("group", "*") // wildcard: all keys in group ("*","*" for all)
+defer storeInstance.Unwatch(watcher)
 event := <-watcher.Events         // buffered chan, cap 16
 
-unreg := st.OnChange(func(e store.Event) { /* synchronous in writer goroutine */ })
-defer unreg()
+unregister := storeInstance.OnChange(func(e store.Event) { /* synchronous in writer goroutine */ })
+defer unregister()
 ```
 
 ## Coding Standards

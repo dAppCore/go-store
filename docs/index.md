@@ -27,43 +27,43 @@ import (
 
 func main() {
     // Open a store. Use ":memory:" for ephemeral data or a file path for persistence.
-    st, err := store.New("/tmp/app.db")
+    storeInstance, err := store.New("/tmp/app.db")
     if err != nil {
         panic(err)
     }
-    defer st.Close()
+    defer storeInstance.Close()
 
     // Basic CRUD
-    st.Set("config", "theme", "dark")
-    value, _ := st.Get("config", "theme")
+    storeInstance.Set("config", "theme", "dark")
+    value, _ := storeInstance.Get("config", "theme")
     core.Println(value) // "dark"
 
     // TTL expiry -- key disappears after the duration elapses
-    st.SetWithTTL("session", "token", "abc123", 24*time.Hour)
+    storeInstance.SetWithTTL("session", "token", "abc123", 24*time.Hour)
 
     // Fetch all keys in a group
-    all, _ := st.GetAll("config")
+    all, _ := storeInstance.GetAll("config")
     core.Println(all) // map[theme:dark]
 
     // Template rendering from stored values
-    st.Set("mail", "host", "smtp.example.com")
-    st.Set("mail", "port", "587")
-    out, _ := st.Render(`{{ .host }}:{{ .port }}`, "mail")
+    storeInstance.Set("mail", "host", "smtp.example.com")
+    storeInstance.Set("mail", "port", "587")
+    out, _ := storeInstance.Render(`{{ .host }}:{{ .port }}`, "mail")
     core.Println(out) // "smtp.example.com:587"
 
     // Namespace isolation for multi-tenant use
-    scopedStore, _ := store.NewScoped(st, "tenant-42")
+    scopedStore, _ := store.NewScoped(storeInstance, "tenant-42")
     scopedStore.Set("prefs", "locale", "en-GB")
     // Stored internally as group "tenant-42:prefs", key "locale"
 
     // Quota enforcement
     quota := store.QuotaConfig{MaxKeys: 100, MaxGroups: 5}
-    quotaScopedStore, _ := store.NewScopedWithQuota(st, "tenant-99", quota)
+    quotaScopedStore, _ := store.NewScopedWithQuota(storeInstance, "tenant-99", quota)
     err = quotaScopedStore.Set("g", "k", "v") // returns store.QuotaExceededError if limits are hit
 
     // Watch for mutations via a buffered channel
-    watcher := st.Watch("config", "*")
-    defer st.Unwatch(watcher)
+    watcher := storeInstance.Watch("config", "*")
+    defer storeInstance.Unwatch(watcher)
     go func() {
         for event := range watcher.Events {
             core.Println("event", event.Type, event.Group, event.Key)
@@ -71,10 +71,10 @@ func main() {
     }()
 
     // Or register a synchronous callback
-    unreg := st.OnChange(func(e store.Event) {
+    unregister := storeInstance.OnChange(func(e store.Event) {
         core.Println("changed", e.Key)
     })
-    defer unreg()
+    defer unregister()
 }
 ```
 

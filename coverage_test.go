@@ -50,20 +50,20 @@ func TestCoverage_GetAll_Bad_ScanError(t *testing.T) {
 	require.NoError(t, s.Set("g", "good", "value"))
 
 	// Restructure the table to allow NULLs, then insert a NULL-key row.
-	_, err = s.db.Exec("ALTER TABLE kv RENAME TO kv_backup")
+	_, err = s.database.Exec("ALTER TABLE kv RENAME TO kv_backup")
 	require.NoError(t, err)
-	_, err = s.db.Exec(`CREATE TABLE kv (
+	_, err = s.database.Exec(`CREATE TABLE kv (
 		grp        TEXT,
 		key        TEXT,
 		value      TEXT,
 		expires_at INTEGER
 	)`)
 	require.NoError(t, err)
-	_, err = s.db.Exec("INSERT INTO kv SELECT * FROM kv_backup")
+	_, err = s.database.Exec("INSERT INTO kv SELECT * FROM kv_backup")
 	require.NoError(t, err)
-	_, err = s.db.Exec("INSERT INTO kv (grp, key, value) VALUES ('g', NULL, 'null-key-val')")
+	_, err = s.database.Exec("INSERT INTO kv (grp, key, value) VALUES ('g', NULL, 'null-key-val')")
 	require.NoError(t, err)
-	_, err = s.db.Exec("DROP TABLE kv_backup")
+	_, err = s.database.Exec("DROP TABLE kv_backup")
 	require.NoError(t, err)
 
 	_, err = s.GetAll("g")
@@ -142,20 +142,20 @@ func TestCoverage_Render_Bad_ScanError(t *testing.T) {
 
 	require.NoError(t, s.Set("g", "good", "value"))
 
-	_, err = s.db.Exec("ALTER TABLE kv RENAME TO kv_backup")
+	_, err = s.database.Exec("ALTER TABLE kv RENAME TO kv_backup")
 	require.NoError(t, err)
-	_, err = s.db.Exec(`CREATE TABLE kv (
+	_, err = s.database.Exec(`CREATE TABLE kv (
 		grp        TEXT,
 		key        TEXT,
 		value      TEXT,
 		expires_at INTEGER
 	)`)
 	require.NoError(t, err)
-	_, err = s.db.Exec("INSERT INTO kv SELECT * FROM kv_backup")
+	_, err = s.database.Exec("INSERT INTO kv SELECT * FROM kv_backup")
 	require.NoError(t, err)
-	_, err = s.db.Exec("INSERT INTO kv (grp, key, value) VALUES ('g', NULL, 'null-key-val')")
+	_, err = s.database.Exec("INSERT INTO kv (grp, key, value) VALUES ('g', NULL, 'null-key-val')")
 	require.NoError(t, err)
-	_, err = s.db.Exec("DROP TABLE kv_backup")
+	_, err = s.database.Exec("DROP TABLE kv_backup")
 	require.NoError(t, err)
 
 	_, err = s.Render("{{ .good }}", "g")

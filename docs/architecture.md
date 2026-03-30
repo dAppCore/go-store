@@ -101,9 +101,9 @@ Both return `NotFoundError` if the key does not exist or has expired.
 `Render(templateSource, group)` is a convenience method that fetches all non-expired key-value pairs from a group and renders a Go `text/template` against them. The template data is a `map[string]string` keyed by the field name.
 
 ```go
-st.Set("miner", "pool", "pool.lthn.io:3333")
-st.Set("miner", "wallet", "iz...")
-out, _ := st.Render(`{"pool":"{{ .pool }}","wallet":"{{ .wallet }}"}`, "miner")
+storeInstance.Set("miner", "pool", "pool.lthn.io:3333")
+storeInstance.Set("miner", "wallet", "iz...")
+out, _ := storeInstance.Render(`{"pool":"{{ .pool }}","wallet":"{{ .wallet }}"}`, "miner")
 // out: {"pool":"pool.lthn.io:3333","wallet":"iz..."}
 ```
 
@@ -150,8 +150,8 @@ Events are emitted synchronously after each successful database write inside the
 **Backpressure.** Event dispatch to a watcher channel is non-blocking: if the channel buffer is full, the event is dropped silently. This prevents a slow consumer from blocking a writer. Applications that cannot afford dropped events should drain the channel promptly or use `OnChange` callbacks instead.
 
 ```go
-watcher := st.Watch("config", "*")
-defer st.Unwatch(watcher)
+watcher := storeInstance.Watch("config", "*")
+defer storeInstance.Unwatch(watcher)
 
 for event := range watcher.Events {
     fmt.Println(event.Type, event.Group, event.Key, event.Value)
@@ -165,19 +165,19 @@ for event := range watcher.Events {
 This is the designed integration point for consumers such as go-ws:
 
 ```go
-unreg := st.OnChange(func(e store.Event) {
+unregister := storeInstance.OnChange(func(e store.Event) {
     hub.SendToChannel("store-events", e)
 })
-defer unreg()
+defer unregister()
 ```
 
 go-store does not import go-ws. The dependency flows in one direction only: go-ws (or any consumer) imports go-store.
 
-**Important constraint.** `OnChange` callbacks execute while holding the watcher/callback read-lock (`s.mu`). Calling `Watch`, `Unwatch`, or `OnChange` from within a callback will deadlock, because those methods require a write-lock. Offload any significant work to a separate goroutine if needed.
+**Important constraint.** `OnChange` callbacks execute while holding the watcher/callback read-lock (`registryLock`). Calling `Watch`, `Unwatch`, or `OnChange` from within a callback will deadlock, because those methods require a write-lock. Offload any significant work to a separate goroutine if needed.
 
 ### Internal Dispatch
 
-The `notify(e Event)` method acquires a read-lock on `s.mu`, iterates all watchers with non-blocking channel sends, then calls each registered callback. The read-lock allows multiple concurrent `notify()` calls to proceed simultaneously. `Watch`/`Unwatch`/`OnChange` take a write-lock when modifying the registry.
+The `notify(e Event)` method acquires a read-lock on `registryLock`, iterates all watchers with non-blocking channel sends, then calls each registered callback. The read-lock allows multiple concurrent `notify()` calls to proceed simultaneously. `Watch`/`Unwatch`/`OnChange` take a write-lock when modifying the registry.
 
 Watcher matching is handled by the `watcherMatches` helper, which checks the group and key filters against the event. Wildcard `"*"` matches any value in its position.
 
@@ -186,7 +186,7 @@ Watcher matching is handled by the `watcherMatches` helper, which checks the gro
 `ScopedStore` wraps a `*Store` and automatically prefixes all group names with `namespace + ":"`. This prevents key collisions when multiple tenants share a single underlying database.
 
 ```go
-scopedStore, _ := store.NewScoped(st, "tenant-42")
+scopedStore, _ := store.NewScoped(storeInstance, "tenant-42")
 scopedStore.Set("config", "theme", "dark")
 // Stored in underlying store as group="tenant-42:config", key="theme"
 ```
@@ -218,11 +218,11 @@ Exceeding a limit returns `QuotaExceededError`.
 
 ## Concurrency Model
 
-All SQLite access is serialised through a single connection (`SetMaxOpenConns(1)`). The store's watcher/callback registry is protected by a separate `sync.RWMutex` (`s.mu`). These two locks do not interact:
+All SQLite access is serialised through a single connection (`SetMaxOpenConns(1)`). The store's watcher/callback registry is protected by a separate `sync.RWMutex` (`registryLock`). These two locks do not interact:
 
 - DB writes acquire no application-level lock.
-- `notify()` acquires `s.mu` (read) after the DB write completes.
-- `Watch`/`Unwatch`/`OnChange` acquire `s.mu` (write) to modify the registry.
+- `notify()` acquires `registryLock` (read) after the DB write completes.
+- `Watch`/`Unwatch`/`OnChange` acquire `registryLock` (write) to modify the registry.
 
 All operations are safe to call from multiple goroutines concurrently. The race detector is clean under the project's standard test suite (`go test -race ./...`).
 
