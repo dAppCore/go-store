@@ -66,6 +66,23 @@ func TestEvents_Watch_Good_WildcardKey(t *testing.T) {
 	assert.Equal(t, "colour", received[1].Key)
 }
 
+func TestEvents_Watch_Good_GroupMismatch(t *testing.T) {
+	s, _ := New(":memory:")
+	defer s.Close()
+
+	w := s.Watch("config", "*")
+	defer s.Unwatch(w)
+
+	require.NoError(t, s.Set("other", "theme", "dark"))
+
+	select {
+	case e := <-w.Events:
+		t.Fatalf("unexpected event for non-matching group: %+v", e)
+	case <-time.After(50 * time.Millisecond):
+		// Expected: no event.
+	}
+}
+
 // ---------------------------------------------------------------------------
 // Watch — wildcard ("*", "*") matches everything
 // ---------------------------------------------------------------------------
@@ -118,6 +135,13 @@ func TestEvents_Unwatch_Good_Idempotent(t *testing.T) {
 	// Calling Unwatch multiple times should not panic.
 	s.Unwatch(w)
 	s.Unwatch(w) // second call is a no-op
+}
+
+func TestEvents_Unwatch_Good_NilWatcher(t *testing.T) {
+	s, _ := New(":memory:")
+	defer s.Close()
+
+	s.Unwatch(nil)
 }
 
 // ---------------------------------------------------------------------------

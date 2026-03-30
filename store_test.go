@@ -382,6 +382,24 @@ func TestStore_GroupsSeq_Good_StopsEarly(t *testing.T) {
 	assert.Len(t, seen, 1)
 }
 
+func TestStore_GroupsSeq_Good_PrefixStopsEarly(t *testing.T) {
+	s, _ := New(":memory:")
+	defer s.Close()
+
+	require.NoError(t, s.Set("alpha", "a", "1"))
+	require.NoError(t, s.Set("beta", "b", "2"))
+
+	groups := s.GroupsSeq("alpha")
+	var seen []string
+	for group, err := range groups {
+		require.NoError(t, err)
+		seen = append(seen, group)
+		break
+	}
+
+	assert.Equal(t, []string{"alpha"}, seen)
+}
+
 func TestStore_GroupsSeq_Bad_ClosedStore(t *testing.T) {
 	s, _ := New(":memory:")
 	s.Close()

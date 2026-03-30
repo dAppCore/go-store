@@ -55,6 +55,15 @@ func TestScope_NewScoped_Bad_InvalidChars(t *testing.T) {
 	}
 }
 
+func TestScope_NewScopedWithQuota_Bad_InvalidNamespace(t *testing.T) {
+	s, _ := New(":memory:")
+	defer s.Close()
+
+	_, err := NewScopedWithQuota(s, "tenant_a", QuotaConfig{MaxKeys: 1})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "store.NewScoped")
+}
+
 // ---------------------------------------------------------------------------
 // ScopedStore — basic CRUD
 // ---------------------------------------------------------------------------
@@ -153,6 +162,23 @@ func TestScope_ScopedStore_Good_GetAll(t *testing.T) {
 	assert.Equal(t, map[string]string{"z": "3"}, allB)
 }
 
+func TestScope_ScopedStore_Good_All(t *testing.T) {
+	s, _ := New(":memory:")
+	defer s.Close()
+
+	scopedStore, _ := NewScoped(s, "tenant-a")
+	require.NoError(t, scopedStore.Set("items", "first", "1"))
+	require.NoError(t, scopedStore.Set("items", "second", "2"))
+
+	var keys []string
+	for entry, err := range scopedStore.All("items") {
+		require.NoError(t, err)
+		keys = append(keys, entry.Key)
+	}
+
+	assert.ElementsMatch(t, []string{"first", "second"}, keys)
+}
+
 func TestScope_ScopedStore_Good_Count(t *testing.T) {
 	s, _ := New(":memory:")
 	defer s.Close()
@@ -222,6 +248,23 @@ func TestScope_Quota_Good_MaxKeys(t *testing.T) {
 	err = sc.Set("g", "overflow", "v")
 	require.Error(t, err)
 	assert.True(t, core.Is(err, QuotaExceededError), "expected QuotaExceededError, got: %v", err)
+}
+
+func TestScope_Quota_Bad_QuotaCheckQueryError(t *testing.T) {
+	database, _ := openStubSQLiteDatabase(t, stubSQLiteScenario{})
+	defer database.Close()
+
+	storeInstance := &Store{
+		database:    database,
+		cancelPurge: func() {},
+	}
+
+	scopedStore, err := NewScopedWithQuota(storeInstance, "tenant-a", QuotaConfig{MaxKeys: 1})
+	require.NoError(t, err)
+
+	err = scopedStore.Set("config", "theme", "dark")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "quota check")
 }
 
 func TestScope_Quota_Good_MaxKeys_AcrossGroups(t *testing.T) {

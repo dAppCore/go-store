@@ -1,7 +1,11 @@
 package store
 
 import (
+	"context"
 	"database/sql"
+	"database/sql/driver"
+	"io"
+	"sync"
 	"testing"
 
 	core "dappco.re/go/core"
@@ -214,4 +218,403 @@ func TestCoverage_Render_Bad_RowsError(t *testing.T) {
 	_, err = s2.Render("{{ . }}", "g")
 	require.Error(t, err, "Render should fail on corrupted database pages")
 	assert.Contains(t, err.Error(), "store.All: rows")
+}
+
+// ---------------------------------------------------------------------------
+// GroupsSeq — defensive error paths
+// ---------------------------------------------------------------------------
+
+func TestCoverage_GroupsSeq_Bad_ScanError(t *testing.T) {
+	// Trigger a scan error by inserting a row with a NULL group name. The
+	// production code scans into a plain string, which cannot represent NULL.
+	s, err := New(":memory:")
+	require.NoError(t, err)
+	defer s.Close()
+
+	_, err = s.database.Exec("ALTER TABLE entries RENAME TO entries_backup")
+	require.NoError(t, err)
+	_, err = s.database.Exec(`CREATE TABLE entries (
+		group_name  TEXT,
+		entry_key   TEXT,
+		entry_value TEXT,
+		expires_at  INTEGER
+	)`)
+	require.NoError(t, err)
+	_, err = s.database.Exec("INSERT INTO entries SELECT * FROM entries_backup")
+	require.NoError(t, err)
+	_, err = s.database.Exec("INSERT INTO entries (group_name, entry_key, entry_value) VALUES (NULL, 'k', 'v')")
+	require.NoError(t, err)
+	_, err = s.database.Exec("DROP TABLE entries_backup")
+	require.NoError(t, err)
+
+	for groupName, iterationErr := range s.GroupsSeq("") {
+		require.Error(t, iterationErr)
+		assert.Empty(t, groupName)
+		break
+	}
+}
+
+func TestCoverage_GroupsSeq_Bad_RowsError(t *testing.T) {
+	database, _ := openStubSQLiteDatabase(t, stubSQLiteScenario{
+		groupRows: [][]driver.Value{
+			{"group-a"},
+		},
+		groupRowsErr:      core.E("stubSQLiteScenario", "rows iteration failed", nil),
+		groupRowsErrIndex: 0,
+	})
+	defer database.Close()
+
+	storeInstance := &Store{
+		database:    database,
+		cancelPurge: func() {},
+	}
+
+	for groupName, iterationErr := range storeInstance.GroupsSeq("") {
+		require.Error(t, iterationErr, "GroupsSeq should fail on corrupted database pages")
+		assert.Empty(t, groupName)
+		break
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Stubbed SQLite driver coverage
+// ---------------------------------------------------------------------------
+
+func TestCoverage_EnsureSchema_Bad_TableExistsQueryError(t *testing.T) {
+	database, _ := openStubSQLiteDatabase(t, stubSQLiteScenario{
+		tableExistsErr: core.E("stubSQLiteScenario", "sqlite master query failed", nil),
+	})
+	defer database.Close()
+
+	err := ensureSchema(database)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "sqlite master query failed")
+}
+
+func TestCoverage_EnsureSchema_Good_ExistingEntriesAndLegacyMigration(t *testing.T) {
+	database, _ := openStubSQLiteDatabase(t, stubSQLiteScenario{
+		tableExistsFound: true,
+		tableInfoRows: [][]driver.Value{
+			{0, "expires_at", "INTEGER", 0, nil, 0},
+		},
+	})
+	defer database.Close()
+
+	require.NoError(t, ensureSchema(database))
+}
+
+func TestCoverage_EnsureSchema_Bad_ExpiryColumnQueryError(t *testing.T) {
+	database, _ := openStubSQLiteDatabase(t, stubSQLiteScenario{
+		tableExistsFound: true,
+		tableInfoErr:     core.E("stubSQLiteScenario", "table_info query failed", nil),
+	})
+	defer database.Close()
+
+	err := ensureSchema(database)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "table_info query failed")
+}
+
+func TestCoverage_EnsureSchema_Bad_MigrationError(t *testing.T) {
+	database, _ := openStubSQLiteDatabase(t, stubSQLiteScenario{
+		tableExistsFound: true,
+		tableInfoRows: [][]driver.Value{
+			{0, "expires_at", "INTEGER", 0, nil, 0},
+		},
+		insertErr: core.E("stubSQLiteScenario", "insert failed", nil),
+	})
+	defer database.Close()
+
+	err := ensureSchema(database)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "insert failed")
+}
+
+func TestCoverage_EnsureSchema_Bad_MigrationCommitError(t *testing.T) {
+	database, _ := openStubSQLiteDatabase(t, stubSQLiteScenario{
+		tableExistsFound: true,
+		tableInfoRows: [][]driver.Value{
+			{0, "expires_at", "INTEGER", 0, nil, 0},
+		},
+		commitErr: core.E("stubSQLiteScenario", "commit failed", nil),
+	})
+	defer database.Close()
+
+	err := ensureSchema(database)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "commit failed")
+}
+
+func TestCoverage_TableHasColumn_Bad_QueryError(t *testing.T) {
+	database, _ := openStubSQLiteDatabase(t, stubSQLiteScenario{
+		tableInfoErr: core.E("stubSQLiteScenario", "table_info query failed", nil),
+	})
+	defer database.Close()
+
+	_, err := tableHasColumn(database, "entries", "expires_at")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "table_info query failed")
+}
+
+func TestCoverage_EnsureExpiryColumn_Good_DuplicateColumn(t *testing.T) {
+	database, _ := openStubSQLiteDatabase(t, stubSQLiteScenario{
+		tableInfoRows: [][]driver.Value{
+			{0, "entry_key", "TEXT", 1, nil, 0},
+		},
+		alterTableErr: core.E("stubSQLiteScenario", "duplicate column name: expires_at", nil),
+	})
+	defer database.Close()
+
+	require.NoError(t, ensureExpiryColumn(database))
+}
+
+func TestCoverage_EnsureExpiryColumn_Bad_AlterTableError(t *testing.T) {
+	database, _ := openStubSQLiteDatabase(t, stubSQLiteScenario{
+		tableInfoRows: [][]driver.Value{
+			{0, "entry_key", "TEXT", 1, nil, 0},
+		},
+		alterTableErr: core.E("stubSQLiteScenario", "permission denied", nil),
+	})
+	defer database.Close()
+
+	err := ensureExpiryColumn(database)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "permission denied")
+}
+
+func TestCoverage_MigrateLegacyEntriesTable_Bad_InsertError(t *testing.T) {
+	database, _ := openStubSQLiteDatabase(t, stubSQLiteScenario{
+		tableInfoRows: [][]driver.Value{
+			{0, "grp", "TEXT", 1, nil, 0},
+		},
+		insertErr: core.E("stubSQLiteScenario", "insert failed", nil),
+	})
+	defer database.Close()
+
+	err := migrateLegacyEntriesTable(database)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "insert failed")
+}
+
+func TestCoverage_MigrateLegacyEntriesTable_Bad_BeginError(t *testing.T) {
+	database, _ := openStubSQLiteDatabase(t, stubSQLiteScenario{
+		beginErr: core.E("stubSQLiteScenario", "begin failed", nil),
+	})
+	defer database.Close()
+
+	err := migrateLegacyEntriesTable(database)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "begin failed")
+}
+
+func TestCoverage_MigrateLegacyEntriesTable_Good_CreatesAndMigratesLegacyRows(t *testing.T) {
+	database, _ := openStubSQLiteDatabase(t, stubSQLiteScenario{
+		tableInfoRows: [][]driver.Value{
+			{0, "grp", "TEXT", 1, nil, 0},
+		},
+	})
+	defer database.Close()
+
+	require.NoError(t, migrateLegacyEntriesTable(database))
+}
+
+func TestCoverage_MigrateLegacyEntriesTable_Bad_TableInfoError(t *testing.T) {
+	database, _ := openStubSQLiteDatabase(t, stubSQLiteScenario{
+		tableInfoErr: core.E("stubSQLiteScenario", "table_info query failed", nil),
+	})
+	defer database.Close()
+
+	err := migrateLegacyEntriesTable(database)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "table_info query failed")
+}
+
+type stubSQLiteScenario struct {
+	tableExistsErr    error
+	tableExistsFound  bool
+	tableInfoErr      error
+	tableInfoRows     [][]driver.Value
+	groupRows         [][]driver.Value
+	groupRowsErr      error
+	groupRowsErrIndex int
+	alterTableErr     error
+	createTableErr    error
+	insertErr         error
+	dropTableErr      error
+	beginErr          error
+	commitErr         error
+	rollbackErr       error
+}
+
+type stubSQLiteDriver struct{}
+
+type stubSQLiteConn struct {
+	scenario *stubSQLiteScenario
+}
+
+type stubSQLiteTx struct {
+	scenario *stubSQLiteScenario
+}
+
+type stubSQLiteRows struct {
+	columns      []string
+	rows         [][]driver.Value
+	index        int
+	nextErr      error
+	nextErrIndex int
+}
+
+type stubSQLiteResult struct{}
+
+var (
+	stubSQLiteDriverOnce sync.Once
+	stubSQLiteScenarios  sync.Map
+)
+
+const stubSQLiteDriverName = "stub-sqlite"
+
+func openStubSQLiteDatabase(t *testing.T, scenario stubSQLiteScenario) (*sql.DB, string) {
+	t.Helper()
+
+	stubSQLiteDriverOnce.Do(func() {
+		sql.Register(stubSQLiteDriverName, stubSQLiteDriver{})
+	})
+
+	databasePath := t.Name()
+	stubSQLiteScenarios.Store(databasePath, &scenario)
+	t.Cleanup(func() {
+		stubSQLiteScenarios.Delete(databasePath)
+	})
+
+	database, err := sql.Open(stubSQLiteDriverName, databasePath)
+	require.NoError(t, err)
+	return database, databasePath
+}
+
+func (stubSQLiteDriver) Open(databasePath string) (driver.Conn, error) {
+	scenarioValue, ok := stubSQLiteScenarios.Load(databasePath)
+	if !ok {
+		return nil, core.E("stubSQLiteDriver.Open", "missing scenario", nil)
+	}
+	return &stubSQLiteConn{scenario: scenarioValue.(*stubSQLiteScenario)}, nil
+}
+
+func (conn *stubSQLiteConn) Prepare(query string) (driver.Stmt, error) {
+	return nil, core.E("stubSQLiteConn.Prepare", "not implemented", nil)
+}
+
+func (conn *stubSQLiteConn) Close() error {
+	return nil
+}
+
+func (conn *stubSQLiteConn) Begin() (driver.Tx, error) {
+	return conn.BeginTx(context.Background(), driver.TxOptions{})
+}
+
+func (conn *stubSQLiteConn) BeginTx(ctx context.Context, opts driver.TxOptions) (driver.Tx, error) {
+	if conn.scenario.beginErr != nil {
+		return nil, conn.scenario.beginErr
+	}
+	return &stubSQLiteTx{scenario: conn.scenario}, nil
+}
+
+func (conn *stubSQLiteConn) ExecContext(ctx context.Context, query string, args []driver.NamedValue) (driver.Result, error) {
+	switch {
+	case core.Contains(query, "ALTER TABLE entries ADD COLUMN expires_at INTEGER"):
+		if conn.scenario.alterTableErr != nil {
+			return nil, conn.scenario.alterTableErr
+		}
+	case core.Contains(query, "CREATE TABLE IF NOT EXISTS entries"):
+		if conn.scenario.createTableErr != nil {
+			return nil, conn.scenario.createTableErr
+		}
+	case core.Contains(query, "INSERT OR IGNORE INTO entries"):
+		if conn.scenario.insertErr != nil {
+			return nil, conn.scenario.insertErr
+		}
+	case core.Contains(query, "DROP TABLE kv"):
+		if conn.scenario.dropTableErr != nil {
+			return nil, conn.scenario.dropTableErr
+		}
+	}
+	return stubSQLiteResult{}, nil
+}
+
+func (conn *stubSQLiteConn) QueryContext(ctx context.Context, query string, args []driver.NamedValue) (driver.Rows, error) {
+	switch {
+	case core.Contains(query, "sqlite_master"):
+		if conn.scenario.tableExistsErr != nil {
+			return nil, conn.scenario.tableExistsErr
+		}
+		if conn.scenario.tableExistsFound {
+			return &stubSQLiteRows{
+				columns: []string{"name"},
+				rows:    [][]driver.Value{{"entries"}},
+			}, nil
+		}
+		return &stubSQLiteRows{columns: []string{"name"}}, nil
+	case core.Contains(query, "SELECT DISTINCT "+entryGroupColumn):
+		return &stubSQLiteRows{
+			columns:      []string{entryGroupColumn},
+			rows:         conn.scenario.groupRows,
+			nextErr:      conn.scenario.groupRowsErr,
+			nextErrIndex: conn.scenario.groupRowsErrIndex,
+		}, nil
+	case core.HasPrefix(query, "PRAGMA table_info("):
+		if conn.scenario.tableInfoErr != nil {
+			return nil, conn.scenario.tableInfoErr
+		}
+		return &stubSQLiteRows{
+			columns: []string{"cid", "name", "type", "notnull", "dflt_value", "pk"},
+			rows:    conn.scenario.tableInfoRows,
+		}, nil
+	}
+	return nil, core.E("stubSQLiteConn.QueryContext", "unexpected query", nil)
+}
+
+func (tx *stubSQLiteTx) Commit() error {
+	if tx.scenario.commitErr != nil {
+		return tx.scenario.commitErr
+	}
+	return nil
+}
+
+func (tx *stubSQLiteTx) Rollback() error {
+	if tx.scenario.rollbackErr != nil {
+		return tx.scenario.rollbackErr
+	}
+	return nil
+}
+
+func (rows *stubSQLiteRows) Columns() []string {
+	return rows.columns
+}
+
+func (rows *stubSQLiteRows) Close() error {
+	return nil
+}
+
+func (rows *stubSQLiteRows) Next(dest []driver.Value) error {
+	if rows.nextErr != nil && rows.index == rows.nextErrIndex {
+		rows.index++
+		return rows.nextErr
+	}
+	if rows.index >= len(rows.rows) {
+		return io.EOF
+	}
+	row := rows.rows[rows.index]
+	rows.index++
+	for i := range dest {
+		dest[i] = nil
+	}
+	copy(dest, row)
+	return nil
+}
+
+func (stubSQLiteResult) LastInsertId() (int64, error) {
+	return 0, nil
+}
+
+func (stubSQLiteResult) RowsAffected() (int64, error) {
+	return 0, nil
 }
