@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-// EventType describes the kind of store mutation that occurred.
+// EventType values identify the mutation stored in Event.Type.
 // Usage example: `if event.Type == store.EventSet { return }`
 type EventType int
 
@@ -23,8 +23,7 @@ const (
 	EventDeleteGroup
 )
 
-// String returns a human-readable label for the event type.
-// Usage example: `label := store.EventSet.String()`
+// Usage example: `label := store.EventDeleteGroup.String()`
 func (t EventType) String() string {
 	switch t {
 	case EventSet:
@@ -38,10 +37,10 @@ func (t EventType) String() string {
 	}
 }
 
-// Event describes a single store mutation.
+// Event records the mutation details sent to watchers and callbacks.
 // Usage example: `event := store.Event{Type: store.EventSet, Group: "config", Key: "theme", Value: "dark"}`
-//
-// Key is empty for EventDeleteGroup. Value is only populated for EventSet.
+// Usage example: `event := store.Event{Type: store.EventDeleteGroup, Group: "config"}`
+// EventDeleteGroup leaves Key and Value empty.
 type Event struct {
 	Type      EventType
 	Group     string
@@ -50,10 +49,9 @@ type Event struct {
 	Timestamp time.Time
 }
 
-// Watcher receives events matching a group/key filter.
+// Watcher exposes the buffered event channel for a group/key filter.
 // Usage example: `watcher := storeInstance.Watch("config", "*"); defer storeInstance.Unwatch(watcher); for event := range watcher.Events { _ = event }`
 type Watcher struct {
-	// Events is the read-only channel consumers range over.
 	// Usage example: `for event := range watcher.Events { _ = event }`
 	Events <-chan Event
 
@@ -74,11 +72,9 @@ type callbackEntry struct {
 // watcherBufferSize is the capacity of each watcher's buffered channel.
 const watcherBufferSize = 16
 
-// Watch creates a new watcher that receives events matching the given group and
-// key. Use "*" as a wildcard: ("mygroup", "*") matches all keys in that group,
-// ("*", "*") matches every mutation. The returned Watcher has a buffered
-// channel (cap 16); events are dropped if the consumer falls behind.
+// Watch creates a buffered subscription for a group/key filter.
 // Usage example: `watcher := storeInstance.Watch("config", "*")`
+// `("*", "*")` matches every mutation and the watcher buffer holds 16 events.
 func (storeInstance *Store) Watch(group, key string) *Watcher {
 	eventsChannel := make(chan Event, watcherBufferSize)
 	watcher := &Watcher{
@@ -96,9 +92,9 @@ func (storeInstance *Store) Watch(group, key string) *Watcher {
 	return watcher
 }
 
-// Unwatch removes a watcher and closes its channel. Safe to call multiple
-// times; subsequent calls are no-ops.
+// Unwatch removes a watcher and closes its channel.
 // Usage example: `storeInstance.Unwatch(watcher)`
+// Safe to call multiple times; subsequent calls are no-ops.
 func (storeInstance *Store) Unwatch(watcher *Watcher) {
 	if watcher == nil {
 		return
@@ -116,18 +112,9 @@ func (storeInstance *Store) Unwatch(watcher *Watcher) {
 	})
 }
 
-// OnChange registers a callback that fires on every store mutation. Callbacks
-// are called synchronously in the goroutine that performed the write, so the
-// caller controls concurrency. Returns an unregister function; calling it stops
-// future invocations.
-// Usage example: `unregister := storeInstance.OnChange(func(event store.Event) { hub.SendToChannel("store-events", event) })`
-//
-// This is the integration point for go-ws and similar consumers:
-//
-//	unregister := storeInstance.OnChange(func(event store.Event) {
-//	    hub.SendToChannel("store-events", event)
-//	})
-//	defer unregister()
+// OnChange registers a synchronous callback for every mutation.
+// Usage example: `unregister := storeInstance.OnChange(func(event store.Event) { hub.SendToChannel("store-events", event) }); defer unregister()`
+// Callbacks run synchronously in the writer goroutine, so keep heavy work out of the handler.
 func (storeInstance *Store) OnChange(callback func(Event)) func() {
 	registrationID := atomic.AddUint64(&storeInstance.nextRegistrationID, 1)
 	registrationRecord := callbackEntry{id: registrationID, callback: callback}

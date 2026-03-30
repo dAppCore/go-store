@@ -45,8 +45,8 @@ type Store struct {
 	nextRegistrationID uint64       // monotonic ID for watchers and callbacks
 }
 
-// New creates a Store at the given SQLite path. Use ":memory:" for tests.
-// Usage example: `storeInstance, _ := store.New("/tmp/config.db")`
+// Use ":memory:" for ephemeral data or a file path for persistence.
+// Usage example: `storeInstance, _ := store.New(":memory:"); defer storeInstance.Close()`
 func New(databasePath string) (*Store, error) {
 	sqliteDatabase, err := sql.Open("sqlite", databasePath)
 	if err != nil {
@@ -76,16 +76,15 @@ func New(databasePath string) (*Store, error) {
 	return storeInstance, nil
 }
 
-// Close stops the background purge goroutine and closes the underlying database.
-// Usage example: `defer storeInstance.Close()`
+// Stops the background purge goroutine and closes the database.
+// Usage example: `storeInstance, _ := store.New(":memory:"); defer storeInstance.Close()`
 func (storeInstance *Store) Close() error {
 	storeInstance.cancelPurge()
 	storeInstance.purgeWaitGroup.Wait()
 	return storeInstance.database.Close()
 }
 
-// Get returns the live value for a group/key pair. Expired keys are lazily
-// deleted and treated as not found.
+// Expired keys are lazily removed and treated as not found.
 // Usage example: `value, err := storeInstance.Get("config", "theme")`
 func (storeInstance *Store) Get(group, key string) (string, error) {
 	var value string
@@ -107,8 +106,7 @@ func (storeInstance *Store) Get(group, key string) (string, error) {
 	return value, nil
 }
 
-// Set stores a value by group and key, overwriting any existing row and
-// clearing its expiry.
+// Overwrites any existing row and clears its expiry.
 // Usage example: `err := storeInstance.Set("config", "theme", "dark")`
 func (storeInstance *Store) Set(group, key, value string) error {
 	_, err := storeInstance.database.Exec(
@@ -123,9 +121,7 @@ func (storeInstance *Store) Set(group, key, value string) error {
 	return nil
 }
 
-// SetWithTTL stores a value that expires after the given duration. After
-// expiry, the key is lazily removed on the next Get and periodically by the
-// background purge goroutine.
+// The key expires after ttl and is removed on the next Get or by purge.
 // Usage example: `err := storeInstance.SetWithTTL("session", "token", "abc", time.Hour)`
 func (storeInstance *Store) SetWithTTL(group, key, value string, ttl time.Duration) error {
 	expiresAt := time.Now().Add(ttl).UnixMilli()
@@ -141,7 +137,7 @@ func (storeInstance *Store) SetWithTTL(group, key, value string, ttl time.Durati
 	return nil
 }
 
-// Delete removes a single key from a group.
+// Removes a single key from a group.
 // Usage example: `err := storeInstance.Delete("config", "theme")`
 func (storeInstance *Store) Delete(group, key string) error {
 	_, err := storeInstance.database.Exec("DELETE FROM "+entriesTableName+" WHERE "+entryGroupColumn+" = ? AND "+entryKeyColumn+" = ?", group, key)
@@ -152,7 +148,7 @@ func (storeInstance *Store) Delete(group, key string) error {
 	return nil
 }
 
-// Count returns the number of live keys in a group.
+// Counts live keys only.
 // Usage example: `count, err := storeInstance.Count("config")`
 func (storeInstance *Store) Count(group string) (int, error) {
 	var count int
@@ -166,7 +162,7 @@ func (storeInstance *Store) Count(group string) (int, error) {
 	return count, nil
 }
 
-// DeleteGroup removes all keys in a group.
+// Removes all keys from a group.
 // Usage example: `err := storeInstance.DeleteGroup("cache")`
 func (storeInstance *Store) DeleteGroup(group string) error {
 	_, err := storeInstance.database.Exec("DELETE FROM "+entriesTableName+" WHERE "+entryGroupColumn+" = ?", group)
@@ -183,7 +179,7 @@ type KeyValue struct {
 	Key, Value string
 }
 
-// GetAll returns all non-expired key-value pairs in a group.
+// Returns live key-value pairs only.
 // Usage example: `entries, err := storeInstance.GetAll("config")`
 func (storeInstance *Store) GetAll(group string) (map[string]string, error) {
 	entriesByKey := make(map[string]string)
@@ -196,8 +192,8 @@ func (storeInstance *Store) GetAll(group string) (map[string]string, error) {
 	return entriesByKey, nil
 }
 
-// All returns an iterator over all non-expired key-value pairs in a group.
-// Usage example: `for entry, err := range storeInstance.All("config") { _ = entry; _ = err }`
+// Returns live key-value pairs only.
+// Usage example: `for entry, err := range storeInstance.All("config") { if err != nil { break }; _ = entry }`
 func (storeInstance *Store) All(group string) iter.Seq2[KeyValue, error] {
 	return func(yield func(KeyValue, error) bool) {
 		rows, err := storeInstance.database.Query(
@@ -228,8 +224,7 @@ func (storeInstance *Store) All(group string) iter.Seq2[KeyValue, error] {
 	}
 }
 
-// GetSplit retrieves a value and returns an iterator over its parts, split by
-// separator.
+// Splits the stored value by a custom separator.
 // Usage example: `parts, _ := storeInstance.GetSplit("config", "hosts", ",")`
 func (storeInstance *Store) GetSplit(group, key, separator string) (iter.Seq[string], error) {
 	value, err := storeInstance.Get(group, key)
@@ -239,8 +234,7 @@ func (storeInstance *Store) GetSplit(group, key, separator string) (iter.Seq[str
 	return splitSeq(value, separator), nil
 }
 
-// GetFields retrieves a value and returns an iterator over its parts, split by
-// whitespace.
+// Splits the stored value on whitespace.
 // Usage example: `fields, _ := storeInstance.GetFields("config", "flags")`
 func (storeInstance *Store) GetFields(group, key string) (iter.Seq[string], error) {
 	value, err := storeInstance.Get(group, key)
@@ -250,8 +244,7 @@ func (storeInstance *Store) GetFields(group, key string) (iter.Seq[string], erro
 	return fieldsSeq(value), nil
 }
 
-// Render loads all non-expired key-value pairs from a group and renders a Go
-// template.
+// Renders a Go template from live key-value pairs.
 // Usage example: `out, err := storeInstance.Render("Hello {{ .name }}", "user")`
 func (storeInstance *Store) Render(templateSource, group string) (string, error) {
 	templateData := make(map[string]string)
@@ -273,8 +266,7 @@ func (storeInstance *Store) Render(templateSource, group string) (string, error)
 	return builder.String(), nil
 }
 
-// CountAll returns the total number of non-expired keys across all groups whose
-// name starts with the given prefix. Pass an empty string to count everything.
+// Counts live keys across groups with the given prefix.
 // Usage example: `count, err := storeInstance.CountAll("tenant-a:")`
 func (storeInstance *Store) CountAll(groupPrefix string) (int, error) {
 	var count int
@@ -296,8 +288,7 @@ func (storeInstance *Store) CountAll(groupPrefix string) (int, error) {
 	return count, nil
 }
 
-// Groups returns the distinct group names of all non-expired keys. If prefix is
-// non-empty, only groups starting with that prefix are returned.
+// Returns distinct live group names with the given prefix.
 // Usage example: `groupNames, err := storeInstance.Groups("tenant-a:")`
 func (storeInstance *Store) Groups(groupPrefix string) ([]string, error) {
 	var groupNames []string
@@ -310,9 +301,8 @@ func (storeInstance *Store) Groups(groupPrefix string) ([]string, error) {
 	return groupNames, nil
 }
 
-// GroupsSeq returns an iterator over the distinct group names of all
-// non-expired keys.
-// Usage example: `for groupName, err := range storeInstance.GroupsSeq("tenant-a:") { _ = groupName }`
+// Returns distinct live group names with the given prefix.
+// Usage example: `for groupName, err := range storeInstance.GroupsSeq("tenant-a:") { if err != nil { break }; _ = groupName }`
 func (storeInstance *Store) GroupsSeq(groupPrefix string) iter.Seq2[string, error] {
 	return func(yield func(string, error) bool) {
 		var rows *sql.Rows
@@ -361,8 +351,7 @@ func escapeLike(text string) string {
 	return text
 }
 
-// PurgeExpired deletes all expired keys across all groups. Returns the number
-// of rows removed.
+// Deletes expired keys across all groups.
 // Usage example: `removed, err := storeInstance.PurgeExpired()`
 func (storeInstance *Store) PurgeExpired() (int64, error) {
 	deleteResult, err := storeInstance.database.Exec("DELETE FROM "+entriesTableName+" WHERE expires_at IS NOT NULL AND expires_at <= ?",

@@ -4,6 +4,7 @@
 // Usage example:
 //
 //	storeInstance, _ := store.New(":memory:")
+//	defer storeInstance.Close()
 //	scopedStore, _ := store.NewScoped(storeInstance, "tenant-a")
 //	_ = scopedStore.Set("config", "theme", "dark")
 //	value, _ := storeInstance.Get("config", "theme")

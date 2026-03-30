@@ -11,7 +11,6 @@ import (
 // validNamespace matches alphanumeric characters and hyphens (non-empty).
 var validNamespace = regexp.MustCompile(`^[a-zA-Z0-9-]+$`)
 
-// QuotaConfig defines optional limits for a ScopedStore namespace.
 // Zero values mean unlimited.
 // Usage example: `quota := store.QuotaConfig{MaxKeys: 100, MaxGroups: 10}`
 type QuotaConfig struct {
@@ -19,8 +18,7 @@ type QuotaConfig struct {
 	MaxGroups int // maximum distinct groups in the namespace
 }
 
-// ScopedStore wraps a *Store and auto-prefixes all group names with a
-// namespace to prevent key collisions across tenants.
+// Group names are prefixed with namespace + ":" before reaching the underlying store.
 // Usage example: `scopedStore, _ := store.NewScoped(storeInstance, "tenant-a"); _ = scopedStore.Set("config", "theme", "dark")`
 type ScopedStore struct {
 	storeInstance *Store
@@ -28,9 +26,7 @@ type ScopedStore struct {
 	quota         QuotaConfig
 }
 
-// NewScoped creates a ScopedStore that prefixes all groups with the given
-// namespace. The namespace must be non-empty and contain only alphanumeric
-// characters and hyphens.
+// Namespaces must be non-empty and contain only alphanumeric characters and hyphens.
 // Usage example: `scopedStore, _ := store.NewScoped(storeInstance, "tenant-a")`
 func NewScoped(storeInstance *Store, namespace string) (*ScopedStore, error) {
 	if !validNamespace.MatchString(namespace) {
@@ -40,10 +36,8 @@ func NewScoped(storeInstance *Store, namespace string) (*ScopedStore, error) {
 	return scopedStore, nil
 }
 
-// NewScopedWithQuota creates a ScopedStore with quota enforcement. Quotas are
-// checked on Set and SetWithTTL before inserting new keys or creating new
-// groups.
-// Usage example: `scopedStore, _ := store.NewScopedWithQuota(storeInstance, "tenant-a", quota)`
+// Quotas are checked before new keys or groups are created.
+// Usage example: `scopedStore, _ := store.NewScopedWithQuota(storeInstance, "tenant-a", store.QuotaConfig{MaxKeys: 100, MaxGroups: 10})`
 func NewScopedWithQuota(storeInstance *Store, namespace string, quota QuotaConfig) (*ScopedStore, error) {
 	scopedStore, err := NewScoped(storeInstance, namespace)
 	if err != nil {
@@ -58,8 +52,8 @@ func (scopedStore *ScopedStore) namespacedGroup(group string) string {
 	return scopedStore.namespace + ":" + group
 }
 
-// Namespace returns the namespace string for this scoped store.
-// Usage example: `namespace := scopedStore.Namespace()`
+// Returns the namespace string for this scoped store.
+// Usage example: `scopedStore, _ := store.NewScoped(storeInstance, "tenant-a"); namespace := scopedStore.Namespace()`
 func (scopedStore *ScopedStore) Namespace() string {
 	return scopedStore.namespace
 }
@@ -111,7 +105,7 @@ func (scopedStore *ScopedStore) GetAll(group string) (map[string]string, error) 
 
 // All returns an iterator over all non-expired key-value pairs in a group
 // within the namespace.
-// Usage example: `for entry, err := range scopedStore.All("config") { _ = entry; _ = err }`
+// Usage example: `for entry, err := range scopedStore.All("config") { if err != nil { break }; _ = entry }`
 func (scopedStore *ScopedStore) All(group string) iter.Seq2[KeyValue, error] {
 	return scopedStore.storeInstance.All(scopedStore.namespacedGroup(group))
 }
