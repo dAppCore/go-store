@@ -355,6 +355,23 @@ func TestStore_All_Good_StopsEarly(t *testing.T) {
 	assert.Len(t, seen, 1)
 }
 
+func TestStore_All_Good_SortedByKey(t *testing.T) {
+	storeInstance, _ := New(":memory:")
+	defer storeInstance.Close()
+
+	require.NoError(t, storeInstance.Set("g", "charlie", "3"))
+	require.NoError(t, storeInstance.Set("g", "alpha", "1"))
+	require.NoError(t, storeInstance.Set("g", "bravo", "2"))
+
+	var keys []string
+	for entry, err := range storeInstance.All("g") {
+		require.NoError(t, err)
+		keys = append(keys, entry.Key)
+	}
+
+	assert.Equal(t, []string{"alpha", "bravo", "charlie"}, keys)
+}
+
 func TestStore_All_Bad_ClosedStore(t *testing.T) {
 	storeInstance, _ := New(":memory:")
 	storeInstance.Close()
@@ -398,6 +415,23 @@ func TestStore_GroupsSeq_Good_PrefixStopsEarly(t *testing.T) {
 	}
 
 	assert.Equal(t, []string{"alpha"}, seen)
+}
+
+func TestStore_GroupsSeq_Good_SortedByGroupName(t *testing.T) {
+	storeInstance, _ := New(":memory:")
+	defer storeInstance.Close()
+
+	require.NoError(t, storeInstance.Set("charlie", "c", "3"))
+	require.NoError(t, storeInstance.Set("alpha", "a", "1"))
+	require.NoError(t, storeInstance.Set("bravo", "b", "2"))
+
+	var groups []string
+	for group, err := range storeInstance.GroupsSeq("") {
+		require.NoError(t, err)
+		groups = append(groups, group)
+	}
+
+	assert.Equal(t, []string{"alpha", "bravo", "charlie"}, groups)
 }
 
 func TestStore_GroupsSeq_Bad_ClosedStore(t *testing.T) {

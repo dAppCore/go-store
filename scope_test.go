@@ -191,6 +191,24 @@ func TestScope_ScopedStore_Good_All(t *testing.T) {
 	assert.ElementsMatch(t, []string{"first", "second"}, keys)
 }
 
+func TestScope_ScopedStore_Good_All_SortedByKey(t *testing.T) {
+	storeInstance, _ := New(":memory:")
+	defer storeInstance.Close()
+
+	scopedStore, _ := NewScoped(storeInstance, "tenant-a")
+	require.NoError(t, scopedStore.Set("items", "charlie", "3"))
+	require.NoError(t, scopedStore.Set("items", "alpha", "1"))
+	require.NoError(t, scopedStore.Set("items", "bravo", "2"))
+
+	var keys []string
+	for entry, err := range scopedStore.All("items") {
+		require.NoError(t, err)
+		keys = append(keys, entry.Key)
+	}
+
+	assert.Equal(t, []string{"alpha", "bravo", "charlie"}, keys)
+}
+
 func TestScope_ScopedStore_Good_Count(t *testing.T) {
 	storeInstance, _ := New(":memory:")
 	defer storeInstance.Close()
@@ -299,6 +317,24 @@ func TestScope_ScopedStore_Good_GroupsSeqStopsEarly(t *testing.T) {
 	}
 
 	assert.Len(t, seen, 1)
+}
+
+func TestScope_ScopedStore_Good_GroupsSeqSorted(t *testing.T) {
+	storeInstance, _ := New(":memory:")
+	defer storeInstance.Close()
+
+	scopedStore, _ := NewScoped(storeInstance, "tenant-a")
+	require.NoError(t, scopedStore.Set("charlie", "c", "3"))
+	require.NoError(t, scopedStore.Set("alpha", "a", "1"))
+	require.NoError(t, scopedStore.Set("bravo", "b", "2"))
+
+	var groupNames []string
+	for groupName, iterationErr := range scopedStore.GroupsSeq("") {
+		require.NoError(t, iterationErr)
+		groupNames = append(groupNames, groupName)
+	}
+
+	assert.Equal(t, []string{"alpha", "bravo", "charlie"}, groupNames)
 }
 
 func TestScope_ScopedStore_Good_GetSplitAndGetFields(t *testing.T) {
@@ -739,6 +775,19 @@ func TestScope_Groups_Good_ExcludesExpired(t *testing.T) {
 	require.NoError(t, err)
 	assert.Len(t, groups, 1, "group with only expired keys should be excluded")
 	assert.Equal(t, "ns:g1", groups[0])
+}
+
+func TestScope_Groups_Good_SortedByGroupName(t *testing.T) {
+	storeInstance, _ := New(":memory:")
+	defer storeInstance.Close()
+
+	require.NoError(t, storeInstance.Set("charlie", "c", "3"))
+	require.NoError(t, storeInstance.Set("alpha", "a", "1"))
+	require.NoError(t, storeInstance.Set("bravo", "b", "2"))
+
+	groups, err := storeInstance.Groups("")
+	require.NoError(t, err)
+	assert.Equal(t, []string{"alpha", "bravo", "charlie"}, groups)
 }
 
 func TestScope_Groups_Good_Empty(t *testing.T) {

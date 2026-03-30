@@ -116,6 +116,10 @@ func (storeInstance *Store) Unwatch(watcher *Watcher) {
 // OnChange registers a synchronous mutation callback.
 // Usage example: `events := make(chan store.Event, 1); unregister := storeInstance.OnChange(func(event store.Event) { events <- event }); defer unregister()`
 func (storeInstance *Store) OnChange(callback func(Event)) func() {
+	if callback == nil {
+		return func() {}
+	}
+
 	registrationID := atomic.AddUint64(&storeInstance.nextCallbackRegistrationID, 1)
 	callbackRegistration := changeCallbackRegistration{registrationID: registrationID, callback: callback}
 
