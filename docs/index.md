@@ -33,27 +33,27 @@ func main() {
     }
     defer storeInstance.Close()
 
-    // Store and read back a theme value.
-    if err := storeInstance.Set("config", "theme", "dark"); err != nil {
+    // Store "blue" under config/colour and read it back.
+    if err := storeInstance.Set("config", "colour", "blue"); err != nil {
         return
     }
-    themeValue, err := storeInstance.Get("config", "theme")
+    colourValue, err := storeInstance.Get("config", "colour")
     if err != nil {
         return
     }
-    fmt.Println(themeValue) // "dark"
+    fmt.Println(colourValue) // "blue"
 
     // Store a session token that expires after 24 hours.
     if err := storeInstance.SetWithTTL("session", "token", "abc123", 24*time.Hour); err != nil {
         return
     }
 
-    // Read the config group into a map.
+    // Read config/colour back into a map.
     configEntries, err := storeInstance.GetAll("config")
     if err != nil {
         return
     }
-    fmt.Println(configEntries) // map[theme:dark]
+    fmt.Println(configEntries) // map[colour:blue]
 
     // Render the mail host and port into smtp.example.com:587.
     if err := storeInstance.Set("mail", "host", "smtp.example.com"); err != nil {
@@ -68,15 +68,15 @@ func main() {
     }
     fmt.Println(renderedTemplate) // "smtp.example.com:587"
 
-    // Prefix tenant-42 preferences with tenant-42:.
+    // Store tenant-42 preferences under the tenant-42: namespace prefix.
     scopedStore, err := store.NewScoped(storeInstance, "tenant-42")
     if err != nil {
         return
     }
-    if err := scopedStore.Set("prefs", "locale", "en-GB"); err != nil {
+    if err := scopedStore.Set("preferences", "locale", "en-GB"); err != nil {
         return
     }
-    // Stored internally as group "tenant-42:prefs", key "locale"
+    // Stored internally as group "tenant-42:preferences", key "locale"
 
     // Cap tenant-99 at 100 keys and 5 groups.
     quotaScopedStore, err := store.NewScopedWithQuota(storeInstance, "tenant-99", store.QuotaConfig{MaxKeys: 100, MaxGroups: 5})

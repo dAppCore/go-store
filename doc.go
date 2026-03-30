@@ -10,20 +10,20 @@
 //		}
 //		defer storeInstance.Close()
 //
-//		if err := storeInstance.Set("config", "theme", "dark"); err != nil {
+//		if err := storeInstance.Set("config", "colour", "blue"); err != nil {
 //			return
 //		}
-//		themeValue, err := storeInstance.Get("config", "theme")
+//		colourValue, err := storeInstance.Get("config", "colour")
 //		if err != nil {
 //			return
 //		}
-//		fmt.Println(themeValue)
+//		fmt.Println(colourValue)
 //
 //		scopedStore, err := store.NewScoped(storeInstance, "tenant-a")
 //		if err != nil {
 //			return
 //		}
-//		if err := scopedStore.Set("config", "theme", "dark"); err != nil {
+//		if err := scopedStore.Set("config", "colour", "blue"); err != nil {
 //			return
 //		}
 //
@@ -31,7 +31,7 @@
 //		if err != nil {
 //			return
 //		}
-//		if err := quotaScopedStore.Set("prefs", "locale", "en-GB"); err != nil {
+//		if err := quotaScopedStore.Set("preferences", "locale", "en-GB"); err != nil {
 //			return
 //		}
 //

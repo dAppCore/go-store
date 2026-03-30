@@ -30,19 +30,19 @@ func main() {
 	}
 	defer storeInstance.Close()
 
-	if err := storeInstance.Set("config", "theme", "dark"); err != nil {
+	if err := storeInstance.Set("config", "colour", "blue"); err != nil {
 		return
 	}
 	if err := storeInstance.SetWithTTL("session", "token", "abc123", 24*time.Hour); err != nil {
 		return
 	}
-	themeValue, err := storeInstance.Get("config", "theme")
+	colourValue, err := storeInstance.Get("config", "colour")
 	if err != nil {
 		return
 	}
-	fmt.Println(themeValue)
+	fmt.Println(colourValue)
 
-	// Watch "config" changes and print each event as it arrives.
+	// Watch "config" mutations and print each event as it arrives.
 	watcher := storeInstance.Watch("config", "*")
 	defer storeInstance.Unwatch(watcher)
 	go func() {
@@ -51,12 +51,12 @@ func main() {
 		}
 	}()
 
-	// Prefix tenant-42 preferences with "tenant-42:".
+	// Store tenant-42 preferences under the "tenant-42:" prefix.
 	scopedStore, err := store.NewScoped(storeInstance, "tenant-42")
 	if err != nil {
 		return
 	}
-	if err := scopedStore.Set("prefs", "locale", "en-GB"); err != nil {
+	if err := scopedStore.Set("preferences", "locale", "en-GB"); err != nil {
 		return
 	}
 }

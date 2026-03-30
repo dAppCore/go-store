@@ -27,7 +27,7 @@ const (
 	entryValueColumn        = "entry_value"
 )
 
-// Usage example: `storeInstance, err := store.New(":memory:"); if err != nil { return }; if err := storeInstance.Set("config", "theme", "dark"); err != nil { return }`
+// Usage example: `storeInstance, err := store.New(":memory:"); if err != nil { return }; if err := storeInstance.Set("config", "colour", "blue"); err != nil { return }`
 type Store struct {
 	database       *sql.DB
 	cancelPurge    context.CancelFunc
@@ -83,7 +83,7 @@ func (storeInstance *Store) Close() error {
 	return nil
 }
 
-// Usage example: `themeValue, err := storeInstance.Get("config", "theme")`
+// Usage example: `colourValue, err := storeInstance.Get("config", "colour")`
 func (storeInstance *Store) Get(group, key string) (string, error) {
 	var value string
 	var expiresAt sql.NullInt64
@@ -106,7 +106,7 @@ func (storeInstance *Store) Get(group, key string) (string, error) {
 	return value, nil
 }
 
-// Usage example: `if err := storeInstance.Set("config", "theme", "dark"); err != nil { return }`
+// Usage example: `if err := storeInstance.Set("config", "colour", "blue"); err != nil { return }`
 func (storeInstance *Store) Set(group, key, value string) error {
 	_, err := storeInstance.database.Exec(
 		"INSERT INTO "+entriesTableName+" ("+entryGroupColumn+", "+entryKeyColumn+", "+entryValueColumn+", expires_at) VALUES (?, ?, ?, NULL) "+
@@ -135,7 +135,7 @@ func (storeInstance *Store) SetWithTTL(group, key, value string, timeToLive time
 	return nil
 }
 
-// Usage example: `if err := storeInstance.Delete("config", "theme"); err != nil { return }`
+// Usage example: `if err := storeInstance.Delete("config", "colour"); err != nil { return }`
 func (storeInstance *Store) Delete(group, key string) error {
 	_, err := storeInstance.database.Exec("DELETE FROM "+entriesTableName+" WHERE "+entryGroupColumn+" = ? AND "+entryKeyColumn+" = ?", group, key)
 	if err != nil {
@@ -170,13 +170,13 @@ func (storeInstance *Store) DeleteGroup(group string) error {
 
 // Usage example: `for entry, err := range storeInstance.All("config") { if err != nil { break }; fmt.Println(entry.Key, entry.Value) }`
 type KeyValue struct {
-	// Usage example: `if entry.Key == "theme" { return }`
+	// Usage example: `if entry.Key == "colour" { return }`
 	Key string
-	// Usage example: `if entry.Value == "dark" { return }`
+	// Usage example: `if entry.Value == "blue" { return }`
 	Value string
 }
 
-// Usage example: `configEntries, err := storeInstance.GetAll("config")`
+// Usage example: `colourEntries, err := storeInstance.GetAll("config")`
 func (storeInstance *Store) GetAll(group string) (map[string]string, error) {
 	entriesByKey := make(map[string]string)
 	for entry, err := range storeInstance.All(group) {

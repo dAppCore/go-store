@@ -19,7 +19,7 @@ type QuotaConfig struct {
 	MaxGroups int
 }
 
-// Usage example: `scopedStore, err := store.NewScoped(storeInstance, "tenant-a"); if err != nil { return }; if err := scopedStore.Set("config", "theme", "dark"); err != nil { return }`
+// Usage example: `scopedStore, err := store.NewScoped(storeInstance, "tenant-a"); if err != nil { return }; if err := scopedStore.Set("config", "colour", "blue"); err != nil { return }`
 type ScopedStore struct {
 	storeInstance *Store
 	namespace     string
@@ -54,12 +54,12 @@ func (scopedStore *ScopedStore) Namespace() string {
 	return scopedStore.namespace
 }
 
-// Usage example: `themeValue, err := scopedStore.Get("config", "theme")`
+// Usage example: `colourValue, err := scopedStore.Get("config", "colour")`
 func (scopedStore *ScopedStore) Get(group, key string) (string, error) {
 	return scopedStore.storeInstance.Get(scopedStore.namespacedGroup(group), key)
 }
 
-// Usage example: `if err := scopedStore.Set("config", "theme", "dark"); err != nil { return }`
+// Usage example: `if err := scopedStore.Set("config", "colour", "blue"); err != nil { return }`
 func (scopedStore *ScopedStore) Set(group, key, value string) error {
 	if err := scopedStore.checkQuota("store.ScopedStore.Set", group, key); err != nil {
 		return err
@@ -75,7 +75,7 @@ func (scopedStore *ScopedStore) SetWithTTL(group, key, value string, timeToLive 
 	return scopedStore.storeInstance.SetWithTTL(scopedStore.namespacedGroup(group), key, value, timeToLive)
 }
 
-// Usage example: `if err := scopedStore.Delete("config", "theme"); err != nil { return }`
+// Usage example: `if err := scopedStore.Delete("config", "colour"); err != nil { return }`
 func (scopedStore *ScopedStore) Delete(group, key string) error {
 	return scopedStore.storeInstance.Delete(scopedStore.namespacedGroup(group), key)
 }
@@ -85,7 +85,7 @@ func (scopedStore *ScopedStore) DeleteGroup(group string) error {
 	return scopedStore.storeInstance.DeleteGroup(scopedStore.namespacedGroup(group))
 }
 
-// Usage example: `configEntries, err := scopedStore.GetAll("config")`
+// Usage example: `colourEntries, err := scopedStore.GetAll("config")`
 func (scopedStore *ScopedStore) GetAll(group string) (map[string]string, error) {
 	return scopedStore.storeInstance.GetAll(scopedStore.namespacedGroup(group))
 }
@@ -105,7 +105,7 @@ func (scopedStore *ScopedStore) Render(templateSource, group string) (string, er
 	return scopedStore.storeInstance.Render(templateSource, scopedStore.namespacedGroup(group))
 }
 
-// checkQuota("store.ScopedStore.Set", "config", "theme") returns nil when the
+// checkQuota("store.ScopedStore.Set", "config", "colour") returns nil when the
 // namespace still has quota available and QuotaExceededError when a new key or
 // group would exceed the configured limit. Existing keys are treated as
 // upserts and do not consume quota.

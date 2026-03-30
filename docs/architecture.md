@@ -49,7 +49,7 @@ Keys are addressed by a two-level path: `(group, key)`. Groups act as logical na
 This model maps naturally to domain concepts:
 
 ```
-group: "user:42:config"     key: "theme"
+group: "user:42:config"     key: "colour"
 group: "user:42:config"     key: "language"
 group: "session:abc"        key: "token"
 ```
@@ -198,10 +198,10 @@ scopedStore, err := store.NewScoped(storeInstance, "tenant-42")
 if err != nil {
     return
 }
-if err := scopedStore.Set("config", "theme", "dark"); err != nil {
+if err := scopedStore.Set("config", "colour", "blue"); err != nil {
     return
 }
-// Stored in underlying store as group="tenant-42:config", key="theme"
+// Stored in underlying store as group="tenant-42:config", key="colour"
 ```
 
 Namespace strings must match `^[a-zA-Z0-9-]+$`. Invalid namespaces are rejected at construction time.
