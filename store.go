@@ -13,9 +13,11 @@ import (
 	_ "modernc.org/sqlite"
 )
 
+// NotFoundError is returned when Get cannot find a live key.
 // Usage example: `if core.Is(err, store.NotFoundError) { return }`
 var NotFoundError = core.E("store", "not found", nil)
 
+// QuotaExceededError is returned when a scoped write would exceed quota.
 // Usage example: `if core.Is(err, store.QuotaExceededError) { return }`
 var QuotaExceededError = core.E("store", "quota exceeded", nil)
 
@@ -27,6 +29,8 @@ const (
 	entryValueColumn        = "entry_value"
 )
 
+// Store provides SQLite-backed grouped entries with TTL expiry, namespace
+// isolation, and reactive change notifications.
 // Usage example: `storeInstance, err := store.New(":memory:"); if err != nil { return }; if err := storeInstance.Set("config", "colour", "blue"); err != nil { return }`
 type Store struct {
 	database       *sql.DB
@@ -168,6 +172,7 @@ func (storeInstance *Store) DeleteGroup(group string) error {
 	return nil
 }
 
+// KeyValue is one item returned by All.
 // Usage example: `for entry, err := range storeInstance.All("config") { if err != nil { break }; fmt.Println(entry.Key, entry.Value) }`
 type KeyValue struct {
 	// Usage example: `if entry.Key == "colour" { return }`
