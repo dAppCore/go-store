@@ -6,6 +6,7 @@ import (
 	"time"
 
 	core "dappco.re/go/core"
+	"github.com/klauspost/compress/zstd"
 )
 
 var defaultArchiveOutputDirectory = ".core/archive"
@@ -42,7 +43,7 @@ func (storeInstance *Store) Compact(options CompactOptions) core.Result {
 	if format == "" {
 		format = "gzip"
 	}
-	if format != "gzip" {
+	if format != "gzip" && format != "zstd" {
 		return core.Result{Value: core.E("store.Compact", core.Concat("unsupported archive format: ", format), nil), OK: false}
 	}
 
@@ -99,7 +100,10 @@ func (storeInstance *Store) Compact(options CompactOptions) core.Result {
 		}
 	}()
 
-	writer := gzip.NewWriter(file)
+	writer, err := archiveWriter(file, format)
+	if err != nil {
+		return core.Result{Value: err, OK: false}
+	}
 	writeOK := false
 	defer func() {
 		if !writeOK {
@@ -181,10 +185,28 @@ func compactArchiveLine(entry compactArchiveEntry) (map[string]any, error) {
 	}, nil
 }
 
+func archiveWriter(writer io.Writer, format string) (io.WriteCloser, error) {
+	switch format {
+	case "gzip":
+		return gzip.NewWriter(writer), nil
+	case "zstd":
+		zstdWriter, err := zstd.NewWriter(writer)
+		if err != nil {
+			return nil, core.E("store.Compact", "create zstd writer", err)
+		}
+		return zstdWriter, nil
+	default:
+		return nil, core.E("store.Compact", core.Concat("unsupported archive format: ", format), nil)
+	}
+}
+
 func compactOutputPath(outputDirectory, format string) string {
 	extension := ".jsonl"
 	if format == "gzip" {
 		extension = ".jsonl.gz"
+	}
+	if format == "zstd" {
+		extension = ".jsonl.zst"
 	}
 	filename := core.Concat("journal-", time.Now().UTC().Format("20060102-150405"), extension)
 	return joinPath(outputDirectory, filename)
