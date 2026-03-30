@@ -43,3 +43,38 @@ func repeatString(value string, count int) string {
 	}
 	return builder.String()
 }
+
+func useWorkspaceStateDirectory(tb testing.TB) string {
+	tb.Helper()
+
+	previous := defaultWorkspaceStateDirectory
+	stateDirectory := testPath(tb, "state")
+	defaultWorkspaceStateDirectory = stateDirectory
+	tb.Cleanup(func() {
+		defaultWorkspaceStateDirectory = previous
+		_ = testFilesystem().DeleteAll(stateDirectory)
+	})
+	return stateDirectory
+}
+
+func useArchiveOutputDirectory(tb testing.TB) string {
+	tb.Helper()
+
+	previous := defaultArchiveOutputDirectory
+	outputDirectory := testPath(tb, "archive")
+	defaultArchiveOutputDirectory = outputDirectory
+	tb.Cleanup(func() {
+		defaultArchiveOutputDirectory = previous
+		_ = testFilesystem().DeleteAll(outputDirectory)
+	})
+	return outputDirectory
+}
+
+func requireResultRows(tb testing.TB, result core.Result) []map[string]any {
+	tb.Helper()
+
+	require.True(tb, result.OK, "core result failed: %v", result.Value)
+	rows, ok := result.Value.([]map[string]any)
+	require.True(tb, ok, "unexpected row type: %T", result.Value)
+	return rows
+}

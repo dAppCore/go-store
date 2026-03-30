@@ -11,6 +11,8 @@ import (
 // validNamespace.MatchString("tenant-a") is true; validNamespace.MatchString("tenant_a") is false.
 var validNamespace = regexp.MustCompile(`^[a-zA-Z0-9-]+$`)
 
+const defaultScopedGroupName = "default"
+
 // QuotaConfig sets per-namespace key and group limits.
 // Usage example: `quota := store.QuotaConfig{MaxKeys: 100, MaxGroups: 10}`
 type QuotaConfig struct {
@@ -25,7 +27,8 @@ type QuotaConfig struct {
 type ScopedStore struct {
 	storeInstance *Store
 	namespace     string
-	quota         QuotaConfig
+	MaxKeys       int
+	MaxGroups     int
 }
 
 // NewScoped validates a namespace and prefixes groups with namespace + ":".
@@ -55,7 +58,8 @@ func NewScopedWithQuota(storeInstance *Store, namespace string, quota QuotaConfi
 			nil,
 		)
 	}
-	scopedStore.quota = quota
+	scopedStore.MaxKeys = quota.MaxKeys
+	scopedStore.MaxGroups = quota.MaxGroups
 	return scopedStore, nil
 }
 
@@ -65,6 +69,10 @@ func (scopedStore *ScopedStore) namespacedGroup(group string) string {
 
 func (scopedStore *ScopedStore) namespacePrefix() string {
 	return scopedStore.namespace + ":"
+}
+
+func (scopedStore *ScopedStore) defaultGroup() string {
+	return defaultScopedGroupName
 }
 
 func (scopedStore *ScopedStore) trimNamespacePrefix(groupName string) string {
@@ -77,17 +85,39 @@ func (scopedStore *ScopedStore) Namespace() string {
 	return scopedStore.namespace
 }
 
+// Usage example: `colourValue, err := scopedStore.Get("colour")`
 // Usage example: `colourValue, err := scopedStore.Get("config", "colour")`
-func (scopedStore *ScopedStore) Get(group, key string) (string, error) {
+func (scopedStore *ScopedStore) Get(arguments ...string) (string, error) {
+	group, key, err := scopedStore.getArguments(arguments)
+	if err != nil {
+		return "", err
+	}
 	return scopedStore.storeInstance.Get(scopedStore.namespacedGroup(group), key)
 }
 
+// GetFrom reads a key from an explicit namespaced group.
+// Usage example: `colourValue, err := scopedStore.GetFrom("config", "colour")`
+func (scopedStore *ScopedStore) GetFrom(group, key string) (string, error) {
+	return scopedStore.Get(group, key)
+}
+
+// Usage example: `if err := scopedStore.Set("colour", "blue"); err != nil { return }`
 // Usage example: `if err := scopedStore.Set("config", "colour", "blue"); err != nil { return }`
-func (scopedStore *ScopedStore) Set(group, key, value string) error {
+func (scopedStore *ScopedStore) Set(arguments ...string) error {
+	group, key, value, err := scopedStore.setArguments(arguments)
+	if err != nil {
+		return err
+	}
 	if err := scopedStore.checkQuota("store.ScopedStore.Set", group, key); err != nil {
 		return err
 	}
 	return scopedStore.storeInstance.Set(scopedStore.namespacedGroup(group), key, value)
+}
+
+// SetIn writes a key to an explicit namespaced group.
+// Usage example: `if err := scopedStore.SetIn("config", "colour", "blue"); err != nil { return }`
+func (scopedStore *ScopedStore) SetIn(group, key, value string) error {
+	return scopedStore.Set(group, key, value)
 }
 
 // Usage example: `if err := scopedStore.SetWithTTL("sessions", "token", "abc123", time.Hour); err != nil { return }`
@@ -118,19 +148,26 @@ func (scopedStore *ScopedStore) All(group string) iter.Seq2[KeyValue, error] {
 	return scopedStore.storeInstance.All(scopedStore.namespacedGroup(group))
 }
 
+// Usage example: `for entry, err := range scopedStore.AllSeq("config") { if err != nil { break }; fmt.Println(entry.Key, entry.Value) }`
+func (scopedStore *ScopedStore) AllSeq(group string) iter.Seq2[KeyValue, error] {
+	return scopedStore.All(group)
+}
+
 // Usage example: `keyCount, err := scopedStore.Count("config")`
 func (scopedStore *ScopedStore) Count(group string) (int, error) {
 	return scopedStore.storeInstance.Count(scopedStore.namespacedGroup(group))
 }
 
 // Usage example: `keyCount, err := scopedStore.CountAll("config")`
-func (scopedStore *ScopedStore) CountAll(groupPrefix string) (int, error) {
-	return scopedStore.storeInstance.CountAll(scopedStore.namespacedGroup(groupPrefix))
+// Usage example: `keyCount, err := scopedStore.CountAll()`
+func (scopedStore *ScopedStore) CountAll(groupPrefix ...string) (int, error) {
+	return scopedStore.storeInstance.CountAll(scopedStore.namespacedGroup(firstString(groupPrefix)))
 }
 
 // Usage example: `groupNames, err := scopedStore.Groups("config")`
-func (scopedStore *ScopedStore) Groups(groupPrefix string) ([]string, error) {
-	groupNames, err := scopedStore.storeInstance.Groups(scopedStore.namespacedGroup(groupPrefix))
+// Usage example: `groupNames, err := scopedStore.Groups()`
+func (scopedStore *ScopedStore) Groups(groupPrefix ...string) ([]string, error) {
+	groupNames, err := scopedStore.storeInstance.Groups(scopedStore.namespacedGroup(firstString(groupPrefix)))
 	if err != nil {
 		return nil, err
 	}
@@ -141,10 +178,11 @@ func (scopedStore *ScopedStore) Groups(groupPrefix string) ([]string, error) {
 }
 
 // Usage example: `for groupName, err := range scopedStore.GroupsSeq("config") { if err != nil { break }; fmt.Println(groupName) }`
-func (scopedStore *ScopedStore) GroupsSeq(groupPrefix string) iter.Seq2[string, error] {
+// Usage example: `for groupName, err := range scopedStore.GroupsSeq() { if err != nil { break }; fmt.Println(groupName) }`
+func (scopedStore *ScopedStore) GroupsSeq(groupPrefix ...string) iter.Seq2[string, error] {
 	return func(yield func(string, error) bool) {
 		namespacePrefix := scopedStore.namespacePrefix()
-		for groupName, err := range scopedStore.storeInstance.GroupsSeq(scopedStore.namespacedGroup(groupPrefix)) {
+		for groupName, err := range scopedStore.storeInstance.GroupsSeq(scopedStore.namespacedGroup(firstString(groupPrefix))) {
 			if err != nil {
 				if !yield("", err) {
 					return
@@ -187,7 +225,7 @@ func (scopedStore *ScopedStore) PurgeExpired() (int64, error) {
 // group would exceed the configured limit. Existing keys are treated as
 // upserts and do not consume quota.
 func (scopedStore *ScopedStore) checkQuota(operation, group, key string) error {
-	if scopedStore.quota.MaxKeys == 0 && scopedStore.quota.MaxGroups == 0 {
+	if scopedStore.MaxKeys == 0 && scopedStore.MaxGroups == 0 {
 		return nil
 	}
 
@@ -206,18 +244,18 @@ func (scopedStore *ScopedStore) checkQuota(operation, group, key string) error {
 	}
 
 	// Check MaxKeys quota.
-	if scopedStore.quota.MaxKeys > 0 {
+	if scopedStore.MaxKeys > 0 {
 		keyCount, err := scopedStore.storeInstance.CountAll(namespacePrefix)
 		if err != nil {
 			return core.E(operation, "quota check", err)
 		}
-		if keyCount >= scopedStore.quota.MaxKeys {
-			return core.E(operation, core.Sprintf("key limit (%d)", scopedStore.quota.MaxKeys), QuotaExceededError)
+		if keyCount >= scopedStore.MaxKeys {
+			return core.E(operation, core.Sprintf("key limit (%d)", scopedStore.MaxKeys), QuotaExceededError)
 		}
 	}
 
 	// Check MaxGroups quota — only if this would create a new group.
-	if scopedStore.quota.MaxGroups > 0 {
+	if scopedStore.MaxGroups > 0 {
 		existingGroupCount, err := scopedStore.storeInstance.Count(namespacedGroup)
 		if err != nil {
 			return core.E(operation, "quota check", err)
@@ -231,11 +269,41 @@ func (scopedStore *ScopedStore) checkQuota(operation, group, key string) error {
 				}
 				knownGroupCount++
 			}
-			if knownGroupCount >= scopedStore.quota.MaxGroups {
-				return core.E(operation, core.Sprintf("group limit (%d)", scopedStore.quota.MaxGroups), QuotaExceededError)
+			if knownGroupCount >= scopedStore.MaxGroups {
+				return core.E(operation, core.Sprintf("group limit (%d)", scopedStore.MaxGroups), QuotaExceededError)
 			}
 		}
 	}
 
 	return nil
+}
+
+func (scopedStore *ScopedStore) getArguments(arguments []string) (string, string, error) {
+	switch len(arguments) {
+	case 1:
+		return scopedStore.defaultGroup(), arguments[0], nil
+	case 2:
+		return arguments[0], arguments[1], nil
+	default:
+		return "", "", core.E(
+			"store.ScopedStore.Get",
+			core.Sprintf("expected 1 or 2 arguments; got %d", len(arguments)),
+			nil,
+		)
+	}
+}
+
+func (scopedStore *ScopedStore) setArguments(arguments []string) (string, string, string, error) {
+	switch len(arguments) {
+	case 2:
+		return scopedStore.defaultGroup(), arguments[0], arguments[1], nil
+	case 3:
+		return arguments[0], arguments[1], arguments[2], nil
+	default:
+		return "", "", "", core.E(
+			"store.ScopedStore.Set",
+			core.Sprintf("expected 2 or 3 arguments; got %d", len(arguments)),
+			nil,
+		)
+	}
 }
