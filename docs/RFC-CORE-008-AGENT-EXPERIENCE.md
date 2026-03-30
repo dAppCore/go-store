@@ -1,4 +1,4 @@
-# RFC-CORE-008: Agent Experience (AX) Design Principles
+# RFC-025: Agent Experience (AX) Design Principles
 
 - **Status:** Draft
 - **Authors:** Snider, Cladius
