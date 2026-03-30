@@ -256,6 +256,18 @@ func TestEvents_OnChange_Good_Unregister(t *testing.T) {
 	unregister()
 }
 
+func TestEvents_OnChange_Good_NilCallbackNoOp(t *testing.T) {
+	storeInstance, _ := New(":memory:")
+	defer storeInstance.Close()
+
+	unregister := storeInstance.OnChange(nil)
+	require.NotNil(t, unregister)
+
+	unregister()
+	require.NoError(t, storeInstance.Set("g", "k", "v"))
+	unregister()
+}
+
 // ---------------------------------------------------------------------------
 // OnChange — callback can manage subscriptions while handling an event
 // ---------------------------------------------------------------------------

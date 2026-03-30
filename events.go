@@ -64,8 +64,8 @@ type Watcher struct {
 	registrationID uint64
 }
 
-// changeCallbackRegistration{registrationID: 7, callback: handleConfigChange} keeps one
-// OnChange callback so unregister can remove the exact entry later.
+// changeCallbackRegistration keeps the registration ID so unregister can remove
+// the exact callback later.
 type changeCallbackRegistration struct {
 	registrationID uint64
 	callback       func(Event)
@@ -116,6 +116,10 @@ func (storeInstance *Store) Unwatch(watcher *Watcher) {
 // OnChange registers a synchronous mutation callback.
 // Usage example: `events := make(chan store.Event, 1); unregister := storeInstance.OnChange(func(event store.Event) { events <- event }); defer unregister()`
 func (storeInstance *Store) OnChange(callback func(Event)) func() {
+	if callback == nil {
+		return func() {}
+	}
+
 	registrationID := atomic.AddUint64(&storeInstance.nextCallbackRegistrationID, 1)
 	callbackRegistration := changeCallbackRegistration{registrationID: registrationID, callback: callback}
 

@@ -197,7 +197,7 @@ func (storeInstance *Store) GetAll(group string) (map[string]string, error) {
 func (storeInstance *Store) All(group string) iter.Seq2[KeyValue, error] {
 	return func(yield func(KeyValue, error) bool) {
 		rows, err := storeInstance.database.Query(
-			"SELECT "+entryKeyColumn+", "+entryValueColumn+" FROM "+entriesTableName+" WHERE "+entryGroupColumn+" = ? AND (expires_at IS NULL OR expires_at > ?)",
+			"SELECT "+entryKeyColumn+", "+entryValueColumn+" FROM "+entriesTableName+" WHERE "+entryGroupColumn+" = ? AND (expires_at IS NULL OR expires_at > ?) ORDER BY "+entryKeyColumn,
 			group, time.Now().UnixMilli(),
 		)
 		if err != nil {
@@ -304,12 +304,12 @@ func (storeInstance *Store) GroupsSeq(groupPrefix string) iter.Seq2[string, erro
 		now := time.Now().UnixMilli()
 		if groupPrefix == "" {
 			rows, err = storeInstance.database.Query(
-				"SELECT DISTINCT "+entryGroupColumn+" FROM "+entriesTableName+" WHERE (expires_at IS NULL OR expires_at > ?)",
+				"SELECT DISTINCT "+entryGroupColumn+" FROM "+entriesTableName+" WHERE (expires_at IS NULL OR expires_at > ?) ORDER BY "+entryGroupColumn,
 				now,
 			)
 		} else {
 			rows, err = storeInstance.database.Query(
-				"SELECT DISTINCT "+entryGroupColumn+" FROM "+entriesTableName+" WHERE "+entryGroupColumn+" LIKE ? ESCAPE '^' AND (expires_at IS NULL OR expires_at > ?)",
+				"SELECT DISTINCT "+entryGroupColumn+" FROM "+entriesTableName+" WHERE "+entryGroupColumn+" LIKE ? ESCAPE '^' AND (expires_at IS NULL OR expires_at > ?) ORDER BY "+entryGroupColumn,
 				escapeLike(groupPrefix)+"%", now,
 			)
 		}
@@ -536,7 +536,6 @@ func migrateLegacyEntriesTable(database *sql.DB) error {
 	return nil
 }
 
-// tableExists reports whether the named table is present in the SQLite schema.
 func tableExists(database schemaDatabase, tableName string) (bool, error) {
 	var existingTableName string
 	err := database.QueryRow(
@@ -552,7 +551,6 @@ func tableExists(database schemaDatabase, tableName string) (bool, error) {
 	return true, nil
 }
 
-// tableHasColumn reports whether the named column exists on the table.
 func tableHasColumn(database schemaDatabase, tableName, columnName string) (bool, error) {
 	rows, err := database.Query("PRAGMA table_info(" + tableName + ")")
 	if err != nil {
