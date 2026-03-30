@@ -294,6 +294,13 @@ func (storeInstance *Store) commitWorkspaceAggregate(workspaceName string, field
 		return core.E("store.Workspace.Commit", "commit transaction", err)
 	}
 	committed = true
+	storeInstance.notify(Event{
+		Type:      EventSet,
+		Group:     workspaceSummaryGroup(workspaceName),
+		Key:       "summary",
+		Value:     fieldsJSON,
+		Timestamp: time.Now(),
+	})
 	return nil
 }
 

@@ -2,6 +2,7 @@ package store
 
 import (
 	"testing"
+	"time"
 
 	core "dappco.re/go/core"
 	"github.com/stretchr/testify/assert"
@@ -108,6 +109,42 @@ func TestWorkspace_Commit_Good_JournalAndSummary(t *testing.T) {
 	tags, ok := rows[0]["tags"].(map[string]string)
 	require.True(t, ok, "unexpected tags type: %T", rows[0]["tags"])
 	assert.Equal(t, "scroll-session", tags["workspace"])
+}
+
+func TestWorkspace_Commit_Good_EmitsSummaryEvent(t *testing.T) {
+	useWorkspaceStateDirectory(t)
+
+	storeInstance, err := New(":memory:", WithJournal("http://127.0.0.1:8086", "core", "events"))
+	require.NoError(t, err)
+	defer storeInstance.Close()
+
+	watcher := storeInstance.Watch(workspaceSummaryGroup("scroll-session"), "summary")
+	defer storeInstance.Unwatch(watcher)
+
+	workspace, err := storeInstance.NewWorkspace("scroll-session")
+	require.NoError(t, err)
+
+	require.NoError(t, workspace.Put("like", map[string]any{"user": "@alice"}))
+	require.NoError(t, workspace.Put("profile_match", map[string]any{"user": "@charlie"}))
+
+	result := workspace.Commit()
+	require.True(t, result.OK, "workspace commit failed: %v", result.Value)
+
+	select {
+	case event := <-watcher.Events:
+		assert.Equal(t, EventSet, event.Type)
+		assert.Equal(t, workspaceSummaryGroup("scroll-session"), event.Group)
+		assert.Equal(t, "summary", event.Key)
+		assert.False(t, event.Timestamp.IsZero())
+
+		summary := make(map[string]any)
+		summaryResult := core.JSONUnmarshalString(event.Value, &summary)
+		require.True(t, summaryResult.OK, "summary event unmarshal failed: %v", summaryResult.Value)
+		assert.Equal(t, float64(1), summary["like"])
+		assert.Equal(t, float64(1), summary["profile_match"])
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for workspace summary event")
+	}
 }
 
 func TestWorkspace_Discard_Good_Idempotent(t *testing.T) {
