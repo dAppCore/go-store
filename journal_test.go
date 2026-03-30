@@ -2,6 +2,7 @@ package store
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -56,6 +57,39 @@ func TestJournal_QueryJournal_Good_FluxFilters(t *testing.T) {
 	fields, ok := rows[0]["fields"].(map[string]any)
 	require.True(t, ok, "unexpected fields type: %T", rows[0]["fields"])
 	assert.Equal(t, float64(2), fields["like"])
+}
+
+func TestJournal_QueryJournal_Good_AbsoluteRangeWithStop(t *testing.T) {
+	storeInstance, err := New(":memory:", WithJournal("http://127.0.0.1:8086", "core", "events"))
+	require.NoError(t, err)
+	defer storeInstance.Close()
+
+	require.True(t,
+		storeInstance.CommitToJournal("session-a", map[string]any{"like": 1}, map[string]string{"workspace": "session-a"}).OK,
+	)
+	require.True(t,
+		storeInstance.CommitToJournal("session-b", map[string]any{"like": 2}, map[string]string{"workspace": "session-b"}).OK,
+	)
+
+	_, err = storeInstance.database.Exec(
+		"UPDATE "+journalEntriesTableName+" SET committed_at = ? WHERE measurement = ?",
+		time.Date(2026, 3, 29, 12, 0, 0, 0, time.UTC).UnixMilli(),
+		"session-a",
+	)
+	require.NoError(t, err)
+	_, err = storeInstance.database.Exec(
+		"UPDATE "+journalEntriesTableName+" SET committed_at = ? WHERE measurement = ?",
+		time.Date(2026, 3, 30, 12, 0, 0, 0, time.UTC).UnixMilli(),
+		"session-b",
+	)
+	require.NoError(t, err)
+
+	rows := requireResultRows(
+		t,
+		storeInstance.QueryJournal(`from(bucket: "events") |> range(start: "2026-03-30T00:00:00Z", stop: now())`),
+	)
+	require.Len(t, rows, 1)
+	assert.Equal(t, "session-b", rows[0]["measurement"])
 }
 
 func TestJournal_CommitToJournal_Bad_EmptyMeasurement(t *testing.T) {

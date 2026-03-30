@@ -128,7 +128,7 @@ func (storeInstance *Store) Get(group, key string) (string, error) {
 		return "", core.E("store.Get", "query row", err)
 	}
 	if expiresAt.Valid && expiresAt.Int64 <= time.Now().UnixMilli() {
-		if _, err := storeInstance.database.Exec("DELETE FROM "+entriesTableName+" WHERE "+entryGroupColumn+" = ? AND "+entryKeyColumn+" = ?", group, key); err != nil {
+		if err := storeInstance.Delete(group, key); err != nil {
 			return "", core.E("store.Get", "delete expired row", err)
 		}
 		return "", core.E("store.Get", core.Concat(group, "/", key), NotFoundError)

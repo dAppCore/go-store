@@ -199,8 +199,20 @@ func jsonString(value any, operation, message string) (string, error) {
 }
 
 func fluxStartTime(value string) (time.Time, error) {
+	value = core.Trim(value)
 	if value == "" {
 		return time.Time{}, core.E("store.fluxStartTime", "range value is empty", nil)
+	}
+	value = firstString(core.Split(value, ","))
+	value = core.Trim(value)
+	if core.HasPrefix(value, "time(v:") && core.HasSuffix(value, ")") {
+		value = core.Trim(core.TrimSuffix(core.TrimPrefix(value, "time(v:"), ")"))
+	}
+	if core.HasPrefix(value, `"`) && core.HasSuffix(value, `"`) {
+		value = core.TrimSuffix(core.TrimPrefix(value, `"`), `"`)
+	}
+	if value == "now()" {
+		return time.Now(), nil
 	}
 	if core.HasSuffix(value, "d") {
 		days, err := strconv.Atoi(core.TrimSuffix(value, "d"))
@@ -210,10 +222,14 @@ func fluxStartTime(value string) (time.Time, error) {
 		return time.Now().Add(time.Duration(days) * 24 * time.Hour), nil
 	}
 	lookback, err := time.ParseDuration(value)
+	if err == nil {
+		return time.Now().Add(lookback), nil
+	}
+	parsedTime, err := time.Parse(time.RFC3339Nano, value)
 	if err != nil {
 		return time.Time{}, err
 	}
-	return time.Now().Add(lookback), nil
+	return parsedTime, nil
 }
 
 func quotedSubmatch(pattern *regexp.Regexp, value string) string {

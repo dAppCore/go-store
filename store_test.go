@@ -1088,6 +1088,33 @@ func TestStore_SetWithTTL_Good_ExpiresOnGet(t *testing.T) {
 	assert.True(t, core.Is(err, NotFoundError), "expired key should be NotFoundError")
 }
 
+func TestStore_SetWithTTL_Good_ExpiresOnGetEmitsDeleteEvent(t *testing.T) {
+	storeInstance, _ := New(":memory:")
+	defer storeInstance.Close()
+
+	watcher := storeInstance.Watch("g", "ephemeral")
+	defer storeInstance.Unwatch(watcher)
+
+	require.NoError(t, storeInstance.SetWithTTL("g", "ephemeral", "gone-soon", 1*time.Millisecond))
+	<-watcher.Events
+
+	time.Sleep(5 * time.Millisecond)
+
+	_, err := storeInstance.Get("g", "ephemeral")
+	require.Error(t, err)
+	assert.True(t, core.Is(err, NotFoundError), "expired key should be NotFoundError")
+
+	select {
+	case event := <-watcher.Events:
+		assert.Equal(t, EventDelete, event.Type)
+		assert.Equal(t, "g", event.Group)
+		assert.Equal(t, "ephemeral", event.Key)
+		assert.Empty(t, event.Value)
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for lazy expiry delete event")
+	}
+}
+
 func TestStore_SetWithTTL_Good_ExcludedFromCount(t *testing.T) {
 	storeInstance, _ := New(":memory:")
 	defer storeInstance.Close()
