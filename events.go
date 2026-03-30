@@ -50,13 +50,17 @@ type Event struct {
 }
 
 // Watcher receives events matching a group/key filter. Use Store.Watch to
-// create one and Store.Unwatch to stop delivery.
-// Usage example: `watcher := st.Watch("config", "*")`
+// create one and Store.Unwatch to stop delivery. Events is the primary
+// read-only channel; Ch remains for compatibility.
+// Usage example: `watcher := st.Watch("config", "*"); for event := range watcher.Events { _ = event }`
 type Watcher struct {
-	// Ch is the public read-only channel that consumers select on.
+	// Events is the public read-only channel that consumers select on.
+	Events <-chan Event
+
+	// Ch is a compatibility alias for Events.
 	Ch <-chan Event
 
-	// ch is the internal write channel (same underlying channel as Ch).
+	// ch is the internal write channel (same underlying channel as Events).
 	ch chan Event
 
 	group string
@@ -70,8 +74,8 @@ type callbackEntry struct {
 	fn func(Event)
 }
 
-// watcherBufSize is the capacity of each watcher's buffered channel.
-const watcherBufSize = 16
+// watcherBufferSize is the capacity of each watcher's buffered channel.
+const watcherBufferSize = 16
 
 // Watch creates a new watcher that receives events matching the given group and
 // key. Use "*" as a wildcard: ("mygroup", "*") matches all keys in that group,
@@ -79,13 +83,14 @@ const watcherBufSize = 16
 // channel (cap 16); events are dropped if the consumer falls behind.
 // Usage example: `watcher := st.Watch("config", "*")`
 func (s *Store) Watch(group, key string) *Watcher {
-	ch := make(chan Event, watcherBufSize)
+	ch := make(chan Event, watcherBufferSize)
 	w := &Watcher{
-		Ch:    ch,
-		ch:    ch,
-		group: group,
-		key:   key,
-		id:    atomic.AddUint64(&s.nextID, 1),
+		Events: ch,
+		Ch:     ch,
+		ch:     ch,
+		group:  group,
+		key:    key,
+		id:     atomic.AddUint64(&s.nextID, 1),
 	}
 
 	s.mu.Lock()
@@ -99,6 +104,10 @@ func (s *Store) Watch(group, key string) *Watcher {
 // times; subsequent calls are no-ops.
 // Usage example: `st.Unwatch(watcher)`
 func (s *Store) Unwatch(w *Watcher) {
+	if w == nil {
+		return
+	}
+
 	s.mu.Lock()
 	defer s.mu.Unlock()
 

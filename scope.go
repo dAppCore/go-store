@@ -52,8 +52,8 @@ func NewScopedWithQuota(store *Store, namespace string, quota QuotaConfig) (*Sco
 	return s, nil
 }
 
-// prefix returns the namespaced group name.
-func (s *ScopedStore) prefix(group string) string {
+// namespacedGroup returns the group name with the namespace prefix applied.
+func (s *ScopedStore) namespacedGroup(group string) string {
 	return s.namespace + ":" + group
 }
 
@@ -66,7 +66,7 @@ func (s *ScopedStore) Namespace() string {
 // Get retrieves a value by group and key within the namespace.
 // Usage example: `value, err := sc.Get("config", "theme")`
 func (s *ScopedStore) Get(group, key string) (string, error) {
-	return s.store.Get(s.prefix(group), key)
+	return s.store.Get(s.namespacedGroup(group), key)
 }
 
 // Set stores a value by group and key within the namespace. If quotas are
@@ -76,7 +76,7 @@ func (s *ScopedStore) Set(group, key, value string) error {
 	if err := s.checkQuota(group, key); err != nil {
 		return err
 	}
-	return s.store.Set(s.prefix(group), key, value)
+	return s.store.Set(s.namespacedGroup(group), key, value)
 }
 
 // SetWithTTL stores a value with a time-to-live within the namespace. Quota
@@ -86,46 +86,46 @@ func (s *ScopedStore) SetWithTTL(group, key, value string, ttl time.Duration) er
 	if err := s.checkQuota(group, key); err != nil {
 		return err
 	}
-	return s.store.SetWithTTL(s.prefix(group), key, value, ttl)
+	return s.store.SetWithTTL(s.namespacedGroup(group), key, value, ttl)
 }
 
 // Delete removes a single key from a group within the namespace.
 // Usage example: `err := sc.Delete("config", "theme")`
 func (s *ScopedStore) Delete(group, key string) error {
-	return s.store.Delete(s.prefix(group), key)
+	return s.store.Delete(s.namespacedGroup(group), key)
 }
 
 // DeleteGroup removes all keys in a group within the namespace.
 // Usage example: `err := sc.DeleteGroup("cache")`
 func (s *ScopedStore) DeleteGroup(group string) error {
-	return s.store.DeleteGroup(s.prefix(group))
+	return s.store.DeleteGroup(s.namespacedGroup(group))
 }
 
 // GetAll returns all non-expired key-value pairs in a group within the
 // namespace.
 // Usage example: `all, err := sc.GetAll("config")`
 func (s *ScopedStore) GetAll(group string) (map[string]string, error) {
-	return s.store.GetAll(s.prefix(group))
+	return s.store.GetAll(s.namespacedGroup(group))
 }
 
 // All returns an iterator over all non-expired key-value pairs in a group
 // within the namespace.
-// Usage example: `for kv, err := range sc.All("config") { _ = kv; _ = err }`
-func (s *ScopedStore) All(group string) iter.Seq2[KV, error] {
-	return s.store.All(s.prefix(group))
+// Usage example: `for item, err := range sc.All("config") { _ = item; _ = err }`
+func (s *ScopedStore) All(group string) iter.Seq2[KeyValue, error] {
+	return s.store.All(s.namespacedGroup(group))
 }
 
 // Count returns the number of non-expired keys in a group within the namespace.
 // Usage example: `n, err := sc.Count("config")`
 func (s *ScopedStore) Count(group string) (int, error) {
-	return s.store.Count(s.prefix(group))
+	return s.store.Count(s.namespacedGroup(group))
 }
 
 // Render loads all non-expired key-value pairs from a namespaced group and
 // renders a Go template.
 // Usage example: `out, err := sc.Render("Hello {{ .name }}", "user")`
 func (s *ScopedStore) Render(tmplStr, group string) (string, error) {
-	return s.store.Render(tmplStr, s.prefix(group))
+	return s.store.Render(tmplStr, s.namespacedGroup(group))
 }
 
 // checkQuota verifies that inserting key into group would not exceed the
@@ -136,48 +136,48 @@ func (s *ScopedStore) checkQuota(group, key string) error {
 		return nil
 	}
 
-	prefixedGroup := s.prefix(group)
-	nsPrefix := s.namespace + ":"
+	namespacedGroup := s.namespacedGroup(group)
+	namespacePrefix := s.namespace + ":"
 
 	// Check if this is an upsert (key already exists) — upserts never exceed quota.
-	_, err := s.store.Get(prefixedGroup, key)
+	_, err := s.store.Get(namespacedGroup, key)
 	if err == nil {
 		// Key exists — this is an upsert, no quota check needed.
 		return nil
 	}
-	if !core.Is(err, ErrNotFound) {
+	if !core.Is(err, NotFoundError) {
 		// A database error occurred, not just a "not found" result.
 		return core.E("store.ScopedStore", "quota check", err)
 	}
 
 	// Check MaxKeys quota.
 	if s.quota.MaxKeys > 0 {
-		count, err := s.store.CountAll(nsPrefix)
+		count, err := s.store.CountAll(namespacePrefix)
 		if err != nil {
 			return core.E("store.ScopedStore", "quota check", err)
 		}
 		if count >= s.quota.MaxKeys {
-			return core.E("store.ScopedStore", core.Sprintf("key limit (%d)", s.quota.MaxKeys), ErrQuotaExceeded)
+			return core.E("store.ScopedStore", core.Sprintf("key limit (%d)", s.quota.MaxKeys), QuotaExceededError)
 		}
 	}
 
 	// Check MaxGroups quota — only if this would create a new group.
 	if s.quota.MaxGroups > 0 {
-		groupCount, err := s.store.Count(prefixedGroup)
+		groupCount, err := s.store.Count(namespacedGroup)
 		if err != nil {
 			return core.E("store.ScopedStore", "quota check", err)
 		}
 		if groupCount == 0 {
 			// This group is new — check if adding it would exceed the group limit.
 			count := 0
-			for _, err := range s.store.GroupsSeq(nsPrefix) {
+			for _, err := range s.store.GroupsSeq(namespacePrefix) {
 				if err != nil {
 					return core.E("store.ScopedStore", "quota check", err)
 				}
 				count++
 			}
 			if count >= s.quota.MaxGroups {
-				return core.E("store.ScopedStore", core.Sprintf("group limit (%d)", s.quota.MaxGroups), ErrQuotaExceeded)
+				return core.E("store.ScopedStore", core.Sprintf("group limit (%d)", s.quota.MaxGroups), QuotaExceededError)
 			}
 		}
 	}

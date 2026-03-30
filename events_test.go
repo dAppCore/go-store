@@ -25,7 +25,7 @@ func TestEvents_Watch_Good_SpecificKey(t *testing.T) {
 	require.NoError(t, s.Set("config", "theme", "dark"))
 
 	select {
-	case e := <-w.Ch:
+	case e := <-w.Events:
 		assert.Equal(t, EventSet, e.Type)
 		assert.Equal(t, "config", e.Group)
 		assert.Equal(t, "theme", e.Key)
@@ -39,7 +39,7 @@ func TestEvents_Watch_Good_SpecificKey(t *testing.T) {
 	require.NoError(t, s.Set("config", "colour", "blue"))
 
 	select {
-	case e := <-w.Ch:
+	case e := <-w.Events:
 		t.Fatalf("unexpected event for non-matching key: %+v", e)
 	case <-time.After(50 * time.Millisecond):
 		// Expected: no event.
@@ -60,7 +60,7 @@ func TestEvents_Watch_Good_WildcardKey(t *testing.T) {
 	require.NoError(t, s.Set("config", "theme", "dark"))
 	require.NoError(t, s.Set("config", "colour", "blue"))
 
-	received := drainEvents(w.Ch, 2, time.Second)
+	received := drainEvents(w.Events, 2, time.Second)
 	require.Len(t, received, 2)
 	assert.Equal(t, "theme", received[0].Key)
 	assert.Equal(t, "colour", received[1].Key)
@@ -82,7 +82,7 @@ func TestEvents_Watch_Good_WildcardAll(t *testing.T) {
 	require.NoError(t, s.Delete("g1", "k1"))
 	require.NoError(t, s.DeleteGroup("g2"))
 
-	received := drainEvents(w.Ch, 4, time.Second)
+	received := drainEvents(w.Events, 4, time.Second)
 	require.Len(t, received, 4)
 	assert.Equal(t, EventSet, received[0].Type)
 	assert.Equal(t, EventSet, received[1].Type)
@@ -102,7 +102,7 @@ func TestEvents_Unwatch_Good_StopsDelivery(t *testing.T) {
 	s.Unwatch(w)
 
 	// Channel should be closed.
-	_, open := <-w.Ch
+	_, open := <-w.Events
 	assert.False(t, open, "channel should be closed after Unwatch")
 
 	// Set after Unwatch should not panic or block.
@@ -133,12 +133,12 @@ func TestEvents_Watch_Good_DeleteEvent(t *testing.T) {
 
 	require.NoError(t, s.Set("g", "k", "v"))
 	// Drain the Set event.
-	<-w.Ch
+	<-w.Events
 
 	require.NoError(t, s.Delete("g", "k"))
 
 	select {
-	case e := <-w.Ch:
+	case e := <-w.Events:
 		assert.Equal(t, EventDelete, e.Type)
 		assert.Equal(t, "g", e.Group)
 		assert.Equal(t, "k", e.Key)
@@ -163,13 +163,13 @@ func TestEvents_Watch_Good_DeleteGroupEvent(t *testing.T) {
 	require.NoError(t, s.Set("g", "a", "1"))
 	require.NoError(t, s.Set("g", "b", "2"))
 	// Drain Set events.
-	<-w.Ch
-	<-w.Ch
+	<-w.Events
+	<-w.Events
 
 	require.NoError(t, s.DeleteGroup("g"))
 
 	select {
-	case e := <-w.Ch:
+	case e := <-w.Events:
 		assert.Equal(t, EventDeleteGroup, e.Type)
 		assert.Equal(t, "g", e.Group)
 		assert.Empty(t, e.Key, "DeleteGroup events should have empty Key")
@@ -259,16 +259,16 @@ func TestEvents_Watch_Good_BufferFullDoesNotBlock(t *testing.T) {
 		t.Fatal("writes blocked — buffer-full condition caused deadlock")
 	}
 
-	// Drain what we can — should get exactly watcherBufSize events.
+	// Drain what we can — should get exactly watcherBufferSize events.
 	var received int
-	for range watcherBufSize {
+	for range watcherBufferSize {
 		select {
-		case <-w.Ch:
+		case <-w.Events:
 			received++
 		default:
 		}
 	}
-	assert.Equal(t, watcherBufSize, received, "should receive exactly buffer-size events")
+	assert.Equal(t, watcherBufferSize, received, "should receive exactly buffer-size events")
 }
 
 // ---------------------------------------------------------------------------
@@ -288,14 +288,14 @@ func TestEvents_Watch_Good_MultipleWatchersSameKey(t *testing.T) {
 
 	// Both watchers should receive the event independently.
 	select {
-	case e := <-w1.Ch:
+	case e := <-w1.Events:
 		assert.Equal(t, EventSet, e.Type)
 	case <-time.After(time.Second):
 		t.Fatal("w1 timed out")
 	}
 
 	select {
-	case e := <-w2.Ch:
+	case e := <-w2.Events:
 		assert.Equal(t, EventSet, e.Type)
 	case <-time.After(time.Second):
 		t.Fatal("w2 timed out")
@@ -330,7 +330,7 @@ func TestEvents_Watch_Good_ConcurrentWatchUnwatch(t *testing.T) {
 				// Drain a few events to exercise the channel path.
 				for range 3 {
 					select {
-					case <-w.Ch:
+					case <-w.Events:
 					case <-time.After(time.Millisecond):
 					}
 				}
@@ -361,7 +361,7 @@ func TestEvents_Watch_Good_ScopedStoreEvents(t *testing.T) {
 	require.NoError(t, sc.Set("config", "theme", "dark"))
 
 	select {
-	case e := <-w.Ch:
+	case e := <-w.Events:
 		assert.Equal(t, EventSet, e.Type)
 		assert.Equal(t, "tenant-a:config", e.Group)
 		assert.Equal(t, "theme", e.Key)
@@ -396,7 +396,7 @@ func TestEvents_Watch_Good_SetWithTTLEmitsEvent(t *testing.T) {
 	require.NoError(t, s.SetWithTTL("g", "k", "ttl-val", time.Hour))
 
 	select {
-	case e := <-w.Ch:
+	case e := <-w.Events:
 		assert.Equal(t, EventSet, e.Type)
 		assert.Equal(t, "g", e.Group)
 		assert.Equal(t, "k", e.Key)

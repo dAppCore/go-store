@@ -13,23 +13,40 @@ Group-namespaced SQLite key-value store with TTL expiry, namespace isolation, qu
 ## Quick Start
 
 ```go
-import "dappco.re/go/core/store"
+package main
 
-st, err := store.New("/path/to/store.db")  // or store.New(":memory:")
-defer st.Close()
+import (
+	"fmt"
+	"time"
 
-st.Set("config", "theme", "dark")
-st.SetWithTTL("session", "token", "abc123", 24*time.Hour)
-val, err := st.Get("config", "theme")
+	"dappco.re/go/core/store"
+)
 
-// Watch for mutations
-w := st.Watch("config", "*")
-defer st.Unwatch(w)
-for e := range w.Ch { fmt.Println(e.Type, e.Key) }
+func main() {
+	st, err := store.New("/path/to/store.db") // or store.New(":memory:")
+	if err != nil {
+		panic(err)
+	}
+	defer st.Close()
 
-// Scoped store for tenant isolation
-sc, _ := store.NewScoped(st, "tenant-42")
-sc.Set("prefs", "locale", "en-GB")
+	st.Set("config", "theme", "dark")
+	st.SetWithTTL("session", "token", "abc123", 24*time.Hour)
+	val, err := st.Get("config", "theme")
+	fmt.Println(val, err)
+
+	// Watch for mutations
+	w := st.Watch("config", "*")
+	defer st.Unwatch(w)
+	go func() {
+		for e := range w.Events {
+			fmt.Println(e.Type, e.Key)
+		}
+	}()
+
+	// Scoped store for tenant isolation
+	sc, _ := store.NewScoped(st, "tenant-42")
+	sc.Set("prefs", "locale", "en-GB")
+}
 ```
 
 ## Documentation

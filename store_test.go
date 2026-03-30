@@ -136,7 +136,7 @@ func TestStore_Get_Bad_NotFound(t *testing.T) {
 
 	_, err := s.Get("config", "missing")
 	require.Error(t, err)
-	assert.True(t, core.Is(err, ErrNotFound), "should wrap ErrNotFound")
+	assert.True(t, core.Is(err, NotFoundError), "should wrap NotFoundError")
 }
 
 func TestStore_Get_Bad_NonExistentGroup(t *testing.T) {
@@ -145,7 +145,7 @@ func TestStore_Get_Bad_NonExistentGroup(t *testing.T) {
 
 	_, err := s.Get("no-such-group", "key")
 	require.Error(t, err)
-	assert.True(t, core.Is(err, ErrNotFound))
+	assert.True(t, core.Is(err, NotFoundError))
 }
 
 func TestStore_Get_Bad_ClosedStore(t *testing.T) {
@@ -553,8 +553,8 @@ func TestStore_Concurrent_Good_ReadWrite(t *testing.T) {
 			for i := range opsPerGoroutine {
 				key := core.Sprintf("key-%d", i)
 				_, err := s.Get(group, key)
-				// ErrNotFound is acceptable — the writer may not have written yet.
-				if err != nil && !core.Is(err, ErrNotFound) {
+				// NotFoundError is acceptable — the writer may not have written yet.
+				if err != nil && !core.Is(err, NotFoundError) {
 					errs <- core.E("TestStore_Concurrent_Good_ReadWrite", core.Sprintf("reader %d", id), err)
 				}
 			}
@@ -624,16 +624,16 @@ func TestStore_Concurrent_Good_DeleteGroup(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// ErrNotFound wrapping verification
+// NotFoundError wrapping verification
 // ---------------------------------------------------------------------------
 
-func TestStore_ErrNotFound_Good_Is(t *testing.T) {
+func TestStore_NotFoundError_Good_Is(t *testing.T) {
 	s, _ := New(":memory:")
 	defer s.Close()
 
 	_, err := s.Get("g", "k")
 	require.Error(t, err)
-	assert.True(t, core.Is(err, ErrNotFound), "error should be ErrNotFound via core.Is")
+	assert.True(t, core.Is(err, NotFoundError), "error should be NotFoundError via core.Is")
 	assert.Contains(t, err.Error(), "g/k", "error message should include group/key")
 }
 
@@ -737,7 +737,7 @@ func TestStore_SetWithTTL_Good_ExpiresOnGet(t *testing.T) {
 
 	_, err := s.Get("g", "ephemeral")
 	require.Error(t, err)
-	assert.True(t, core.Is(err, ErrNotFound), "expired key should be ErrNotFound")
+	assert.True(t, core.Is(err, NotFoundError), "expired key should be NotFoundError")
 }
 
 func TestStore_SetWithTTL_Good_ExcludedFromCount(t *testing.T) {

@@ -13,13 +13,21 @@ import (
 	_ "modernc.org/sqlite"
 )
 
-// ErrNotFound is returned when a key does not exist in the store.
-// Usage example: `if core.Is(err, store.ErrNotFound) { return }`
-var ErrNotFound = core.E("store", "not found", nil)
+// NotFoundError is returned when a key does not exist in the store.
+// Usage example: `if core.Is(err, store.NotFoundError) { return }`
+var NotFoundError = core.E("store", "not found", nil)
 
-// ErrQuotaExceeded is returned when a namespace quota limit is reached.
+// ErrNotFound is a compatibility alias for NotFoundError.
+// Usage example: `if core.Is(err, store.ErrNotFound) { return }`
+var ErrNotFound = NotFoundError
+
+// QuotaExceededError is returned when a namespace quota limit is reached.
+// Usage example: `if core.Is(err, store.QuotaExceededError) { return }`
+var QuotaExceededError = core.E("store", "quota exceeded", nil)
+
+// ErrQuotaExceeded is a compatibility alias for QuotaExceededError.
 // Usage example: `if core.Is(err, store.ErrQuotaExceeded) { return }`
-var ErrQuotaExceeded = core.E("store", "quota exceeded", nil)
+var ErrQuotaExceeded = QuotaExceededError
 
 // Store is a group-namespaced key-value store backed by SQLite.
 // Usage example: `st, _ := store.New(":memory:")`
@@ -29,7 +37,7 @@ type Store struct {
 	wg            sync.WaitGroup
 	purgeInterval time.Duration // interval between background purge cycles
 
-	// Event hooks (Phase 3).
+	// Event dispatch state.
 	watchers  []*Watcher
 	callbacks []callbackEntry
 	mu        sync.RWMutex // protects watchers and callbacks
@@ -100,19 +108,14 @@ func (s *Store) Get(group, key string) (string, error) {
 		group, key,
 	).Scan(&val, &expiresAt)
 	if err == sql.ErrNoRows {
-		return "", core.E("store.Get", core.Concat(group, "/", key), ErrNotFound)
+		return "", core.E("store.Get", core.Concat(group, "/", key), NotFoundError)
 	}
 	if err != nil {
 		return "", core.E("store.Get", "query", err)
 	}
 	if expiresAt.Valid && expiresAt.Int64 <= time.Now().UnixMilli() {
-		// Lazily delete the expired entry.
-		if _, err := s.db.Exec("DELETE FROM kv WHERE grp = ? AND key = ?", group, key); err != nil {
-			// Log error or ignore; we return ErrNotFound regardless.
-			// For now, we wrap the error to provide context if the delete fails
-			// for reasons other than "already deleted".
-		}
-		return "", core.E("store.Get", core.Concat(group, "/", key), ErrNotFound)
+		_, _ = s.db.Exec("DELETE FROM kv WHERE grp = ? AND key = ?", group, key)
+		return "", core.E("store.Get", core.Concat(group, "/", key), NotFoundError)
 	}
 	return val, nil
 }
@@ -187,53 +190,57 @@ func (s *Store) DeleteGroup(group string) error {
 	return nil
 }
 
-// KV represents a key-value pair.
-// Usage example: `for kv, err := range st.All("config") { _ = kv }`
-type KV struct {
+// KeyValue represents a key-value pair.
+// Usage example: `for item, err := range st.All("config") { _ = item }`
+type KeyValue struct {
 	Key, Value string
 }
+
+// KV is a compatibility alias for KeyValue.
+// Usage example: `item := store.KV{Key: "theme", Value: "dark"}`
+type KV = KeyValue
 
 // GetAll returns all non-expired key-value pairs in a group.
 // Usage example: `all, err := st.GetAll("config")`
 func (s *Store) GetAll(group string) (map[string]string, error) {
 	result := make(map[string]string)
-	for kv, err := range s.All(group) {
+	for item, err := range s.All(group) {
 		if err != nil {
 			return nil, core.E("store.GetAll", "iterate", err)
 		}
-		result[kv.Key] = kv.Value
+		result[item.Key] = item.Value
 	}
 	return result, nil
 }
 
 // All returns an iterator over all non-expired key-value pairs in a group.
-// Usage example: `for kv, err := range st.All("config") { _ = kv; _ = err }`
-func (s *Store) All(group string) iter.Seq2[KV, error] {
-	return func(yield func(KV, error) bool) {
+// Usage example: `for item, err := range st.All("config") { _ = item; _ = err }`
+func (s *Store) All(group string) iter.Seq2[KeyValue, error] {
+	return func(yield func(KeyValue, error) bool) {
 		rows, err := s.db.Query(
 			"SELECT key, value FROM kv WHERE grp = ? AND (expires_at IS NULL OR expires_at > ?)",
 			group, time.Now().UnixMilli(),
 		)
 		if err != nil {
-			yield(KV{}, core.E("store.All", "query", err))
+			yield(KeyValue{}, core.E("store.All", "query", err))
 			return
 		}
 		defer rows.Close()
 
 		for rows.Next() {
-			var kv KV
-			if err := rows.Scan(&kv.Key, &kv.Value); err != nil {
-				if !yield(KV{}, core.E("store.All", "scan", err)) {
+			var item KeyValue
+			if err := rows.Scan(&item.Key, &item.Value); err != nil {
+				if !yield(KeyValue{}, core.E("store.All", "scan", err)) {
 					return
 				}
 				continue
 			}
-			if !yield(kv, nil) {
+			if !yield(item, nil) {
 				return
 			}
 		}
 		if err := rows.Err(); err != nil {
-			yield(KV{}, core.E("store.All", "rows", err))
+			yield(KeyValue{}, core.E("store.All", "rows", err))
 		}
 	}
 }
@@ -265,11 +272,11 @@ func (s *Store) GetFields(group, key string) (iter.Seq[string], error) {
 // Usage example: `out, err := st.Render("Hello {{ .name }}", "user")`
 func (s *Store) Render(tmplStr, group string) (string, error) {
 	vars := make(map[string]string)
-	for kv, err := range s.All(group) {
+	for item, err := range s.All(group) {
 		if err != nil {
 			return "", core.E("store.Render", "iterate", err)
 		}
-		vars[kv.Key] = kv.Value
+		vars[item.Key] = item.Value
 	}
 
 	tmpl, err := template.New("render").Parse(tmplStr)

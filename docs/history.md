@@ -65,7 +65,7 @@ Added optional time-to-live for keys.
 
 - `expires_at INTEGER` nullable column added to the `kv` schema.
 - `SetWithTTL(group, key, value string, ttl time.Duration)` stores the current time plus TTL as a Unix millisecond timestamp in `expires_at`.
-- `Get()` performs lazy deletion: if a key is found with an `expires_at` in the past, it is deleted and `ErrNotFound` is returned.
+- `Get()` performs lazy deletion: if a key is found with an `expires_at` in the past, it is deleted and `NotFoundError` is returned (`ErrNotFound` remains as a compatibility alias).
 - `Count()`, `GetAll()`, and `Render()` include `(expires_at IS NULL OR expires_at > ?)` in all queries, excluding expired keys from results.
 - `PurgeExpired()` public method deletes all physically stored expired rows and returns the count removed.
 - Background goroutine calls `PurgeExpired()` every 60 seconds, controlled by a `context.WithCancel` that is cancelled on `Close()`.
@@ -95,7 +95,7 @@ Added `ScopedStore` for multi-tenant namespace isolation.
 - All `Store` methods delegated with group automatically prefixed as `namespace + ":" + group`.
 - `QuotaConfig{MaxKeys, MaxGroups int}` struct; zero means unlimited.
 - `NewScopedWithQuota(store, namespace, quota)` constructor.
-- `ErrQuotaExceeded` sentinel error.
+- `QuotaExceededError` sentinel error (`ErrQuotaExceeded` remains as a compatibility alias).
 - `checkQuota(group, key)` internal method: skips upserts (existing key), checks `CountAll(namespace+":")` against `MaxKeys`, checks `Groups(namespace+":")` against `MaxGroups` only when the group is new.
 - `CountAll(prefix string)` added to `Store`: counts non-expired keys across all groups matching a prefix. Empty prefix counts across all groups.
 - `Groups(prefix string)` added to `Store`: returns distinct non-expired group names matching a prefix. Empty prefix returns all groups.
@@ -118,7 +118,7 @@ Added a reactive notification system for store mutations.
 ### Changes
 
 - `events.go` introduced with `EventType` (`EventSet`, `EventDelete`, `EventDeleteGroup`), `Event` struct, `Watcher` struct, `callbackEntry` struct.
-- `watcherBufSize = 16` constant.
+- `watcherBufferSize = 16` constant.
 - `Watch(group, key string) *Watcher`: creates a buffered channel watcher. Wildcard `"*"` supported for both group and key. Uses `atomic.AddUint64` for monotonic watcher IDs.
 - `Unwatch(w *Watcher)`: removes watcher from the registry and closes its channel. Idempotent.
 - `OnChange(fn func(Event)) func()`: registers a synchronous callback. Returns an idempotent unregister function using `sync.Once`.

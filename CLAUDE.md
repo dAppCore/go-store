@@ -63,12 +63,12 @@ sc.Set("config", "key", "val")     // stored as "tenant:config" in underlying st
 
 // With quota enforcement
 sq, _ := store.NewScopedWithQuota(st, "tenant", store.QuotaConfig{MaxKeys: 100, MaxGroups: 10})
-sq.Set("g", "k", "v")             // returns ErrQuotaExceeded if limits hit
+sq.Set("g", "k", "v")             // returns QuotaExceededError if limits hit
 
 // Event hooks
 w := st.Watch("group", "*")       // wildcard: all keys in group ("*","*" for all)
 defer st.Unwatch(w)
-e := <-w.Ch                        // buffered chan, cap 16
+e := <-w.Events                   // buffered chan, cap 16
 
 unreg := st.OnChange(func(e store.Event) { /* synchronous in writer goroutine */ })
 defer unreg()

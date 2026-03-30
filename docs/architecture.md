@@ -75,7 +75,7 @@ Expiry is enforced in three ways:
 
 ### 1. Lazy Deletion on Get
 
-If a key is found but its `expires_at` is in the past, it is deleted synchronously before returning `ErrNotFound`. This prevents stale values from being returned even if the background purge has not run yet.
+If a key is found but its `expires_at` is in the past, it is deleted synchronously before returning `NotFoundError`. This prevents stale values from being returned even if the background purge has not run yet.
 
 ### 2. Query-Time Filtering
 
@@ -94,7 +94,7 @@ Two convenience methods build on `Get` to return iterators over parts of a store
 - **`GetSplit(group, key, sep)`** splits the value by a custom separator, returning an `iter.Seq[string]` via `strings.SplitSeq`.
 - **`GetFields(group, key)`** splits the value by whitespace, returning an `iter.Seq[string]` via `strings.FieldsSeq`.
 
-Both return `ErrNotFound` if the key does not exist or has expired.
+Both return `NotFoundError` if the key does not exist or has expired.
 
 ## Template Rendering
 
@@ -137,7 +137,7 @@ Events are emitted synchronously after each successful database write inside the
 
 ### Watch/Unwatch
 
-`Watch(group, key)` creates a `Watcher` with a buffered channel (`Ch <-chan Event`, capacity 16).
+`Watch(group, key)` creates a `Watcher` with a buffered channel (`Events <-chan Event`, capacity 16). `Ch` remains as a compatibility alias.
 
 | group argument | key argument | Receives |
 |---|---|---|
@@ -153,7 +153,7 @@ Events are emitted synchronously after each successful database write inside the
 w := st.Watch("config", "*")
 defer st.Unwatch(w)
 
-for e := range w.Ch {
+for e := range w.Events {
     fmt.Println(e.Type, e.Group, e.Key, e.Value)
 }
 ```
@@ -214,7 +214,7 @@ Zero values mean unlimited. Before each `Set` or `SetWithTTL`, the scoped store:
 2. If the key is new, queries `CountAll(namespace + ":")` and compares against `MaxKeys`.
 3. If the group is new (current count for that group is zero), queries `GroupsSeq(namespace + ":")` and compares against `MaxGroups`.
 
-Exceeding a limit returns `ErrQuotaExceeded`.
+Exceeding a limit returns `QuotaExceededError`.
 
 ## Concurrency Model
 
