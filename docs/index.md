@@ -55,6 +55,14 @@ func main() {
     }
     fmt.Println(configEntries) // map[colour:blue]
 
+    // Stream the same group without materialising another map.
+    for entry, err := range storeInstance.All("config") {
+        if err != nil {
+            return
+        }
+        fmt.Println(entry.Key, entry.Value)
+    }
+
     // Render the mail host and port into smtp.example.com:587.
     if err := storeInstance.Set("mail", "host", "smtp.example.com"); err != nil {
         return
@@ -86,6 +94,14 @@ func main() {
     // A write past the limit returns store.QuotaExceededError.
     if err := quotaScopedStore.Set("g", "k", "v"); err != nil {
         return
+    }
+
+    // Discover tenant groups by prefix.
+    for groupName, err := range storeInstance.GroupsSeq("tenant-") {
+        if err != nil {
+            return
+        }
+        fmt.Println(groupName)
     }
 
     // Watch "config" changes and print each event as it arrives.

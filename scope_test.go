@@ -44,6 +44,12 @@ func TestScope_NewScoped_Bad_Empty(t *testing.T) {
 	assert.Contains(t, err.Error(), "invalid")
 }
 
+func TestScope_NewScoped_Bad_NilStore(t *testing.T) {
+	_, err := NewScoped(nil, "tenant-a")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "store instance is nil")
+}
+
 func TestScope_NewScoped_Bad_InvalidChars(t *testing.T) {
 	storeInstance, _ := New(":memory:")
 	defer storeInstance.Close()
@@ -62,6 +68,12 @@ func TestScope_NewScopedWithQuota_Bad_InvalidNamespace(t *testing.T) {
 	_, err := NewScopedWithQuota(storeInstance, "tenant_a", QuotaConfig{MaxKeys: 1})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "store.NewScoped")
+}
+
+func TestScope_NewScopedWithQuota_Bad_NilStore(t *testing.T) {
+	_, err := NewScopedWithQuota(nil, "tenant-a", QuotaConfig{MaxKeys: 1})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "store instance is nil")
 }
 
 // ---------------------------------------------------------------------------

@@ -31,6 +31,9 @@ type ScopedStore struct {
 // NewScoped validates a namespace and prefixes groups with namespace + ":".
 // Usage example: `scopedStore, err := store.NewScoped(storeInstance, "tenant-a"); if err != nil { return }`
 func NewScoped(storeInstance *Store, namespace string) (*ScopedStore, error) {
+	if storeInstance == nil {
+		return nil, core.E("store.NewScoped", "store instance is nil", nil)
+	}
 	if !validNamespace.MatchString(namespace) {
 		return nil, core.E("store.NewScoped", core.Sprintf("namespace %q is invalid; use names like %q or %q", namespace, "tenant-a", "tenant-42"), nil)
 	}

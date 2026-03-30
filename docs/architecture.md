@@ -54,7 +54,7 @@ group: "user:42:config"     key: "language"
 group: "session:abc"        key: "token"
 ```
 
-All read operations (`Get`, `GetAll`, `Count`, `Render`) are scoped to a single group. `DeleteGroup` atomically removes all keys in a group. `CountAll` and `Groups` operate across groups by prefix match.
+All read operations (`Get`, `GetAll`, `All`, `Count`, `Render`) are scoped to a single group. `DeleteGroup` atomically removes all keys in a group. `CountAll`, `Groups`, and `GroupsSeq` operate across groups by prefix match.
 
 ## UPSERT Semantics
 

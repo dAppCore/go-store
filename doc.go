@@ -1,5 +1,5 @@
 // Package store provides SQLite-backed storage for grouped entries, TTL expiry,
-// namespace isolation, and reactive change notifications.
+// namespace isolation, quota enforcement, and reactive change notifications.
 //
 // Usage example:
 //
@@ -13,26 +13,21 @@
 //		if err := storeInstance.Set("config", "colour", "blue"); err != nil {
 //			return
 //		}
+//		if err := storeInstance.SetWithTTL("session", "token", "abc123", 5*time.Minute); err != nil {
+//			return
+//		}
+//
 //		colourValue, err := storeInstance.Get("config", "colour")
 //		if err != nil {
 //			return
 //		}
 //		fmt.Println(colourValue)
 //
-//		scopedStore, err := store.NewScoped(storeInstance, "tenant-a")
-//		if err != nil {
-//			return
-//		}
-//		if err := scopedStore.Set("config", "colour", "blue"); err != nil {
-//			return
-//		}
-//
-//		quotaScopedStore, err := store.NewScopedWithQuota(storeInstance, "tenant-b", store.QuotaConfig{MaxKeys: 100, MaxGroups: 10})
-//		if err != nil {
-//			return
-//		}
-//		if err := quotaScopedStore.Set("preferences", "locale", "en-GB"); err != nil {
-//			return
+//		for entry, err := range storeInstance.All("config") {
+//			if err != nil {
+//				return
+//			}
+//			fmt.Println(entry.Key, entry.Value)
 //		}
 //
 //		watcher := storeInstance.Watch("config", "*")
@@ -47,5 +42,24 @@
 //			fmt.Println("changed", event.Group, event.Key, event.Value)
 //		})
 //		defer unregister()
+//
+//		scopedStore, err := store.NewScopedWithQuota(
+//			storeInstance,
+//			"tenant-a",
+//			store.QuotaConfig{MaxKeys: 100, MaxGroups: 10},
+//		)
+//		if err != nil {
+//			return
+//		}
+//		if err := scopedStore.Set("preferences", "locale", "en-GB"); err != nil {
+//			return
+//		}
+//
+//		for groupName, err := range storeInstance.GroupsSeq("tenant-a:") {
+//			if err != nil {
+//				return
+//			}
+//			fmt.Println(groupName)
+//		}
 //	}
 package store
