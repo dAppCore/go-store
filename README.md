@@ -65,6 +65,7 @@ func main() {
 ## Documentation
 
 - [Agent Conventions](CODEX.md) - Codex-facing repo rules and AX notes
+- [AX RFC](docs/RFC-CORE-008-AGENT-EXPERIENCE.md) - naming, comment, and path conventions for agent consumers
 - [Architecture](docs/architecture.md) — storage layer, group/key model, TTL expiry, event system, namespace isolation
 - [Development Guide](docs/development.md) — prerequisites, test patterns, benchmarks, adding methods
 - [Project History](docs/history.md) — completed phases, known limitations, future considerations

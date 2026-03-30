@@ -159,5 +159,6 @@ There are no other direct dependencies. The package uses the Go standard library
 ## Further Reading
 
 - [Agent Conventions](../CODEX.md) -- Codex-facing repo rules and AX notes
+- [AX RFC](RFC-CORE-008-AGENT-EXPERIENCE.md) -- naming, comment, and path conventions for agent consumers
 - [Architecture](architecture.md) -- storage layer internals, TTL model, event system, concurrency design
 - [Development Guide](development.md) -- building, testing, benchmarks, contribution workflow
