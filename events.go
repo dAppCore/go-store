@@ -38,9 +38,10 @@ func (t EventType) String() string {
 	}
 }
 
-// Event describes a single store mutation. Key is empty for EventDeleteGroup.
-// Value is only populated for EventSet.
-// Usage example: `func handle(event store.Event) { _ = event.Group }`
+// Event describes a single store mutation.
+// Usage example: `event := store.Event{Type: store.EventSet, Group: "config", Key: "theme", Value: "dark"}`
+//
+// Key is empty for EventDeleteGroup. Value is only populated for EventSet.
 type Event struct {
 	Type      EventType
 	Group     string
@@ -49,12 +50,11 @@ type Event struct {
 	Timestamp time.Time
 }
 
-// Watcher receives events matching a group/key filter. Use Store.Watch to
-// create one and Store.Unwatch to stop delivery. Events is the primary
-// read-only channel.
-// Usage example: `watcher := storeInstance.Watch("config", "*"); for event := range watcher.Events { _ = event }`
+// Watcher receives events matching a group/key filter.
+// Usage example: `watcher := storeInstance.Watch("config", "*"); defer storeInstance.Unwatch(watcher); for event := range watcher.Events { _ = event }`
 type Watcher struct {
-	// Events is the public read-only channel that consumers select on.
+	// Events is the read-only channel consumers range over.
+	// Usage example: `for event := range watcher.Events { _ = event }`
 	Events <-chan Event
 
 	// eventsChannel is the internal write channel (same underlying channel as Events).
@@ -120,7 +120,7 @@ func (storeInstance *Store) Unwatch(watcher *Watcher) {
 // are called synchronously in the goroutine that performed the write, so the
 // caller controls concurrency. Returns an unregister function; calling it stops
 // future invocations.
-// Usage example: `unregister := storeInstance.OnChange(func(event store.Event) {})`
+// Usage example: `unregister := storeInstance.OnChange(func(event store.Event) { hub.SendToChannel("store-events", event) })`
 //
 // This is the integration point for go-ws and similar consumers:
 //

@@ -30,7 +30,7 @@ const (
 )
 
 // Store is a group-namespaced key-value store backed by SQLite.
-// Usage example: `storeInstance, _ := store.New(":memory:")`
+// Usage example: `storeInstance, _ := store.New(":memory:"); _ = storeInstance.Set("config", "theme", "dark")`
 type Store struct {
 	database       *sql.DB
 	cancelPurge    context.CancelFunc
@@ -178,7 +178,7 @@ func (storeInstance *Store) DeleteGroup(group string) error {
 }
 
 // KeyValue represents a key-value pair.
-// Usage example: `for entry, err := range storeInstance.All("config") { _ = entry }`
+// Usage example: `for entry, err := range storeInstance.All("config") { if err != nil { break }; _ = entry }`
 type KeyValue struct {
 	Key, Value string
 }

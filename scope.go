@@ -21,7 +21,7 @@ type QuotaConfig struct {
 
 // ScopedStore wraps a *Store and auto-prefixes all group names with a
 // namespace to prevent key collisions across tenants.
-// Usage example: `scopedStore, _ := store.NewScoped(storeInstance, "tenant-a")`
+// Usage example: `scopedStore, _ := store.NewScoped(storeInstance, "tenant-a"); _ = scopedStore.Set("config", "theme", "dark")`
 type ScopedStore struct {
 	storeInstance *Store
 	namespace     string
