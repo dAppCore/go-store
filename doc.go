@@ -34,5 +34,18 @@
 //		if err := quotaScopedStore.Set("prefs", "locale", "en-GB"); err != nil {
 //			return
 //		}
+//
+//		watcher := storeInstance.Watch("config", "*")
+//		defer storeInstance.Unwatch(watcher)
+//		go func() {
+//			for event := range watcher.Events {
+//				core.Println(event.Type, event.Group, event.Key, event.Value)
+//			}
+//		}()
+//
+//		unregister := storeInstance.OnChange(func(event store.Event) {
+//			core.Println("changed", event.Group, event.Key, event.Value)
+//		})
+//		defer unregister()
 //	}
 package store

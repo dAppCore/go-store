@@ -4,7 +4,7 @@
 
 # go-store
 
-Group-namespaced SQLite key-value store with TTL expiry, namespace isolation, quota enforcement, and a reactive event system. Backed by a pure-Go SQLite driver (no CGO), uses WAL mode for concurrent reads, and enforces a single connection to keep pragma settings consistent. Supports scoped stores for multi-tenant use, Watch/Unwatch subscriptions, and OnChange callbacks for go-ws event streaming.
+Group-namespaced SQLite key-value store with TTL expiry, namespace isolation, quota enforcement, and a reactive event system. Backed by a pure-Go SQLite driver (no CGO), uses WAL mode for concurrent reads, and enforces a single connection to keep pragma settings consistent. Supports scoped stores for multi-tenant use, Watch/Unwatch subscriptions, and OnChange callbacks for downstream event consumers.
 
 **Module**: `dappco.re/go/core/store`
 **Licence**: EUPL-1.2
