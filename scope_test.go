@@ -94,6 +94,17 @@ func TestScope_NewScopedWithQuota_Bad_NegativeMaxGroups(t *testing.T) {
 	assert.Contains(t, err.Error(), "zero or positive")
 }
 
+func TestScope_NewScopedWithQuota_Good_InlineQuotaFields(t *testing.T) {
+	storeInstance, _ := New(":memory:")
+	defer storeInstance.Close()
+
+	scopedStore, err := NewScopedWithQuota(storeInstance, "tenant-a", QuotaConfig{MaxKeys: 4, MaxGroups: 2})
+	require.NoError(t, err)
+
+	assert.Equal(t, 4, scopedStore.MaxKeys)
+	assert.Equal(t, 2, scopedStore.MaxGroups)
+}
+
 // ---------------------------------------------------------------------------
 // ScopedStore — basic CRUD
 // ---------------------------------------------------------------------------
@@ -106,6 +117,34 @@ func TestScope_ScopedStore_Good_SetGet(t *testing.T) {
 	require.NoError(t, scopedStore.Set("config", "theme", "dark"))
 
 	value, err := scopedStore.Get("config", "theme")
+	require.NoError(t, err)
+	assert.Equal(t, "dark", value)
+}
+
+func TestScope_ScopedStore_Good_DefaultGroupHelpers(t *testing.T) {
+	storeInstance, _ := New(":memory:")
+	defer storeInstance.Close()
+
+	scopedStore, _ := NewScoped(storeInstance, "tenant-a")
+	require.NoError(t, scopedStore.Set("theme", "dark"))
+
+	value, err := scopedStore.Get("theme")
+	require.NoError(t, err)
+	assert.Equal(t, "dark", value)
+
+	rawValue, err := storeInstance.Get("tenant-a:default", "theme")
+	require.NoError(t, err)
+	assert.Equal(t, "dark", rawValue)
+}
+
+func TestScope_ScopedStore_Good_SetInGetFrom(t *testing.T) {
+	storeInstance, _ := New(":memory:")
+	defer storeInstance.Close()
+
+	scopedStore, _ := NewScoped(storeInstance, "tenant-a")
+	require.NoError(t, scopedStore.SetIn("config", "theme", "dark"))
+
+	value, err := scopedStore.GetFrom("config", "theme")
 	require.NoError(t, err)
 	assert.Equal(t, "dark", value)
 }

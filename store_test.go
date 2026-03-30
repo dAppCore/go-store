@@ -98,6 +98,16 @@ func TestStore_New_Good_WALMode(t *testing.T) {
 	assert.Equal(t, "wal", mode, "journal_mode should be WAL")
 }
 
+func TestStore_New_Good_WithJournalOption(t *testing.T) {
+	storeInstance, err := New(":memory:", WithJournal("http://127.0.0.1:8086", "core", "events"))
+	require.NoError(t, err)
+	defer storeInstance.Close()
+
+	assert.Equal(t, "events", storeInstance.journal.bucket)
+	assert.Equal(t, "core", storeInstance.journal.org)
+	assert.Equal(t, "http://127.0.0.1:8086", storeInstance.journal.url)
+}
+
 // ---------------------------------------------------------------------------
 // Set / Get — core CRUD
 // ---------------------------------------------------------------------------
@@ -372,6 +382,22 @@ func TestStore_All_Good_SortedByKey(t *testing.T) {
 	assert.Equal(t, []string{"alpha", "bravo", "charlie"}, keys)
 }
 
+func TestStore_AllSeq_Good_Alias(t *testing.T) {
+	storeInstance, _ := New(":memory:")
+	defer storeInstance.Close()
+
+	require.NoError(t, storeInstance.Set("g", "alpha", "1"))
+	require.NoError(t, storeInstance.Set("g", "bravo", "2"))
+
+	var keys []string
+	for entry, err := range storeInstance.AllSeq("g") {
+		require.NoError(t, err)
+		keys = append(keys, entry.Key)
+	}
+
+	assert.Equal(t, []string{"alpha", "bravo"}, keys)
+}
+
 func TestStore_All_Bad_ClosedStore(t *testing.T) {
 	storeInstance, _ := New(":memory:")
 	storeInstance.Close()
@@ -432,6 +458,22 @@ func TestStore_GroupsSeq_Good_SortedByGroupName(t *testing.T) {
 	}
 
 	assert.Equal(t, []string{"alpha", "bravo", "charlie"}, groups)
+}
+
+func TestStore_GroupsSeq_Good_DefaultArgument(t *testing.T) {
+	storeInstance, _ := New(":memory:")
+	defer storeInstance.Close()
+
+	require.NoError(t, storeInstance.Set("alpha", "a", "1"))
+	require.NoError(t, storeInstance.Set("beta", "b", "2"))
+
+	var groups []string
+	for group, err := range storeInstance.GroupsSeq() {
+		require.NoError(t, err)
+		groups = append(groups, group)
+	}
+
+	assert.Equal(t, []string{"alpha", "beta"}, groups)
 }
 
 func TestStore_GroupsSeq_Bad_ClosedStore(t *testing.T) {

@@ -29,14 +29,25 @@ const (
 	entryValueColumn        = "entry_value"
 )
 
+// StoreOption customises Store construction.
+// Usage example: `storeInstance, err := store.New("/tmp/go-store.db", store.WithJournal("http://127.0.0.1:8086", "core", "events"))`
+type StoreOption func(*Store)
+
+type journalConfig struct {
+	url    string
+	org    string
+	bucket string
+}
+
 // Store provides SQLite-backed grouped entries with TTL expiry, namespace
-// isolation, and reactive change notifications.
+// isolation, reactive change notifications, and optional journal support.
 // Usage example: `storeInstance, err := store.New(":memory:"); if err != nil { return }; if err := storeInstance.Set("config", "colour", "blue"); err != nil { return }`
 type Store struct {
 	database       *sql.DB
 	cancelPurge    context.CancelFunc
 	purgeWaitGroup sync.WaitGroup
 	purgeInterval  time.Duration // interval between background purge cycles
+	journal        journalConfig
 
 	// Event dispatch state.
 	watchers                   []*Watcher
@@ -47,8 +58,18 @@ type Store struct {
 	nextCallbackRegistrationID uint64       // monotonic ID for callback registrations
 }
 
-// Usage example: `storeInstance, err := store.New(":memory:"); if err != nil { return }`
-func New(databasePath string) (*Store, error) {
+// WithJournal records journal connection metadata for workspace commits,
+// journal queries, and archive generation.
+// Usage example: `storeInstance, err := store.New("/tmp/go-store.db", store.WithJournal("http://127.0.0.1:8086", "core", "events"))`
+func WithJournal(url, org, bucket string) StoreOption {
+	return func(storeInstance *Store) {
+		storeInstance.journal = journalConfig{url: url, org: org, bucket: bucket}
+	}
+}
+
+// Usage example: `storeInstance, err := store.New(":memory:")`
+// Usage example: `storeInstance, err := store.New("/tmp/go-store.db", store.WithJournal("http://127.0.0.1:8086", "core", "events"))`
+func New(databasePath string, options ...StoreOption) (*Store, error) {
 	sqliteDatabase, err := sql.Open("sqlite", databasePath)
 	if err != nil {
 		return nil, core.E("store.New", "open database", err)
@@ -73,6 +94,11 @@ func New(databasePath string) (*Store, error) {
 
 	purgeContext, cancel := context.WithCancel(context.Background())
 	storeInstance := &Store{database: sqliteDatabase, cancelPurge: cancel, purgeInterval: 60 * time.Second}
+	for _, option := range options {
+		if option != nil {
+			option(storeInstance)
+		}
+	}
 	storeInstance.startBackgroundPurge(purgeContext)
 	return storeInstance, nil
 }
@@ -236,6 +262,11 @@ func (storeInstance *Store) All(group string) iter.Seq2[KeyValue, error] {
 	}
 }
 
+// Usage example: `for entry, err := range storeInstance.AllSeq("config") { if err != nil { break }; fmt.Println(entry.Key, entry.Value) }`
+func (storeInstance *Store) AllSeq(group string) iter.Seq2[KeyValue, error] {
+	return storeInstance.All(group)
+}
+
 // Usage example: `parts, err := storeInstance.GetSplit("config", "hosts", ","); if err != nil { return }; for part := range parts { fmt.Println(part) }`
 func (storeInstance *Store) GetSplit(group, key, separator string) (iter.Seq[string], error) {
 	value, err := storeInstance.Get(group, key)
@@ -297,9 +328,10 @@ func (storeInstance *Store) CountAll(groupPrefix string) (int, error) {
 }
 
 // Usage example: `tenantGroupNames, err := storeInstance.Groups("tenant-a:")`
-func (storeInstance *Store) Groups(groupPrefix string) ([]string, error) {
+// Usage example: `allGroupNames, err := storeInstance.Groups()`
+func (storeInstance *Store) Groups(groupPrefix ...string) ([]string, error) {
 	var groupNames []string
-	for groupName, err := range storeInstance.GroupsSeq(groupPrefix) {
+	for groupName, err := range storeInstance.GroupsSeq(groupPrefix...) {
 		if err != nil {
 			return nil, err
 		}
@@ -309,12 +341,14 @@ func (storeInstance *Store) Groups(groupPrefix string) ([]string, error) {
 }
 
 // Usage example: `for tenantGroupName, err := range storeInstance.GroupsSeq("tenant-a:") { if err != nil { break }; fmt.Println(tenantGroupName) }`
-func (storeInstance *Store) GroupsSeq(groupPrefix string) iter.Seq2[string, error] {
+// Usage example: `for groupName, err := range storeInstance.GroupsSeq() { if err != nil { break }; fmt.Println(groupName) }`
+func (storeInstance *Store) GroupsSeq(groupPrefix ...string) iter.Seq2[string, error] {
+	actualGroupPrefix := firstString(groupPrefix)
 	return func(yield func(string, error) bool) {
 		var rows *sql.Rows
 		var err error
 		now := time.Now().UnixMilli()
-		if groupPrefix == "" {
+		if actualGroupPrefix == "" {
 			rows, err = storeInstance.database.Query(
 				"SELECT DISTINCT "+entryGroupColumn+" FROM "+entriesTableName+" WHERE (expires_at IS NULL OR expires_at > ?) ORDER BY "+entryGroupColumn,
 				now,
@@ -322,7 +356,7 @@ func (storeInstance *Store) GroupsSeq(groupPrefix string) iter.Seq2[string, erro
 		} else {
 			rows, err = storeInstance.database.Query(
 				"SELECT DISTINCT "+entryGroupColumn+" FROM "+entriesTableName+" WHERE "+entryGroupColumn+" LIKE ? ESCAPE '^' AND (expires_at IS NULL OR expires_at > ?) ORDER BY "+entryGroupColumn,
-				escapeLike(groupPrefix)+"%", now,
+				escapeLike(actualGroupPrefix)+"%", now,
 			)
 		}
 		if err != nil {
@@ -347,6 +381,13 @@ func (storeInstance *Store) GroupsSeq(groupPrefix string) iter.Seq2[string, erro
 			yield("", core.E("store.GroupsSeq", "rows iteration", err))
 		}
 	}
+}
+
+func firstString(values []string) string {
+	if len(values) == 0 {
+		return ""
+	}
+	return values[0]
 }
 
 // escapeLike("tenant_%") returns "tenant^_^%" so LIKE queries treat wildcards

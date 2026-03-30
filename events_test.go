@@ -66,6 +66,22 @@ func TestEvents_Watch_Good_WildcardKey(t *testing.T) {
 	assert.Equal(t, "colour", received[1].Key)
 }
 
+func TestEvents_Watch_Good_DefaultWildcardKey(t *testing.T) {
+	storeInstance, _ := New(":memory:")
+	defer storeInstance.Close()
+
+	watcher := storeInstance.Watch("config")
+	defer storeInstance.Unwatch(watcher)
+
+	require.NoError(t, storeInstance.Set("config", "theme", "dark"))
+	require.NoError(t, storeInstance.Set("config", "colour", "blue"))
+
+	received := drainEvents(watcher.Events, 2, time.Second)
+	require.Len(t, received, 2)
+	assert.Equal(t, "theme", received[0].Key)
+	assert.Equal(t, "colour", received[1].Key)
+}
+
 func TestEvents_Watch_Good_GroupMismatch(t *testing.T) {
 	storeInstance, _ := New(":memory:")
 	defer storeInstance.Close()
@@ -298,6 +314,22 @@ func TestEvents_OnChange_Good_NilCallbackNoOp(t *testing.T) {
 	unregister()
 	require.NoError(t, storeInstance.Set("g", "k", "v"))
 	unregister()
+}
+
+func TestEvents_OnChange_Good_GroupCallback(t *testing.T) {
+	storeInstance, _ := New(":memory:")
+	defer storeInstance.Close()
+
+	var keys []string
+	unregister := storeInstance.OnChange("config", func(key, value string) {
+		keys = append(keys, key)
+	})
+	defer unregister()
+
+	require.NoError(t, storeInstance.Set("config", "theme", "dark"))
+	require.NoError(t, storeInstance.Set("other", "theme", "ignored"))
+
+	assert.Equal(t, []string{"theme"}, keys)
 }
 
 // ---------------------------------------------------------------------------
