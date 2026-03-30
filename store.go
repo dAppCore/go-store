@@ -35,12 +35,12 @@ type Store struct {
 	purgeInterval  time.Duration // interval between background purge cycles
 
 	// Event dispatch state.
-	watchers       []*Watcher
-	callbacks      []changeCallbackRegistration
-	watchersLock   sync.RWMutex // protects watcher registration and dispatch
-	callbacksLock  sync.RWMutex // protects callback registration and dispatch
-	nextWatcherID  uint64       // monotonic ID for watcher registrations
-	nextCallbackID uint64       // monotonic ID for callback registrations
+	watchers                   []*Watcher
+	callbacks                  []changeCallbackRegistration
+	watchersLock               sync.RWMutex // protects watcher registration and dispatch
+	callbacksLock              sync.RWMutex // protects callback registration and dispatch
+	nextWatcherRegistrationID  uint64       // monotonic ID for watcher registrations
+	nextCallbackRegistrationID uint64       // monotonic ID for callback registrations
 }
 
 // Usage example: `storeInstance, err := store.New(":memory:"); if err != nil { return }`
