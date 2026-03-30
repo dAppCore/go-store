@@ -23,7 +23,8 @@ import (
 )
 
 func main() {
-	storeInstance, err := store.New("/path/to/store.db") // or store.New(":memory:")
+	// Use a file path for persistence or ":memory:" for ephemeral data.
+	storeInstance, err := store.New("/tmp/go-store.db")
 	if err != nil {
 		return
 	}
@@ -41,7 +42,7 @@ func main() {
 	}
 	fmt.Println(themeValue)
 
-	// Watch for mutations
+	// Watch the config group for changes.
 	watcher := storeInstance.Watch("config", "*")
 	defer storeInstance.Unwatch(watcher)
 	go func() {
@@ -50,7 +51,7 @@ func main() {
 		}
 	}()
 
-	// Scoped store for tenant isolation
+	// Create a scoped store for tenant-42 preferences.
 	scopedStore, err := store.NewScoped(storeInstance, "tenant-42")
 	if err != nil {
 		return

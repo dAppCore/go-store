@@ -19,9 +19,9 @@ The package has a single runtime dependency -- a pure-Go SQLite driver (`modernc
 package main
 
 import (
+    "fmt"
     "time"
 
-    "dappco.re/go/core"
     "dappco.re/go/core/store"
 )
 
@@ -41,7 +41,7 @@ func main() {
     if err != nil {
         return
     }
-    core.Println(themeValue) // "dark"
+    fmt.Println(themeValue) // "dark"
 
     // TTL expiry -- key disappears after the duration elapses
     if err := storeInstance.SetWithTTL("session", "token", "abc123", 24*time.Hour); err != nil {
@@ -53,7 +53,7 @@ func main() {
     if err != nil {
         return
     }
-    core.Println(configEntries) // map[theme:dark]
+    fmt.Println(configEntries) // map[theme:dark]
 
     // Template rendering from stored values
     if err := storeInstance.Set("mail", "host", "smtp.example.com"); err != nil {
@@ -66,7 +66,7 @@ func main() {
     if err != nil {
         return
     }
-    core.Println(renderedTemplate) // "smtp.example.com:587"
+    fmt.Println(renderedTemplate) // "smtp.example.com:587"
 
     // Namespace isolation for multi-tenant use
     scopedStore, err := store.NewScoped(storeInstance, "tenant-42")
@@ -79,28 +79,27 @@ func main() {
     // Stored internally as group "tenant-42:prefs", key "locale"
 
     // Quota enforcement
-    quota := store.QuotaConfig{MaxKeys: 100, MaxGroups: 5}
-    quotaScopedStore, err := store.NewScopedWithQuota(storeInstance, "tenant-99", quota)
+    quotaScopedStore, err := store.NewScopedWithQuota(storeInstance, "tenant-99", store.QuotaConfig{MaxKeys: 100, MaxGroups: 5})
     if err != nil {
         return
     }
-    // returns store.QuotaExceededError if limits are hit
+    // A write past the limit returns store.QuotaExceededError.
     if err := quotaScopedStore.Set("g", "k", "v"); err != nil {
         return
     }
 
-    // Watch for mutations via a buffered channel
+    // Watch the config group via a buffered channel.
     watcher := storeInstance.Watch("config", "*")
     defer storeInstance.Unwatch(watcher)
     go func() {
         for event := range watcher.Events {
-            core.Println("event", event.Type, event.Group, event.Key, event.Value)
+            fmt.Println("event", event.Type, event.Group, event.Key, event.Value)
         }
     }()
 
-    // Or register a synchronous callback
+    // Or register a synchronous callback for the same events.
     unregister := storeInstance.OnChange(func(event store.Event) {
-        core.Println("changed", event.Group, event.Key, event.Value)
+        fmt.Println("changed", event.Group, event.Key, event.Value)
     })
     defer unregister()
 }

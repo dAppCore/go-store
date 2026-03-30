@@ -17,7 +17,7 @@
 //		if err != nil {
 //			return
 //		}
-//		core.Println(themeValue)
+//		fmt.Println(themeValue)
 //
 //		scopedStore, err := store.NewScoped(storeInstance, "tenant-a")
 //		if err != nil {
@@ -39,12 +39,12 @@
 //		defer storeInstance.Unwatch(watcher)
 //		go func() {
 //			for event := range watcher.Events {
-//				core.Println(event.Type, event.Group, event.Key, event.Value)
+//				fmt.Println(event.Type, event.Group, event.Key, event.Value)
 //			}
 //		}()
 //
 //		unregister := storeInstance.OnChange(func(event store.Event) {
-//			core.Println("changed", event.Group, event.Key, event.Value)
+//			fmt.Println("changed", event.Group, event.Key, event.Value)
 //		})
 //		defer unregister()
 //	}

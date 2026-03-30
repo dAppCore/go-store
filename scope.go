@@ -49,7 +49,7 @@ func (scopedStore *ScopedStore) namespacedGroup(group string) string {
 	return scopedStore.namespace + ":" + group
 }
 
-// Usage example: `scopedStore, err := store.NewScoped(storeInstance, "tenant-a"); if err != nil { return }; namespace := scopedStore.Namespace(); core.Println(namespace)`
+// Usage example: `scopedStore, err := store.NewScoped(storeInstance, "tenant-a"); if err != nil { return }; namespace := scopedStore.Namespace(); fmt.Println(namespace)`
 func (scopedStore *ScopedStore) Namespace() string {
 	return scopedStore.namespace
 }
@@ -90,7 +90,7 @@ func (scopedStore *ScopedStore) GetAll(group string) (map[string]string, error) 
 	return scopedStore.storeInstance.GetAll(scopedStore.namespacedGroup(group))
 }
 
-// Usage example: `for entry, err := range scopedStore.All("config") { if err != nil { break }; core.Println(entry.Key, entry.Value) }`
+// Usage example: `for entry, err := range scopedStore.All("config") { if err != nil { break }; fmt.Println(entry.Key, entry.Value) }`
 func (scopedStore *ScopedStore) All(group string) iter.Seq2[KeyValue, error] {
 	return scopedStore.storeInstance.All(scopedStore.namespacedGroup(group))
 }

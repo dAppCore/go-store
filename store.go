@@ -167,7 +167,7 @@ func (storeInstance *Store) DeleteGroup(group string) error {
 	return nil
 }
 
-// Usage example: `for entry, err := range storeInstance.All("config") { if err != nil { break }; core.Println(entry.Key, entry.Value) }`
+// Usage example: `for entry, err := range storeInstance.All("config") { if err != nil { break }; fmt.Println(entry.Key, entry.Value) }`
 type KeyValue struct {
 	// Usage example: `if entry.Key == "theme" { return }`
 	Key string
@@ -187,7 +187,7 @@ func (storeInstance *Store) GetAll(group string) (map[string]string, error) {
 	return entriesByKey, nil
 }
 
-// Usage example: `for entry, err := range storeInstance.All("config") { if err != nil { break }; core.Println(entry.Key, entry.Value) }`
+// Usage example: `for entry, err := range storeInstance.All("config") { if err != nil { break }; fmt.Println(entry.Key, entry.Value) }`
 func (storeInstance *Store) All(group string) iter.Seq2[KeyValue, error] {
 	return func(yield func(KeyValue, error) bool) {
 		rows, err := storeInstance.database.Query(
@@ -218,7 +218,7 @@ func (storeInstance *Store) All(group string) iter.Seq2[KeyValue, error] {
 	}
 }
 
-// Usage example: `parts, err := storeInstance.GetSplit("config", "hosts", ","); if err != nil { return }; for part := range parts { core.Println(part) }`
+// Usage example: `parts, err := storeInstance.GetSplit("config", "hosts", ","); if err != nil { return }; for part := range parts { fmt.Println(part) }`
 func (storeInstance *Store) GetSplit(group, key, separator string) (iter.Seq[string], error) {
 	value, err := storeInstance.Get(group, key)
 	if err != nil {
@@ -227,7 +227,7 @@ func (storeInstance *Store) GetSplit(group, key, separator string) (iter.Seq[str
 	return splitSeq(value, separator), nil
 }
 
-// Usage example: `fields, err := storeInstance.GetFields("config", "flags"); if err != nil { return }; for field := range fields { core.Println(field) }`
+// Usage example: `fields, err := storeInstance.GetFields("config", "flags"); if err != nil { return }; for field := range fields { fmt.Println(field) }`
 func (storeInstance *Store) GetFields(group, key string) (iter.Seq[string], error) {
 	value, err := storeInstance.Get(group, key)
 	if err != nil {
@@ -290,7 +290,7 @@ func (storeInstance *Store) Groups(groupPrefix string) ([]string, error) {
 	return groupNames, nil
 }
 
-// Usage example: `for tenantGroupName, err := range storeInstance.GroupsSeq("tenant-a:") { if err != nil { break }; core.Println(tenantGroupName) }`
+// Usage example: `for tenantGroupName, err := range storeInstance.GroupsSeq("tenant-a:") { if err != nil { break }; fmt.Println(tenantGroupName) }`
 func (storeInstance *Store) GroupsSeq(groupPrefix string) iter.Seq2[string, error] {
 	return func(yield func(string, error) bool) {
 		var rows *sql.Rows

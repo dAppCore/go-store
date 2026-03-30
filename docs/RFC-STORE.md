@@ -99,7 +99,6 @@ import (
 	"fmt"
 	"time"
 
-	"dappco.re/go/core"
 	"dappco.re/go/core/store"
 )
 
@@ -127,26 +126,26 @@ func main() {
 		if err != nil {
 			return
 		}
-		core.Println(entry.Key, entry.Value)
+		fmt.Println(entry.Key, entry.Value)
 	}
 
 	for groupName, err := range storeInstance.GroupsSeq("tenant-a:") {
 		if err != nil {
 			return
 		}
-		core.Println(groupName)
+		fmt.Println(groupName)
 	}
 
 	watcher := storeInstance.Watch("config", "*")
 	defer storeInstance.Unwatch(watcher)
 	go func() {
 		for event := range watcher.Events {
-			core.Println(event.Type, event.Group, event.Key, event.Value)
+			fmt.Println(event.Type, event.Group, event.Key, event.Value)
 		}
 	}()
 
 	unregister := storeInstance.OnChange(func(event store.Event) {
-		core.Println("changed", event.Group, event.Key, event.Value)
+		fmt.Println("changed", event.Group, event.Key, event.Value)
 	})
 	defer unregister()
 
@@ -176,4 +175,3 @@ func main() {
 | Namespace and quota logic | `scope.go` |
 | Architecture notes | `docs/architecture.md` |
 | Agent conventions | `CODEX.md` |
-
