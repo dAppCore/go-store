@@ -13,8 +13,10 @@ var validNamespace = regexp.MustCompile(`^[a-zA-Z0-9-]+$`)
 
 // Usage example: `quota := store.QuotaConfig{MaxKeys: 100, MaxGroups: 10}`
 type QuotaConfig struct {
-	MaxKeys   int // maximum total keys across all groups in the namespace
-	MaxGroups int // maximum distinct groups in the namespace
+	// Usage example: `store.QuotaConfig{MaxKeys: 100, MaxGroups: 10}` limits a namespace to 100 keys.
+	MaxKeys int
+	// Usage example: `store.QuotaConfig{MaxKeys: 100, MaxGroups: 10}` limits a namespace to 10 groups.
+	MaxGroups int
 }
 
 // Usage example: `scopedStore, err := store.NewScoped(storeInstance, "tenant-a"); if err != nil { return }; if err := scopedStore.Set("config", "theme", "dark"); err != nil { return }`

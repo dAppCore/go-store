@@ -212,12 +212,12 @@ Namespace strings must match `^[a-zA-Z0-9-]+$`. Invalid namespaces are rejected 
 
 ### Quota Enforcement
 
-`NewScopedWithQuota(store, namespace, QuotaConfig)` adds per-namespace limits:
+`NewScopedWithQuota(store, namespace, QuotaConfig)` adds per-namespace limits. For example, `store.QuotaConfig{MaxKeys: 100, MaxGroups: 10}` caps a namespace at 100 keys and 10 groups:
 
 ```go
 type QuotaConfig struct {
-    MaxKeys   int // maximum total keys across all groups in the namespace
-    MaxGroups int // maximum distinct groups in the namespace
+    MaxKeys   int
+    MaxGroups int
 }
 ```
 
