@@ -21,6 +21,14 @@ var NotFoundError = core.E("store", "not found", nil)
 // Usage example: `if core.Is(err, store.QuotaExceededError) { return }`
 var QuotaExceededError = core.E("store", "quota exceeded", nil)
 
+const (
+	entriesTableName       = "entries"
+	legacyEntriesTableName = "kv"
+	entryGroupColumn       = "group_name"
+	entryKeyColumn         = "entry_key"
+	entryValueColumn       = "entry_value"
+)
+
 // Store is a group-namespaced key-value store backed by SQLite.
 // Usage example: `storeInstance, _ := store.New(":memory:")`
 type Store struct {
@@ -57,23 +65,9 @@ func New(dbPath string) (*Store, error) {
 		database.Close()
 		return nil, core.E("store.New", "busy_timeout", err)
 	}
-	if _, err := database.Exec(`CREATE TABLE IF NOT EXISTS kv (
-		grp        TEXT NOT NULL,
-		key        TEXT NOT NULL,
-		value      TEXT NOT NULL,
-		expires_at INTEGER,
-		PRIMARY KEY (grp, key)
-	)`); err != nil {
+	if err := ensureSchema(database); err != nil {
 		database.Close()
-		return nil, core.E("store.New", "schema", err)
-	}
-	// Ensure the expires_at column exists for databases created before TTL support.
-	if _, err := database.Exec("ALTER TABLE kv ADD COLUMN expires_at INTEGER"); err != nil {
-		// SQLite returns "duplicate column name" if it already exists.
-		if !core.Contains(err.Error(), "duplicate column name") {
-			database.Close()
-			return nil, core.E("store.New", "migration", err)
-		}
+		return nil, err
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -97,7 +91,7 @@ func (storeInstance *Store) Get(group, key string) (string, error) {
 	var value string
 	var expiresAt sql.NullInt64
 	err := storeInstance.database.QueryRow(
-		"SELECT value, expires_at FROM kv WHERE grp = ? AND key = ?",
+		"SELECT "+entryValueColumn+", expires_at FROM "+entriesTableName+" WHERE "+entryGroupColumn+" = ? AND "+entryKeyColumn+" = ?",
 		group, key,
 	).Scan(&value, &expiresAt)
 	if err == sql.ErrNoRows {
@@ -107,7 +101,7 @@ func (storeInstance *Store) Get(group, key string) (string, error) {
 		return "", core.E("store.Get", "query", err)
 	}
 	if expiresAt.Valid && expiresAt.Int64 <= time.Now().UnixMilli() {
-		_, _ = storeInstance.database.Exec("DELETE FROM kv WHERE grp = ? AND key = ?", group, key)
+		_, _ = storeInstance.database.Exec("DELETE FROM "+entriesTableName+" WHERE "+entryGroupColumn+" = ? AND "+entryKeyColumn+" = ?", group, key)
 		return "", core.E("store.Get", core.Concat(group, "/", key), NotFoundError)
 	}
 	return value, nil
@@ -118,8 +112,8 @@ func (storeInstance *Store) Get(group, key string) (string, error) {
 // Usage example: `err := storeInstance.Set("config", "theme", "dark")`
 func (storeInstance *Store) Set(group, key, value string) error {
 	_, err := storeInstance.database.Exec(
-		`INSERT INTO kv (grp, key, value, expires_at) VALUES (?, ?, ?, NULL)
-		 ON CONFLICT(grp, key) DO UPDATE SET value = excluded.value, expires_at = NULL`,
+		"INSERT INTO "+entriesTableName+" ("+entryGroupColumn+", "+entryKeyColumn+", "+entryValueColumn+", expires_at) VALUES (?, ?, ?, NULL) "+
+			"ON CONFLICT("+entryGroupColumn+", "+entryKeyColumn+") DO UPDATE SET "+entryValueColumn+" = excluded."+entryValueColumn+", expires_at = NULL",
 		group, key, value,
 	)
 	if err != nil {
@@ -136,8 +130,8 @@ func (storeInstance *Store) Set(group, key, value string) error {
 func (storeInstance *Store) SetWithTTL(group, key, value string, ttl time.Duration) error {
 	expiresAt := time.Now().Add(ttl).UnixMilli()
 	_, err := storeInstance.database.Exec(
-		`INSERT INTO kv (grp, key, value, expires_at) VALUES (?, ?, ?, ?)
-		 ON CONFLICT(grp, key) DO UPDATE SET value = excluded.value, expires_at = excluded.expires_at`,
+		"INSERT INTO "+entriesTableName+" ("+entryGroupColumn+", "+entryKeyColumn+", "+entryValueColumn+", expires_at) VALUES (?, ?, ?, ?) "+
+			"ON CONFLICT("+entryGroupColumn+", "+entryKeyColumn+") DO UPDATE SET "+entryValueColumn+" = excluded."+entryValueColumn+", expires_at = excluded.expires_at",
 		group, key, value, expiresAt,
 	)
 	if err != nil {
@@ -150,7 +144,7 @@ func (storeInstance *Store) SetWithTTL(group, key, value string, ttl time.Durati
 // Delete removes a single key from a group.
 // Usage example: `err := storeInstance.Delete("config", "theme")`
 func (storeInstance *Store) Delete(group, key string) error {
-	_, err := storeInstance.database.Exec("DELETE FROM kv WHERE grp = ? AND key = ?", group, key)
+	_, err := storeInstance.database.Exec("DELETE FROM "+entriesTableName+" WHERE "+entryGroupColumn+" = ? AND "+entryKeyColumn+" = ?", group, key)
 	if err != nil {
 		return core.E("store.Delete", "exec", err)
 	}
@@ -163,7 +157,7 @@ func (storeInstance *Store) Delete(group, key string) error {
 func (storeInstance *Store) Count(group string) (int, error) {
 	var count int
 	err := storeInstance.database.QueryRow(
-		"SELECT COUNT(*) FROM kv WHERE grp = ? AND (expires_at IS NULL OR expires_at > ?)",
+		"SELECT COUNT(*) FROM "+entriesTableName+" WHERE "+entryGroupColumn+" = ? AND (expires_at IS NULL OR expires_at > ?)",
 		group, time.Now().UnixMilli(),
 	).Scan(&count)
 	if err != nil {
@@ -175,7 +169,7 @@ func (storeInstance *Store) Count(group string) (int, error) {
 // DeleteGroup removes all keys in a group.
 // Usage example: `err := storeInstance.DeleteGroup("cache")`
 func (storeInstance *Store) DeleteGroup(group string) error {
-	_, err := storeInstance.database.Exec("DELETE FROM kv WHERE grp = ?", group)
+	_, err := storeInstance.database.Exec("DELETE FROM "+entriesTableName+" WHERE "+entryGroupColumn+" = ?", group)
 	if err != nil {
 		return core.E("store.DeleteGroup", "exec", err)
 	}
@@ -207,7 +201,7 @@ func (storeInstance *Store) GetAll(group string) (map[string]string, error) {
 func (storeInstance *Store) All(group string) iter.Seq2[KeyValue, error] {
 	return func(yield func(KeyValue, error) bool) {
 		rows, err := storeInstance.database.Query(
-			"SELECT key, value FROM kv WHERE grp = ? AND (expires_at IS NULL OR expires_at > ?)",
+			"SELECT "+entryKeyColumn+", "+entryValueColumn+" FROM "+entriesTableName+" WHERE "+entryGroupColumn+" = ? AND (expires_at IS NULL OR expires_at > ?)",
 			group, time.Now().UnixMilli(),
 		)
 		if err != nil {
@@ -287,12 +281,12 @@ func (storeInstance *Store) CountAll(groupPrefix string) (int, error) {
 	var err error
 	if groupPrefix == "" {
 		err = storeInstance.database.QueryRow(
-			"SELECT COUNT(*) FROM kv WHERE (expires_at IS NULL OR expires_at > ?)",
+			"SELECT COUNT(*) FROM "+entriesTableName+" WHERE (expires_at IS NULL OR expires_at > ?)",
 			time.Now().UnixMilli(),
 		).Scan(&count)
 	} else {
 		err = storeInstance.database.QueryRow(
-			"SELECT COUNT(*) FROM kv WHERE grp LIKE ? ESCAPE '^' AND (expires_at IS NULL OR expires_at > ?)",
+			"SELECT COUNT(*) FROM "+entriesTableName+" WHERE "+entryGroupColumn+" LIKE ? ESCAPE '^' AND (expires_at IS NULL OR expires_at > ?)",
 			escapeLike(groupPrefix)+"%", time.Now().UnixMilli(),
 		).Scan(&count)
 	}
@@ -326,12 +320,12 @@ func (storeInstance *Store) GroupsSeq(groupPrefix string) iter.Seq2[string, erro
 		now := time.Now().UnixMilli()
 		if groupPrefix == "" {
 			rows, err = storeInstance.database.Query(
-				"SELECT DISTINCT grp FROM kv WHERE (expires_at IS NULL OR expires_at > ?)",
+				"SELECT DISTINCT "+entryGroupColumn+" FROM "+entriesTableName+" WHERE (expires_at IS NULL OR expires_at > ?)",
 				now,
 			)
 		} else {
 			rows, err = storeInstance.database.Query(
-				"SELECT DISTINCT grp FROM kv WHERE grp LIKE ? ESCAPE '^' AND (expires_at IS NULL OR expires_at > ?)",
+				"SELECT DISTINCT "+entryGroupColumn+" FROM "+entriesTableName+" WHERE "+entryGroupColumn+" LIKE ? ESCAPE '^' AND (expires_at IS NULL OR expires_at > ?)",
 				escapeLike(groupPrefix)+"%", now,
 			)
 		}
@@ -371,7 +365,7 @@ func escapeLike(text string) string {
 // of rows removed.
 // Usage example: `removed, err := storeInstance.PurgeExpired()`
 func (storeInstance *Store) PurgeExpired() (int64, error) {
-	result, err := storeInstance.database.Exec("DELETE FROM kv WHERE expires_at IS NOT NULL AND expires_at <= ?",
+	result, err := storeInstance.database.Exec("DELETE FROM "+entriesTableName+" WHERE expires_at IS NOT NULL AND expires_at <= ?",
 		time.Now().UnixMilli())
 	if err != nil {
 		return 0, core.E("store.PurgeExpired", "exec", err)
@@ -434,4 +428,167 @@ func fieldsSeq(value string) iter.Seq[string] {
 			yield(value[start:])
 		}
 	}
+}
+
+type schemaDatabase interface {
+	Exec(query string, args ...any) (sql.Result, error)
+	QueryRow(query string, args ...any) *sql.Row
+	Query(query string, args ...any) (*sql.Rows, error)
+}
+
+const createEntriesTableSQL = `CREATE TABLE IF NOT EXISTS entries (
+	group_name  TEXT NOT NULL,
+	entry_key   TEXT NOT NULL,
+	entry_value TEXT NOT NULL,
+	expires_at  INTEGER,
+	PRIMARY KEY (group_name, entry_key)
+)`
+
+// ensureSchema creates the current entries table or migrates the legacy kv
+// table into the descriptive schema used by the AX refactor.
+func ensureSchema(database *sql.DB) error {
+	entriesTableExists, err := tableExists(database, entriesTableName)
+	if err != nil {
+		return core.E("store.New", "schema", err)
+	}
+
+	legacyEntriesTableExists, err := tableExists(database, legacyEntriesTableName)
+	if err != nil {
+		return core.E("store.New", "schema", err)
+	}
+
+	if entriesTableExists {
+		if err := ensureExpiryColumn(database); err != nil {
+			return core.E("store.New", "migration", err)
+		}
+		if legacyEntriesTableExists {
+			if err := migrateLegacyEntriesTable(database); err != nil {
+				return core.E("store.New", "migration", err)
+			}
+		}
+		return nil
+	}
+
+	if legacyEntriesTableExists {
+		if err := migrateLegacyEntriesTable(database); err != nil {
+			return core.E("store.New", "migration", err)
+		}
+		return nil
+	}
+
+	if _, err := database.Exec(createEntriesTableSQL); err != nil {
+		return core.E("store.New", "schema", err)
+	}
+	return nil
+}
+
+// ensureExpiryColumn adds the expiry column to the current entries table when
+// it was created before TTL support.
+func ensureExpiryColumn(database schemaDatabase) error {
+	hasExpiryColumn, err := tableHasColumn(database, entriesTableName, "expires_at")
+	if err != nil {
+		return err
+	}
+	if hasExpiryColumn {
+		return nil
+	}
+	if _, err := database.Exec("ALTER TABLE " + entriesTableName + " ADD COLUMN expires_at INTEGER"); err != nil {
+		if !core.Contains(err.Error(), "duplicate column name") {
+			return err
+		}
+	}
+	return nil
+}
+
+// migrateLegacyEntriesTable copies rows from the old kv table into the
+// descriptive entries schema and then removes the legacy table.
+func migrateLegacyEntriesTable(database *sql.DB) error {
+	transaction, err := database.Begin()
+	if err != nil {
+		return err
+	}
+
+	committed := false
+	defer func() {
+		if !committed {
+			_ = transaction.Rollback()
+		}
+	}()
+
+	entriesTableExists, err := tableExists(transaction, entriesTableName)
+	if err != nil {
+		return err
+	}
+	if !entriesTableExists {
+		if _, err := transaction.Exec(createEntriesTableSQL); err != nil {
+			return err
+		}
+	}
+
+	legacyHasExpiryColumn, err := tableHasColumn(transaction, legacyEntriesTableName, "expires_at")
+	if err != nil {
+		return err
+	}
+
+	insertSQL := "INSERT OR IGNORE INTO " + entriesTableName + " (" + entryGroupColumn + ", " + entryKeyColumn + ", " + entryValueColumn + ", expires_at) SELECT grp, key, value, NULL FROM " + legacyEntriesTableName
+	if legacyHasExpiryColumn {
+		insertSQL = "INSERT OR IGNORE INTO " + entriesTableName + " (" + entryGroupColumn + ", " + entryKeyColumn + ", " + entryValueColumn + ", expires_at) SELECT grp, key, value, expires_at FROM " + legacyEntriesTableName
+	}
+	if _, err := transaction.Exec(insertSQL); err != nil {
+		return err
+	}
+	if _, err := transaction.Exec("DROP TABLE " + legacyEntriesTableName); err != nil {
+		return err
+	}
+	if err := transaction.Commit(); err != nil {
+		return err
+	}
+	committed = true
+	return nil
+}
+
+// tableExists reports whether the named table is present in the SQLite schema.
+func tableExists(database schemaDatabase, tableName string) (bool, error) {
+	var existingTableName string
+	err := database.QueryRow(
+		"SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?",
+		tableName,
+	).Scan(&existingTableName)
+	if err == sql.ErrNoRows {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+// tableHasColumn reports whether the named column exists on the table.
+func tableHasColumn(database schemaDatabase, tableName, columnName string) (bool, error) {
+	rows, err := database.Query("PRAGMA table_info(" + tableName + ")")
+	if err != nil {
+		return false, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var (
+			columnID     int
+			name         string
+			columnType   string
+			notNull      int
+			defaultValue sql.NullString
+			primaryKey   int
+		)
+		if err := rows.Scan(&columnID, &name, &columnType, &notNull, &defaultValue, &primaryKey); err != nil {
+			return false, err
+		}
+		if name == columnName {
+			return true, nil
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return false, err
+	}
+	return false, nil
 }

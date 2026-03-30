@@ -14,9 +14,9 @@ import (
 // ---------------------------------------------------------------------------
 
 func TestCoverage_New_Bad_SchemaConflict(t *testing.T) {
-	// Pre-create a database with an INDEX named "kv". When New() runs
-	// CREATE TABLE IF NOT EXISTS kv, SQLite returns an error because the
-	// name "kv" is already taken by the index.
+	// Pre-create a database with an INDEX named "entries". When New() runs
+	// CREATE TABLE IF NOT EXISTS entries, SQLite returns an error because the
+	// name "entries" is already taken by the index.
 	dbPath := testPath(t, "conflict.db")
 
 	db, err := sql.Open("sqlite", dbPath)
@@ -26,12 +26,12 @@ func TestCoverage_New_Bad_SchemaConflict(t *testing.T) {
 	require.NoError(t, err)
 	_, err = db.Exec("CREATE TABLE dummy (id INTEGER)")
 	require.NoError(t, err)
-	_, err = db.Exec("CREATE INDEX kv ON dummy(id)")
+	_, err = db.Exec("CREATE INDEX entries ON dummy(id)")
 	require.NoError(t, err)
 	require.NoError(t, db.Close())
 
 	_, err = New(dbPath)
-	require.Error(t, err, "New should fail when an index named kv already exists")
+	require.Error(t, err, "New should fail when an index named entries already exists")
 	assert.Contains(t, err.Error(), "store.New: schema")
 }
 
@@ -50,20 +50,20 @@ func TestCoverage_GetAll_Bad_ScanError(t *testing.T) {
 	require.NoError(t, s.Set("g", "good", "value"))
 
 	// Restructure the table to allow NULLs, then insert a NULL-key row.
-	_, err = s.database.Exec("ALTER TABLE kv RENAME TO kv_backup")
+	_, err = s.database.Exec("ALTER TABLE entries RENAME TO entries_backup")
 	require.NoError(t, err)
-	_, err = s.database.Exec(`CREATE TABLE kv (
-		grp        TEXT,
-		key        TEXT,
-		value      TEXT,
-		expires_at INTEGER
+	_, err = s.database.Exec(`CREATE TABLE entries (
+		group_name  TEXT,
+		entry_key   TEXT,
+		entry_value TEXT,
+		expires_at  INTEGER
 	)`)
 	require.NoError(t, err)
-	_, err = s.database.Exec("INSERT INTO kv SELECT * FROM kv_backup")
+	_, err = s.database.Exec("INSERT INTO entries SELECT * FROM entries_backup")
 	require.NoError(t, err)
-	_, err = s.database.Exec("INSERT INTO kv (grp, key, value) VALUES ('g', NULL, 'null-key-val')")
+	_, err = s.database.Exec("INSERT INTO entries (group_name, entry_key, entry_value) VALUES ('g', NULL, 'null-key-val')")
 	require.NoError(t, err)
-	_, err = s.database.Exec("DROP TABLE kv_backup")
+	_, err = s.database.Exec("DROP TABLE entries_backup")
 	require.NoError(t, err)
 
 	_, err = s.GetAll("g")
@@ -142,20 +142,20 @@ func TestCoverage_Render_Bad_ScanError(t *testing.T) {
 
 	require.NoError(t, s.Set("g", "good", "value"))
 
-	_, err = s.database.Exec("ALTER TABLE kv RENAME TO kv_backup")
+	_, err = s.database.Exec("ALTER TABLE entries RENAME TO entries_backup")
 	require.NoError(t, err)
-	_, err = s.database.Exec(`CREATE TABLE kv (
-		grp        TEXT,
-		key        TEXT,
-		value      TEXT,
-		expires_at INTEGER
+	_, err = s.database.Exec(`CREATE TABLE entries (
+		group_name  TEXT,
+		entry_key   TEXT,
+		entry_value TEXT,
+		expires_at  INTEGER
 	)`)
 	require.NoError(t, err)
-	_, err = s.database.Exec("INSERT INTO kv SELECT * FROM kv_backup")
+	_, err = s.database.Exec("INSERT INTO entries SELECT * FROM entries_backup")
 	require.NoError(t, err)
-	_, err = s.database.Exec("INSERT INTO kv (grp, key, value) VALUES ('g', NULL, 'null-key-val')")
+	_, err = s.database.Exec("INSERT INTO entries (group_name, entry_key, entry_value) VALUES ('g', NULL, 'null-key-val')")
 	require.NoError(t, err)
-	_, err = s.database.Exec("DROP TABLE kv_backup")
+	_, err = s.database.Exec("DROP TABLE entries_backup")
 	require.NoError(t, err)
 
 	_, err = s.Render("{{ .good }}", "g")

@@ -29,18 +29,18 @@ go-store calls `db.SetMaxOpenConns(1)` to pin all access to a single connection.
 ### Schema
 
 ```sql
-CREATE TABLE IF NOT EXISTS kv (
-    grp        TEXT NOT NULL,
-    key        TEXT NOT NULL,
-    value      TEXT NOT NULL,
-    expires_at INTEGER,
-    PRIMARY KEY (grp, key)
+CREATE TABLE IF NOT EXISTS entries (
+    group_name  TEXT NOT NULL,
+    entry_key   TEXT NOT NULL,
+    entry_value TEXT NOT NULL,
+    expires_at  INTEGER,
+    PRIMARY KEY (group_name, entry_key)
 )
 ```
 
-The compound primary key `(grp, key)` enforces uniqueness per group-key pair and provides efficient indexed lookups. The `expires_at` column stores a Unix millisecond timestamp (nullable); a `NULL` value means the key never expires.
+The compound primary key `(group_name, entry_key)` enforces uniqueness per group-key pair and provides efficient indexed lookups. The `expires_at` column stores a Unix millisecond timestamp (nullable); a `NULL` value means the key never expires.
 
-**Schema migration.** Databases created before TTL support lacked the `expires_at` column. On `New()`, go-store runs `ALTER TABLE kv ADD COLUMN expires_at INTEGER`. If the column already exists, SQLite returns a "duplicate column" error which is silently ignored. This allows seamless upgrades of existing databases.
+**Schema migration.** Databases created before the AX schema rename used a legacy `kv` table. On `New()`, go-store migrates that legacy table into `entries`, preserving rows and copying the expiry data when present. Databases that already have `entries` but lack `expires_at` still receive an additive `ALTER TABLE entries ADD COLUMN expires_at INTEGER` migration; if the column already exists, SQLite returns a "duplicate column" error which is silently ignored.
 
 ## Group/Key Model
 
@@ -58,7 +58,7 @@ All read operations (`Get`, `GetAll`, `Count`, `Render`) are scoped to a single 
 
 ## UPSERT Semantics
 
-All writes use `INSERT ... ON CONFLICT(grp, key) DO UPDATE`. This means:
+All writes use `INSERT ... ON CONFLICT(group_name, entry_key) DO UPDATE`. This means:
 
 - Inserting a new key creates it.
 - Inserting an existing key overwrites its value and (for `Set`) clears any TTL.

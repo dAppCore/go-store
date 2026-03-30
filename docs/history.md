@@ -166,11 +166,27 @@ Aligned the public API with the AX naming rules by removing compatibility aliase
 
 ---
 
+## Phase 6 — AX Schema Naming Cleanup
+
+**Agent:** Codex
+**Completed:** 2026-03-30
+
+Renamed the internal SQLite schema to use descriptive names that are easier for agents to read and reason about.
+
+### Changes
+
+- Replaced the abbreviated `kv` table with the descriptive `entries` table.
+- Renamed the `grp`, `key`, and `value` schema columns to `group_name`, `entry_key`, and `entry_value`.
+- Added a startup migration that copies legacy `kv` databases into the new schema and preserves TTL data when present.
+- Kept the public Go API unchanged; the migration only affects the internal storage layout.
+
+---
+
 ## Coverage Test Suite
 
 `coverage_test.go` exercises defensive error paths that integration tests cannot reach through normal usage:
 
-- Schema conflict: pre-existing SQLite index named `kv` causes `New()` to return `store.New: schema: ...`.
+- Schema conflict: pre-existing SQLite index named `entries` causes `New()` to return `store.New: schema: ...`.
 - `GetAll` scan error: NULL key in a row (requires manually altering the schema to remove the NOT NULL constraint).
 - `GetAll` rows iteration error: physically corrupting database pages mid-file to trigger `rows.Err()` during multi-page scans.
 - `Render` scan error: same NULL-key technique.
@@ -201,7 +217,7 @@ These tests exercise correct defensive code. They must continue to pass but are 
 These are design notes, not committed work:
 
 - **Pagination for `GetAll`.** A `GetPage(group string, offset, limit int)` method would support large groups without full in-memory materialisation.
-- **Indexed prefix keys.** An additional index on `(grp, key)` prefix would accelerate prefix scans without a full-table scan.
+- **Indexed prefix keys.** An additional index on `(group_name, entry_key)` prefix would accelerate prefix scans without a full-table scan.
 - **TTL background purge interval as constructor configuration.** Currently only settable by mutating `storeInstance.purgeInterval` directly in tests. A constructor-level `PurgeInterval` field or config entry would make this part of the public API.
 - **Cross-group atomic operations.** Exposing a `Transaction(func(tx *StoreTx) error)` API would allow callers to compose atomic multi-group operations.
 - **`DeletePrefix(prefix string)` method.** Would enable efficient cleanup of an entire namespace without first listing groups.

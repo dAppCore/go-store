@@ -333,6 +333,156 @@ func TestStore_GetAll_Bad_ClosedStore(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
+// All / GroupsSeq
+// ---------------------------------------------------------------------------
+
+func TestStore_All_Good_StopsEarly(t *testing.T) {
+	s, _ := New(":memory:")
+	defer s.Close()
+
+	require.NoError(t, s.Set("g", "a", "1"))
+	require.NoError(t, s.Set("g", "b", "2"))
+
+	entries := s.All("g")
+	var seen []string
+	for entry, err := range entries {
+		require.NoError(t, err)
+		seen = append(seen, entry.Key)
+		break
+	}
+
+	assert.Len(t, seen, 1)
+}
+
+func TestStore_All_Bad_ClosedStore(t *testing.T) {
+	s, _ := New(":memory:")
+	s.Close()
+
+	for _, err := range s.All("g") {
+		require.Error(t, err)
+	}
+}
+
+func TestStore_GroupsSeq_Good_StopsEarly(t *testing.T) {
+	s, _ := New(":memory:")
+	defer s.Close()
+
+	require.NoError(t, s.Set("alpha", "a", "1"))
+	require.NoError(t, s.Set("beta", "b", "2"))
+
+	groups := s.GroupsSeq("")
+	var seen []string
+	for group, err := range groups {
+		require.NoError(t, err)
+		seen = append(seen, group)
+		break
+	}
+
+	assert.Len(t, seen, 1)
+}
+
+func TestStore_GroupsSeq_Bad_ClosedStore(t *testing.T) {
+	s, _ := New(":memory:")
+	s.Close()
+
+	for _, err := range s.GroupsSeq("") {
+		require.Error(t, err)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// GetSplit / GetFields
+// ---------------------------------------------------------------------------
+
+func TestStore_GetSplit_Good_SplitsValue(t *testing.T) {
+	s, _ := New(":memory:")
+	defer s.Close()
+
+	require.NoError(t, s.Set("g", "comma", "alpha,beta,gamma"))
+
+	parts, err := s.GetSplit("g", "comma", ",")
+	require.NoError(t, err)
+
+	var values []string
+	for value := range parts {
+		values = append(values, value)
+	}
+
+	assert.Equal(t, []string{"alpha", "beta", "gamma"}, values)
+}
+
+func TestStore_GetSplit_Good_StopsEarly(t *testing.T) {
+	s, _ := New(":memory:")
+	defer s.Close()
+
+	require.NoError(t, s.Set("g", "comma", "alpha,beta,gamma"))
+
+	parts, err := s.GetSplit("g", "comma", ",")
+	require.NoError(t, err)
+
+	var values []string
+	for value := range parts {
+		values = append(values, value)
+		break
+	}
+
+	assert.Equal(t, []string{"alpha"}, values)
+}
+
+func TestStore_GetSplit_Bad_MissingKey(t *testing.T) {
+	s, _ := New(":memory:")
+	defer s.Close()
+
+	_, err := s.GetSplit("g", "missing", ",")
+	require.Error(t, err)
+	assert.True(t, core.Is(err, NotFoundError))
+}
+
+func TestStore_GetFields_Good_SplitsWhitespace(t *testing.T) {
+	s, _ := New(":memory:")
+	defer s.Close()
+
+	require.NoError(t, s.Set("g", "fields", "alpha beta\tgamma\n"))
+
+	fields, err := s.GetFields("g", "fields")
+	require.NoError(t, err)
+
+	var values []string
+	for value := range fields {
+		values = append(values, value)
+	}
+
+	assert.Equal(t, []string{"alpha", "beta", "gamma"}, values)
+}
+
+func TestStore_GetFields_Good_StopsEarly(t *testing.T) {
+	s, _ := New(":memory:")
+	defer s.Close()
+
+	require.NoError(t, s.Set("g", "fields", "alpha beta\tgamma\n"))
+
+	fields, err := s.GetFields("g", "fields")
+	require.NoError(t, err)
+
+	var values []string
+	for value := range fields {
+		values = append(values, value)
+		break
+	}
+
+	assert.Equal(t, []string{"alpha"}, values)
+}
+
+func TestStore_GetFields_Bad_MissingKey(t *testing.T) {
+	s, _ := New(":memory:")
+	defer s.Close()
+
+	_, err := s.GetFields("g", "missing")
+	require.Error(t, err)
+	assert.True(t, core.Is(err, NotFoundError))
+}
+
+// ---------------------------------------------------------------------------
 // Render
 // ---------------------------------------------------------------------------
 
@@ -463,7 +613,7 @@ func TestStore_SetGet_Good_EdgeCases(t *testing.T) {
 		{"CJK characters", "g", "\u4f60\u597d", "\u4e16\u754c"},
 		{"arabic", "g", "\u0645\u0631\u062d\u0628\u0627", "\u0639\u0627\u0644\u0645"},
 		{"null bytes", "g", "null\x00key", "null\x00val"},
-		{"special SQL chars", "g", "'; DROP TABLE kv;--", "val"},
+		{"special SQL chars", "g", "'; DROP TABLE entries;--", "val"},
 		{"backslash", "g", "back\\slash", "val\\ue"},
 		{"percent", "g", "100%", "50%"},
 		{"long key", "g", repeatString("k", 10000), "val"},
@@ -887,7 +1037,7 @@ func TestStore_PurgeExpired_Good_BackgroundPurge(t *testing.T) {
 	// The expired key should have been removed by the background goroutine.
 	// Use a raw query to check the row is actually gone (not just filtered by Get).
 	var count int
-	err := s.database.QueryRow("SELECT COUNT(*) FROM kv WHERE grp = ?", "g").Scan(&count)
+	err := s.database.QueryRow("SELECT COUNT(*) FROM entries WHERE group_name = ?", "g").Scan(&count)
 	require.NoError(t, err)
 	assert.Equal(t, 1, count, "background purge should have deleted the expired row")
 }
@@ -921,8 +1071,82 @@ func TestStore_SchemaUpgrade_Good_ExistingDB(t *testing.T) {
 	assert.Equal(t, "ttl-val", val2)
 }
 
+func TestStore_SchemaUpgrade_Good_EntriesWithoutExpiryColumn(t *testing.T) {
+	dbPath := testPath(t, "entries-no-expiry.db")
+	db, err := sql.Open("sqlite", dbPath)
+	require.NoError(t, err)
+	db.SetMaxOpenConns(1)
+	_, err = db.Exec("PRAGMA journal_mode=WAL")
+	require.NoError(t, err)
+	_, err = db.Exec(`CREATE TABLE entries (
+		group_name  TEXT NOT NULL,
+		entry_key   TEXT NOT NULL,
+		entry_value TEXT NOT NULL,
+		PRIMARY KEY (group_name, entry_key)
+	)`)
+	require.NoError(t, err)
+	_, err = db.Exec("INSERT INTO entries (group_name, entry_key, entry_value) VALUES ('g', 'k', 'v')")
+	require.NoError(t, err)
+	require.NoError(t, db.Close())
+
+	s, err := New(dbPath)
+	require.NoError(t, err)
+	defer s.Close()
+
+	val, err := s.Get("g", "k")
+	require.NoError(t, err)
+	assert.Equal(t, "v", val)
+
+	require.NoError(t, s.SetWithTTL("g", "ttl-key", "ttl-val", time.Hour))
+	val2, err := s.Get("g", "ttl-key")
+	require.NoError(t, err)
+	assert.Equal(t, "ttl-val", val2)
+}
+
+func TestStore_SchemaUpgrade_Good_LegacyAndCurrentTables(t *testing.T) {
+	dbPath := testPath(t, "entries-and-legacy.db")
+	db, err := sql.Open("sqlite", dbPath)
+	require.NoError(t, err)
+	db.SetMaxOpenConns(1)
+	_, err = db.Exec("PRAGMA journal_mode=WAL")
+	require.NoError(t, err)
+	_, err = db.Exec(`CREATE TABLE entries (
+		group_name  TEXT NOT NULL,
+		entry_key   TEXT NOT NULL,
+		entry_value TEXT NOT NULL,
+		expires_at  INTEGER,
+		PRIMARY KEY (group_name, entry_key)
+	)`)
+	require.NoError(t, err)
+	_, err = db.Exec("INSERT INTO entries (group_name, entry_key, entry_value) VALUES ('existing', 'k', 'v')")
+	require.NoError(t, err)
+	_, err = db.Exec(`CREATE TABLE kv (
+		grp   TEXT NOT NULL,
+		key   TEXT NOT NULL,
+		value TEXT NOT NULL,
+		PRIMARY KEY (grp, key)
+	)`)
+	require.NoError(t, err)
+	_, err = db.Exec("INSERT INTO kv (grp, key, value) VALUES ('legacy', 'k', 'legacy-v')")
+	require.NoError(t, err)
+	require.NoError(t, db.Close())
+
+	s, err := New(dbPath)
+	require.NoError(t, err)
+	defer s.Close()
+
+	val, err := s.Get("existing", "k")
+	require.NoError(t, err)
+	assert.Equal(t, "v", val)
+
+	legacyVal, err := s.Get("legacy", "k")
+	require.NoError(t, err)
+	assert.Equal(t, "legacy-v", legacyVal)
+}
+
 func TestStore_SchemaUpgrade_Good_PreTTLDatabase(t *testing.T) {
-	// Simulate a database created before TTL support (no expires_at column).
+	// Simulate a database created before the AX schema rename and TTL support.
+	// The legacy kv table has no expires_at column yet.
 	dbPath := testPath(t, "pre-ttl.db")
 	db, err := sql.Open("sqlite", dbPath)
 	require.NoError(t, err)
@@ -940,7 +1164,7 @@ func TestStore_SchemaUpgrade_Good_PreTTLDatabase(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, db.Close())
 
-	// Open with New — should migrate the schema by adding expires_at.
+	// Open with New — should migrate the legacy table into the descriptive schema.
 	s, err := New(dbPath)
 	require.NoError(t, err)
 	defer s.Close()

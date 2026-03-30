@@ -31,7 +31,7 @@ go vet ./...                         # Vet
 **Single-connection SQLite.** `store.go` pins `MaxOpenConns(1)` because SQLite pragmas (WAL, busy_timeout) are per-connection — a pool would hand out unpragma'd connections causing SQLITE_BUSY. This is the most important architectural decision; don't change it.
 
 **Three-layer design:**
-- `store.go` — Core `Store` type: CRUD on a `(grp, key)` compound-PK table, TTL via `expires_at` (Unix ms), background purge goroutine (60s interval), `text/template` rendering, `iter.Seq2` iterators
+- `store.go` — Core `Store` type: CRUD on an `entries` table keyed by `(group_name, entry_key)`, TTL via `expires_at` (Unix ms), background purge goroutine (60s interval), `text/template` rendering, `iter.Seq2` iterators
 - `events.go` — Event system: `Watch`/`Unwatch` (buffered chan, cap 16, non-blocking sends drop events) and `OnChange` callbacks (synchronous in writer goroutine). Watcher and callback registries use separate locks, so callbacks can register or unregister subscriptions without deadlocking.
 - `scope.go` — `ScopedStore` wraps `*Store`, prefixes groups with `namespace:`. Quota enforcement (`MaxKeys`/`MaxGroups`) checked before writes; upserts bypass quota. Namespace regex: `^[a-zA-Z0-9-]+$`
 
