@@ -150,6 +150,22 @@ Aligned the public API with the AX naming rules by removing compatibility aliase
 
 ---
 
+## Phase 5 — Re-entrant Event Dispatch
+
+**Agent:** Codex
+**Completed:** 2026-03-30
+
+### Changes
+
+- Split watcher and callback registry locks so callbacks can register or unregister subscriptions without deadlocking.
+- Updated `notify()` to dispatch watcher events under the watcher lock, snapshot callbacks under the callback lock, and invoke callbacks after both locks are released.
+
+### Tests added
+
+- Re-entrant callback coverage for `Watch`, `Unwatch`, and `OnChange` from inside the same callback while a write is in flight.
+
+---
+
 ## Coverage Test Suite
 
 `coverage_test.go` exercises defensive error paths that integration tests cannot reach through normal usage:
@@ -175,8 +191,6 @@ These tests exercise correct defensive code. They must continue to pass but are 
 **No cross-group transactions.** There is no API for atomic multi-group operations. Each method is individually atomic at the SQLite level, but there is no `Begin`/`Commit` exposed to callers.
 
 **No wildcard deletes.** There is no `DeletePrefix` or pattern-based delete. To delete all groups under a namespace, callers must retrieve the group list via `Groups()` and delete each individually.
-
-**Callback deadlock risk.** `OnChange` callbacks run synchronously in the writer's goroutine while holding `s.mu` (read). Calling any `Store` method that calls `notify()` from within a callback will attempt to re-acquire `s.mu` (read), which is permitted with a read-lock but calling `Watch`/`Unwatch`/`OnChange` within a callback will deadlock (they require a write-lock). Document this constraint prominently in callback usage.
 
 **No persistence of watcher registrations.** Watchers and callbacks are in-memory only. They are not persisted across `Close`/`New` cycles.
 

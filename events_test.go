@@ -233,6 +233,46 @@ func TestEvents_OnChange_Good_Unregister(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
+// OnChange — callback can manage subscriptions while handling an event
+// ---------------------------------------------------------------------------
+
+func TestEvents_OnChange_Good_ReentrantSubscriptions(t *testing.T) {
+	s, _ := New(":memory:")
+	defer s.Close()
+
+	var callbackCount atomic.Int32
+	var unregister func()
+	unregister = s.OnChange(func(event Event) {
+		callbackCount.Add(1)
+
+		nestedWatcher := s.Watch("nested", "*")
+		s.Unwatch(nestedWatcher)
+
+		if unregister != nil {
+			unregister()
+		}
+	})
+
+	writeDone := make(chan error, 1)
+	go func() {
+		writeDone <- s.Set("g", "k", "v")
+	}()
+
+	select {
+	case err := <-writeDone:
+		require.NoError(t, err)
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for Set to complete")
+	}
+
+	assert.Equal(t, int32(1), callbackCount.Load())
+
+	// The callback unregistered itself, so later writes should not increment it.
+	require.NoError(t, s.Set("g", "k", "v2"))
+	assert.Equal(t, int32(1), callbackCount.Load())
+}
+
+// ---------------------------------------------------------------------------
 // Buffer-full doesn't block the writer
 // ---------------------------------------------------------------------------
 

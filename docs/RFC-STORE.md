@@ -77,8 +77,7 @@ scoped.SetIn("mygroup", "key", "v")  // stored as group "mynamespace:mygroup", k
 
 - `Watch(group)` — returns buffered channel (cap 16), non-blocking sends drop events
 - `Unwatch(group, ch)` — remove a watcher
-- `OnChange(group, callback)` — synchronous callback in writer goroutine
-- **Deadlock warning:** `notify()` holds `s.mu` read-lock — calling Watch/Unwatch/OnChange from inside a callback will deadlock
+- `OnChange(group, callback)` — synchronous callback in writer goroutine; callbacks can manage subscriptions re-entrantly
 
 ---
 

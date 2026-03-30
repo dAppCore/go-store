@@ -89,9 +89,9 @@ func (storeInstance *Store) Watch(group, key string) *Watcher {
 		id:            atomic.AddUint64(&storeInstance.nextRegistrationID, 1),
 	}
 
-	storeInstance.registryLock.Lock()
+	storeInstance.watchersLock.Lock()
 	storeInstance.watchers = append(storeInstance.watchers, watcher)
-	storeInstance.registryLock.Unlock()
+	storeInstance.watchersLock.Unlock()
 
 	return watcher
 }
@@ -104,8 +104,8 @@ func (storeInstance *Store) Unwatch(watcher *Watcher) {
 		return
 	}
 
-	storeInstance.registryLock.Lock()
-	defer storeInstance.registryLock.Unlock()
+	storeInstance.watchersLock.Lock()
+	defer storeInstance.watchersLock.Unlock()
 
 	storeInstance.watchers = slices.DeleteFunc(storeInstance.watchers, func(existing *Watcher) bool {
 		if existing.id == watcher.id {
@@ -132,16 +132,16 @@ func (storeInstance *Store) OnChange(callback func(Event)) func() {
 	registrationID := atomic.AddUint64(&storeInstance.nextRegistrationID, 1)
 	registrationRecord := callbackEntry{id: registrationID, callback: callback}
 
-	storeInstance.registryLock.Lock()
+	storeInstance.callbacksLock.Lock()
 	storeInstance.callbacks = append(storeInstance.callbacks, registrationRecord)
-	storeInstance.registryLock.Unlock()
+	storeInstance.callbacksLock.Unlock()
 
 	// Return an idempotent unregister function.
 	var once sync.Once
 	return func() {
 		once.Do(func() {
-			storeInstance.registryLock.Lock()
-			defer storeInstance.registryLock.Unlock()
+			storeInstance.callbacksLock.Lock()
+			defer storeInstance.callbacksLock.Unlock()
 			storeInstance.callbacks = slices.DeleteFunc(storeInstance.callbacks, func(existing callbackEntry) bool {
 				return existing.id == registrationID
 			})
@@ -152,11 +152,11 @@ func (storeInstance *Store) OnChange(callback func(Event)) func() {
 // notify dispatches an event to all matching watchers and callbacks. It must be
 // called after a successful DB write. Watcher sends are non-blocking — if a
 // channel buffer is full the event is silently dropped to avoid blocking the
-// writer.
+// writer. Callbacks are copied under a separate lock and invoked after the
+// lock is released, so a callback can register or unregister other watchers or
+// callbacks without deadlocking.
 func (storeInstance *Store) notify(event Event) {
-	storeInstance.registryLock.RLock()
-	defer storeInstance.registryLock.RUnlock()
-
+	storeInstance.watchersLock.RLock()
 	for _, watcher := range storeInstance.watchers {
 		if !watcherMatches(watcher, event) {
 			continue
@@ -167,8 +167,13 @@ func (storeInstance *Store) notify(event Event) {
 		default:
 		}
 	}
+	storeInstance.watchersLock.RUnlock()
 
-	for _, callback := range storeInstance.callbacks {
+	storeInstance.callbacksLock.RLock()
+	callbacks := append([]callbackEntry(nil), storeInstance.callbacks...)
+	storeInstance.callbacksLock.RUnlock()
+
+	for _, callback := range callbacks {
 		callback.callback(event)
 	}
 }

@@ -172,12 +172,11 @@ defer unregister()
 ```
 
 go-store does not import go-ws. The dependency flows in one direction only: go-ws (or any consumer) imports go-store.
-
-**Important constraint.** `OnChange` callbacks execute while holding the watcher/callback read-lock (`registryLock`). Calling `Watch`, `Unwatch`, or `OnChange` from within a callback will deadlock, because those methods require a write-lock. Offload any significant work to a separate goroutine if needed.
+Callbacks may safely register or unregister watchers and callbacks while handling an event. Dispatch snapshots the callback list before invoking it, so re-entrant subscription management does not deadlock. Offload any significant work to a separate goroutine if needed.
 
 ### Internal Dispatch
 
-The `notify(e Event)` method acquires a read-lock on `registryLock`, iterates all watchers with non-blocking channel sends, then calls each registered callback. The read-lock allows multiple concurrent `notify()` calls to proceed simultaneously. `Watch`/`Unwatch`/`OnChange` take a write-lock when modifying the registry.
+The `notify(e Event)` method first acquires the watcher read-lock, iterates all watchers with non-blocking channel sends, then releases the lock. It then acquires the callback read-lock, snapshots the registered callbacks, releases the lock, and invokes each callback synchronously. This keeps watcher delivery non-blocking while allowing callbacks to manage subscriptions re-entrantly.
 
 Watcher matching is handled by the `watcherMatches` helper, which checks the group and key filters against the event. Wildcard `"*"` matches any value in its position.
 
@@ -218,11 +217,12 @@ Exceeding a limit returns `QuotaExceededError`.
 
 ## Concurrency Model
 
-All SQLite access is serialised through a single connection (`SetMaxOpenConns(1)`). The store's watcher/callback registry is protected by a separate `sync.RWMutex` (`registryLock`). These two locks do not interact:
+All SQLite access is serialised through a single connection (`SetMaxOpenConns(1)`). The store's event registry uses two separate `sync.RWMutex` instances: `watchersLock` for watcher registration and dispatch, and `callbacksLock` for callback registration and dispatch. These locks do not interact:
 
 - DB writes acquire no application-level lock.
-- `notify()` acquires `registryLock` (read) after the DB write completes.
-- `Watch`/`Unwatch`/`OnChange` acquire `registryLock` (write) to modify the registry.
+- `notify()` acquires `watchersLock` (read) after the DB write completes, then `callbacksLock` (read) to snapshot callbacks.
+- `Watch`/`Unwatch` acquire `watchersLock` (write) to modify watcher registrations.
+- `OnChange` acquires `callbacksLock` (write) to modify callback registrations.
 
 All operations are safe to call from multiple goroutines concurrently. The race detector is clean under the project's standard test suite (`go test -race ./...`).
 

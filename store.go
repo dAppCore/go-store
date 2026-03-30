@@ -32,7 +32,8 @@ type Store struct {
 	// Event dispatch state.
 	watchers           []*Watcher
 	callbacks          []callbackEntry
-	registryLock       sync.RWMutex // protects watchers and callbacks
+	watchersLock       sync.RWMutex // protects watcher registration and dispatch
+	callbacksLock      sync.RWMutex // protects callback registration and dispatch
 	nextRegistrationID uint64       // monotonic ID for watchers and callbacks
 }
 
