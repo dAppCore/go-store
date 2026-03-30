@@ -118,8 +118,8 @@ func TestCoverage_GetAll_Bad_RowsError(t *testing.T) {
 	requireCoreWriteBytes(t, dbPath, data)
 
 	// Remove WAL/SHM so the reopened connection reads from the main file.
-	_ = testFS().Delete(dbPath + "-wal")
-	_ = testFS().Delete(dbPath + "-shm")
+	_ = testFilesystem().Delete(dbPath + "-wal")
+	_ = testFilesystem().Delete(dbPath + "-shm")
 
 	s2, err := New(dbPath)
 	require.NoError(t, err)
@@ -204,8 +204,8 @@ func TestCoverage_Render_Bad_RowsError(t *testing.T) {
 	copy(data[offset+len(garbage):offset+(len(garbage)*2)], garbage)
 	requireCoreWriteBytes(t, dbPath, data)
 
-	_ = testFS().Delete(dbPath + "-wal")
-	_ = testFS().Delete(dbPath + "-shm")
+	_ = testFilesystem().Delete(dbPath + "-wal")
+	_ = testFilesystem().Delete(dbPath + "-shm")
 
 	s2, err := New(dbPath)
 	require.NoError(t, err)

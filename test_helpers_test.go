@@ -7,7 +7,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func testFS() *core.Fs {
+func testFilesystem() *core.Fs {
 	return (&core.Fs{}).NewUnrestricted()
 }
 
@@ -23,14 +23,14 @@ func requireCoreOK(tb testing.TB, result core.Result) {
 
 func requireCoreReadBytes(tb testing.TB, path string) []byte {
 	tb.Helper()
-	result := testFS().Read(path)
+	result := testFilesystem().Read(path)
 	requireCoreOK(tb, result)
 	return []byte(result.Value.(string))
 }
 
 func requireCoreWriteBytes(tb testing.TB, path string, data []byte) {
 	tb.Helper()
-	requireCoreOK(tb, testFS().Write(path, string(data)))
+	requireCoreOK(tb, testFilesystem().Write(path, string(data)))
 }
 
 func repeatString(value string, count int) string {

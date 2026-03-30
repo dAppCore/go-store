@@ -174,7 +174,7 @@ func TestConventions_Exports_Good_NoCompatibilityAliases(t *testing.T) {
 func repoGoFiles(t *testing.T, keep func(name string) bool) []string {
 	t.Helper()
 
-	result := testFS().List(".")
+	result := testFilesystem().List(".")
 	requireCoreOK(t, result)
 
 	entries, ok := result.Value.([]fs.DirEntry)

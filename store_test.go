@@ -55,7 +55,7 @@ func TestStore_New_Bad_InvalidPath(t *testing.T) {
 func TestStore_New_Bad_CorruptFile(t *testing.T) {
 	// A file that exists but is not a valid SQLite database should fail.
 	dbPath := testPath(t, "corrupt.db")
-	requireCoreOK(t, testFS().Write(dbPath, "not a sqlite database"))
+	requireCoreOK(t, testFilesystem().Write(dbPath, "not a sqlite database"))
 
 	_, err := New(dbPath)
 	require.Error(t, err)
@@ -73,8 +73,8 @@ func TestStore_New_Bad_ReadOnlyDir(t *testing.T) {
 	require.NoError(t, s.Close())
 
 	// Remove WAL/SHM files and make directory read-only.
-	_ = testFS().Delete(dbPath + "-wal")
-	_ = testFS().Delete(dbPath + "-shm")
+	_ = testFilesystem().Delete(dbPath + "-wal")
+	_ = testFilesystem().Delete(dbPath + "-shm")
 	require.NoError(t, syscall.Chmod(dir, 0555))
 	defer func() { _ = syscall.Chmod(dir, 0755) }() // restore for cleanup
 
