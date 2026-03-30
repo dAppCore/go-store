@@ -33,16 +33,16 @@ func (t EventType) String() string {
 	}
 }
 
-// Usage example: `event := store.Event{Type: store.EventSet, Group: "config", Key: "theme", Value: "dark"}`
+// Usage example: `event := store.Event{Type: store.EventSet, Group: "config", Key: "colour", Value: "blue"}`
 // Usage example: `event := store.Event{Type: store.EventDeleteGroup, Group: "config"}`
 type Event struct {
 	// Usage example: `if event.Type == store.EventDeleteGroup { return }`
 	Type EventType
 	// Usage example: `if event.Group == "config" { return }`
 	Group string
-	// Usage example: `if event.Key == "theme" { return }`
+	// Usage example: `if event.Key == "colour" { return }`
 	Key string
-	// Usage example: `if event.Value == "dark" { return }`
+	// Usage example: `if event.Value == "blue" { return }`
 	Value string
 	// Usage example: `if event.Timestamp.IsZero() { return }`
 	Timestamp time.Time
@@ -50,7 +50,7 @@ type Event struct {
 
 // Usage example: `watcher := storeInstance.Watch("config", "*"); defer storeInstance.Unwatch(watcher); for event := range watcher.Events { if event.Type == EventDeleteGroup { return } }`
 type Watcher struct {
-	// Usage example: `for event := range watcher.Events { if event.Key == "theme" { return } }`
+	// Usage example: `for event := range watcher.Events { if event.Key == "colour" { return } }`
 	Events <-chan Event
 
 	// eventChannel is the internal write channel (same underlying channel as Events).
@@ -130,7 +130,7 @@ func (storeInstance *Store) OnChange(callback func(Event)) func() {
 	}
 }
 
-// notify(Event{Type: EventSet, Group: "config", Key: "theme", Value: "dark"})
+// notify(Event{Type: EventSet, Group: "config", Key: "colour", Value: "blue"})
 // dispatches matching watchers and callbacks after a successful write. If a
 // watcher buffer is full, the event is dropped instead of blocking the writer.
 // Callbacks are copied under a separate lock and invoked after the lock is
@@ -160,7 +160,7 @@ func (storeInstance *Store) notify(event Event) {
 }
 
 // watcherMatches reports whether Watch("config", "*") should receive
-// Event{Group: "config", Key: "theme"}.
+// Event{Group: "config", Key: "colour"}.
 func watcherMatches(watcher *Watcher, event Event) bool {
 	if watcher.group != "*" && watcher.group != event.Group {
 		return false
