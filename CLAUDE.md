@@ -6,9 +6,19 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 SQLite key-value store with TTL, namespace isolation, and reactive events. Pure Go (no CGO). Module: `dappco.re/go/core/store`
 
+## AX Notes
+
+- Prefer descriptive names over abbreviations.
+- Public comments should show real usage with concrete values.
+- Keep examples in UK English.
+- Do not add compatibility aliases; the primary API names are the contract.
+- Preserve the single-connection SQLite design.
+- Verify with `go test ./...`, `go test -race ./...`, and `go vet ./...` before committing.
+- Use conventional commits and include the `Co-Authored-By: Virgil <virgil@lethean.io>` trailer.
+
 ## Getting Started
 
-Part of the Go workspace at `~/Code/go.work`—run `go work sync` after cloning. Single Go package with `store.go` (core) and `scope.go` (scoping/quota).
+Part of the Go workspace at `~/Code/go.work`—run `go work sync` after cloning. Single Go package with `store.go` (core), `events.go` (watchers/callbacks), and `scope.go` (scoping/quota).
 
 ```bash
 go test ./... -count=1
@@ -42,36 +52,64 @@ go vet ./...                         # Vet
 ## Key API
 
 ```go
-storeInstance, _ := store.New(":memory:")      // or store.New("/path/to/db")
-defer storeInstance.Close()
+package main
 
-storeInstance.Set("group", "key", "value")                         // no expiry
-storeInstance.SetWithTTL("group", "key", "value", 5*time.Minute)   // expires after TTL
-value, _ := storeInstance.Get("group", "key")                       // lazy-deletes expired
-storeInstance.Delete("group", "key")
-storeInstance.DeleteGroup("group")
-entries, _ := storeInstance.GetAll("group")    // excludes expired
-count, _ := storeInstance.Count("group")       // excludes expired
-output, _ := storeInstance.Render("Hello {{ .name }}", "group") // excludes expired
-removed, _ := storeInstance.PurgeExpired()     // manual purge
-total, _ := storeInstance.CountAll("prefix:")  // count keys matching prefix (excludes expired)
-groupNames, _ := storeInstance.Groups("prefix:") // distinct group names matching prefix
+import (
+	"fmt"
+	"time"
 
-// Namespace isolation (auto-prefixes groups with "tenant:")
-scopedStore, _ := store.NewScoped(storeInstance, "tenant")
-scopedStore.Set("config", "key", "value") // stored as "tenant:config" in underlying store
+	"dappco.re/go/core/store"
+)
 
-// With quota enforcement
-quotaScopedStore, _ := store.NewScopedWithQuota(storeInstance, "tenant", store.QuotaConfig{MaxKeys: 100, MaxGroups: 10})
-quotaScopedStore.Set("g", "k", "v") // returns QuotaExceededError if limits hit
+func main() {
+	storeInstance, err := store.New(":memory:")
+	if err != nil {
+		return
+	}
+	defer storeInstance.Close()
 
-// Event hooks
-watcher := storeInstance.Watch("group", "*") // wildcard: all keys in group ("*","*" for all)
-defer storeInstance.Unwatch(watcher)
-event := <-watcher.Events         // buffered chan, cap 16
+	if err := storeInstance.Set("group", "key", "value"); err != nil {
+		return
+	}
+	value, err := storeInstance.Get("group", "key")
+	if err != nil {
+		return
+	}
+	fmt.Println(value)
 
-unregister := storeInstance.OnChange(func(e store.Event) { /* synchronous in writer goroutine */ })
-defer unregister()
+	if err := storeInstance.SetWithTTL("session", "token", "abc123", 5*time.Minute); err != nil {
+		return
+	}
+
+	scopedStore, err := store.NewScoped(storeInstance, "tenant")
+	if err != nil {
+		return
+	}
+	if err := scopedStore.Set("config", "theme", "dark"); err != nil {
+		return
+	}
+
+	quotaScopedStore, err := store.NewScopedWithQuota(storeInstance, "tenant", store.QuotaConfig{MaxKeys: 100, MaxGroups: 10})
+	if err != nil {
+		return
+	}
+	if err := quotaScopedStore.Set("prefs", "locale", "en-GB"); err != nil {
+		return
+	}
+
+	watcher := storeInstance.Watch("group", "*")
+	defer storeInstance.Unwatch(watcher)
+	go func() {
+		for event := range watcher.Events {
+			fmt.Println(event.Type, event.Group, event.Key, event.Value)
+		}
+	}()
+
+	unregister := storeInstance.OnChange(func(event store.Event) {
+		fmt.Println("changed", event.Group, event.Key, event.Value)
+	})
+	defer unregister()
+}
 ```
 
 ## Coding Standards
