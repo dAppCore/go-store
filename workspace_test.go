@@ -39,6 +39,32 @@ func TestWorkspace_NewWorkspace_Good_CreatePutAggregateQuery(t *testing.T) {
 	assert.Equal(t, int64(1), rows[1]["entry_count"])
 }
 
+func TestWorkspace_Query_Good_RFCEntriesView(t *testing.T) {
+	useWorkspaceStateDirectory(t)
+
+	storeInstance, err := New(":memory:")
+	require.NoError(t, err)
+	defer storeInstance.Close()
+
+	workspace, err := storeInstance.NewWorkspace("scroll-session")
+	require.NoError(t, err)
+	defer workspace.Discard()
+
+	require.NoError(t, workspace.Put("like", map[string]any{"user": "@alice"}))
+	require.NoError(t, workspace.Put("like", map[string]any{"user": "@bob"}))
+	require.NoError(t, workspace.Put("profile_match", map[string]any{"user": "@charlie"}))
+
+	rows := requireResultRows(
+		t,
+		workspace.Query("SELECT kind, COUNT(*) AS entry_count FROM entries GROUP BY kind ORDER BY kind"),
+	)
+	require.Len(t, rows, 2)
+	assert.Equal(t, "like", rows[0]["kind"])
+	assert.Equal(t, int64(2), rows[0]["entry_count"])
+	assert.Equal(t, "profile_match", rows[1]["kind"])
+	assert.Equal(t, int64(1), rows[1]["entry_count"])
+}
+
 func TestWorkspace_Commit_Good_JournalAndSummary(t *testing.T) {
 	useWorkspaceStateDirectory(t)
 
