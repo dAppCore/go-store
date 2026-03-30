@@ -228,6 +228,110 @@ func TestScope_ScopedStore_Good_Render(t *testing.T) {
 	assert.Equal(t, "Hello Alice", renderedTemplate)
 }
 
+func TestScope_ScopedStore_Good_BulkHelpers(t *testing.T) {
+	storeInstance, _ := New(":memory:")
+	defer storeInstance.Close()
+
+	alphaStore, _ := NewScoped(storeInstance, "tenant-a")
+	betaStore, _ := NewScoped(storeInstance, "tenant-b")
+
+	require.NoError(t, alphaStore.Set("config", "colour", "blue"))
+	require.NoError(t, alphaStore.Set("sessions", "token", "abc123"))
+	require.NoError(t, betaStore.Set("config", "colour", "red"))
+
+	count, err := alphaStore.CountAll("")
+	require.NoError(t, err)
+	assert.Equal(t, 2, count)
+
+	count, err = alphaStore.CountAll("config")
+	require.NoError(t, err)
+	assert.Equal(t, 1, count)
+
+	groupNames, err := alphaStore.Groups("")
+	require.NoError(t, err)
+	assert.ElementsMatch(t, []string{"config", "sessions"}, groupNames)
+
+	groupNames, err = alphaStore.Groups("conf")
+	require.NoError(t, err)
+	assert.Equal(t, []string{"config"}, groupNames)
+
+	var streamedGroupNames []string
+	for groupName, iterationErr := range alphaStore.GroupsSeq("") {
+		require.NoError(t, iterationErr)
+		streamedGroupNames = append(streamedGroupNames, groupName)
+	}
+	assert.ElementsMatch(t, []string{"config", "sessions"}, streamedGroupNames)
+
+	var filteredGroupNames []string
+	for groupName, iterationErr := range alphaStore.GroupsSeq("config") {
+		require.NoError(t, iterationErr)
+		filteredGroupNames = append(filteredGroupNames, groupName)
+	}
+	assert.Equal(t, []string{"config"}, filteredGroupNames)
+}
+
+func TestScope_ScopedStore_Good_GroupsSeqStopsEarly(t *testing.T) {
+	storeInstance, _ := New(":memory:")
+	defer storeInstance.Close()
+
+	scopedStore, _ := NewScoped(storeInstance, "tenant-a")
+	require.NoError(t, scopedStore.Set("alpha", "a", "1"))
+	require.NoError(t, scopedStore.Set("beta", "b", "2"))
+
+	groups := scopedStore.GroupsSeq("")
+	var seen []string
+	for groupName, iterationErr := range groups {
+		require.NoError(t, iterationErr)
+		seen = append(seen, groupName)
+		break
+	}
+
+	assert.Len(t, seen, 1)
+}
+
+func TestScope_ScopedStore_Good_GetSplitAndGetFields(t *testing.T) {
+	storeInstance, _ := New(":memory:")
+	defer storeInstance.Close()
+
+	scopedStore, _ := NewScoped(storeInstance, "tenant-a")
+	require.NoError(t, scopedStore.Set("config", "hosts", "alpha,beta,gamma"))
+	require.NoError(t, scopedStore.Set("config", "flags", "one two\tthree\n"))
+
+	parts, err := scopedStore.GetSplit("config", "hosts", ",")
+	require.NoError(t, err)
+
+	var splitValues []string
+	for value := range parts {
+		splitValues = append(splitValues, value)
+	}
+	assert.Equal(t, []string{"alpha", "beta", "gamma"}, splitValues)
+
+	fields, err := scopedStore.GetFields("config", "flags")
+	require.NoError(t, err)
+
+	var fieldValues []string
+	for value := range fields {
+		fieldValues = append(fieldValues, value)
+	}
+	assert.Equal(t, []string{"one", "two", "three"}, fieldValues)
+}
+
+func TestScope_ScopedStore_Good_PurgeExpired(t *testing.T) {
+	storeInstance, _ := New(":memory:")
+	defer storeInstance.Close()
+
+	scopedStore, _ := NewScoped(storeInstance, "tenant-a")
+	require.NoError(t, scopedStore.SetWithTTL("session", "token", "abc123", 1*time.Millisecond))
+	time.Sleep(5 * time.Millisecond)
+
+	removedRows, err := scopedStore.PurgeExpired()
+	require.NoError(t, err)
+	assert.Equal(t, int64(1), removedRows)
+
+	_, err = scopedStore.Get("session", "token")
+	assert.True(t, core.Is(err, NotFoundError))
+}
+
 // ---------------------------------------------------------------------------
 // Quota enforcement — MaxKeys
 // ---------------------------------------------------------------------------

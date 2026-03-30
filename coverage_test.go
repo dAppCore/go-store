@@ -277,6 +277,52 @@ func TestCoverage_GroupsSeq_Bad_RowsError(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
+// ScopedStore bulk helpers — defensive error paths
+// ---------------------------------------------------------------------------
+
+func TestCoverage_ScopedStore_Bad_GroupsClosedStore(t *testing.T) {
+	storeInstance, _ := New(":memory:")
+	require.NoError(t, storeInstance.Close())
+
+	scopedStore, err := NewScoped(storeInstance, "tenant-a")
+	require.NoError(t, err)
+
+	_, err = scopedStore.Groups("")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "store.Groups")
+}
+
+func TestCoverage_ScopedStore_Bad_GroupsSeqRowsError(t *testing.T) {
+	database, _ := openStubSQLiteDatabase(t, stubSQLiteScenario{
+		groupRows: [][]driver.Value{
+			{"tenant-a:config"},
+		},
+		groupRowsErr:      core.E("stubSQLiteScenario", "rows iteration failed", nil),
+		groupRowsErrIndex: 1,
+	})
+	defer database.Close()
+
+	scopedStore := &ScopedStore{
+		storeInstance: &Store{
+			database:    database,
+			cancelPurge: func() {},
+		},
+		namespace: "tenant-a",
+	}
+
+	var seen []string
+	for groupName, iterationErr := range scopedStore.GroupsSeq("") {
+		if iterationErr != nil {
+			require.Error(t, iterationErr)
+			assert.Empty(t, groupName)
+			break
+		}
+		seen = append(seen, groupName)
+	}
+	assert.Equal(t, []string{"config"}, seen)
+}
+
+// ---------------------------------------------------------------------------
 // Stubbed SQLite driver coverage
 // ---------------------------------------------------------------------------
 

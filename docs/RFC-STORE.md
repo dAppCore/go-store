@@ -23,7 +23,7 @@ The public surface is intentionally small. Names are descriptive, comments show 
 | `doc.go` | Package comment with concrete usage examples |
 | `store.go` | `Store`, CRUD, TTL, background purge, bulk reads, prefix counts, group discovery, string splitting helpers, template rendering |
 | `events.go` | `EventType`, `Event`, `Watcher`, `Watch`, `Unwatch`, `OnChange`, internal dispatch |
-| `scope.go` | `ScopedStore`, `QuotaConfig`, namespace validation, quota enforcement |
+| `scope.go` | `ScopedStore`, `QuotaConfig`, namespace validation, namespace-local helper delegation, quota enforcement |
 | `*_test.go` | Behavioural tests for CRUD, TTL, events, quotas, and defensive error paths |
 
 ---
@@ -55,7 +55,7 @@ The public surface is intentionally small. Names are descriptive, comments show 
 - `NewScoped(storeInstance *Store, namespace string) (*ScopedStore, error)` validates a namespace and prefixes groups with `namespace + ":"`.
 - `NewScopedWithQuota(storeInstance *Store, namespace string, quota QuotaConfig) (*ScopedStore, error)` adds per-namespace key and group limits.
 - `Namespace() string` returns the namespace string.
-- `ScopedStore` exposes the same read and write methods as `Store`, with group names prefixed automatically.
+- `ScopedStore` exposes the same read and write methods as `Store`, with group inputs prefixed automatically. Methods that return group names strip the namespace prefix before returning results.
 
 ### Events
 
