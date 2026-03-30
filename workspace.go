@@ -21,6 +21,14 @@ const createWorkspaceEntriesTableSQL = `CREATE TABLE IF NOT EXISTS workspace_ent
 	created_at  INTEGER NOT NULL
 )`
 
+const createWorkspaceEntriesViewSQL = `CREATE VIEW IF NOT EXISTS entries AS
+SELECT
+	entry_id AS id,
+	entry_kind AS kind,
+	entry_data AS data,
+	created_at
+FROM workspace_entries`
+
 var defaultWorkspaceStateDirectory = ".core/state"
 
 // Workspace accumulates mutable work-in-progress entries before they are
@@ -304,6 +312,10 @@ func openWorkspaceDatabase(databasePath string) (*sql.DB, error) {
 		return nil, err
 	}
 	if _, err := workspaceDatabase.Exec(createWorkspaceEntriesTableSQL); err != nil {
+		workspaceDatabase.Close()
+		return nil, err
+	}
+	if _, err := workspaceDatabase.Exec(createWorkspaceEntriesViewSQL); err != nil {
 		workspaceDatabase.Close()
 		return nil, err
 	}
