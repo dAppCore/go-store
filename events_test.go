@@ -211,20 +211,20 @@ func TestEvents_OnChange_Good_Fires(t *testing.T) {
 	defer storeInstance.Close()
 
 	var events []Event
-	var mu sync.Mutex
+	var eventsMutex sync.Mutex
 
 	unregister := storeInstance.OnChange(func(event Event) {
-		mu.Lock()
+		eventsMutex.Lock()
 		events = append(events, event)
-		mu.Unlock()
+		eventsMutex.Unlock()
 	})
 	defer unregister()
 
 	require.NoError(t, storeInstance.Set("g", "k", "v"))
 	require.NoError(t, storeInstance.Delete("g", "k"))
 
-	mu.Lock()
-	defer mu.Unlock()
+	eventsMutex.Lock()
+	defer eventsMutex.Unlock()
 	require.Len(t, events, 2)
 	assert.Equal(t, EventSet, events[0].Type)
 	assert.Equal(t, EventDelete, events[1].Type)

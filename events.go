@@ -56,16 +56,16 @@ type Watcher struct {
 	// eventChannel is the internal write channel (same underlying channel as Events).
 	eventChannel chan Event
 
-	group string
-	key   string
-	id    uint64
+	group          string
+	key            string
+	registrationID uint64
 }
 
-// changeCallbackRegistration{id: 7, callback: handleConfigChange} keeps one
+// changeCallbackRegistration{registrationID: 7, callback: handleConfigChange} keeps one
 // OnChange callback so unregister can remove the exact entry later.
 type changeCallbackRegistration struct {
-	id       uint64
-	callback func(Event)
+	registrationID uint64
+	callback       func(Event)
 }
 
 // Watch("config", "*") can hold 16 pending events before non-blocking sends
@@ -76,11 +76,11 @@ const watcherEventBufferCapacity = 16
 func (storeInstance *Store) Watch(group, key string) *Watcher {
 	eventChannel := make(chan Event, watcherEventBufferCapacity)
 	watcher := &Watcher{
-		Events:       eventChannel,
-		eventChannel: eventChannel,
-		group:        group,
-		key:          key,
-		id:           atomic.AddUint64(&storeInstance.nextWatcherID, 1),
+		Events:         eventChannel,
+		eventChannel:   eventChannel,
+		group:          group,
+		key:            key,
+		registrationID: atomic.AddUint64(&storeInstance.nextWatcherRegistrationID, 1),
 	}
 
 	storeInstance.watchersLock.Lock()
@@ -100,7 +100,7 @@ func (storeInstance *Store) Unwatch(watcher *Watcher) {
 	defer storeInstance.watchersLock.Unlock()
 
 	storeInstance.watchers = slices.DeleteFunc(storeInstance.watchers, func(existing *Watcher) bool {
-		if existing.id == watcher.id {
+		if existing.registrationID == watcher.registrationID {
 			close(watcher.eventChannel)
 			return true
 		}
@@ -110,8 +110,8 @@ func (storeInstance *Store) Unwatch(watcher *Watcher) {
 
 // Usage example: `events := make(chan store.Event, 1); unregister := storeInstance.OnChange(func(event store.Event) { events <- event }); defer unregister()`
 func (storeInstance *Store) OnChange(callback func(Event)) func() {
-	registrationID := atomic.AddUint64(&storeInstance.nextCallbackID, 1)
-	callbackRegistration := changeCallbackRegistration{id: registrationID, callback: callback}
+	registrationID := atomic.AddUint64(&storeInstance.nextCallbackRegistrationID, 1)
+	callbackRegistration := changeCallbackRegistration{registrationID: registrationID, callback: callback}
 
 	storeInstance.callbacksLock.Lock()
 	storeInstance.callbacks = append(storeInstance.callbacks, callbackRegistration)
@@ -124,7 +124,7 @@ func (storeInstance *Store) OnChange(callback func(Event)) func() {
 			storeInstance.callbacksLock.Lock()
 			defer storeInstance.callbacksLock.Unlock()
 			storeInstance.callbacks = slices.DeleteFunc(storeInstance.callbacks, func(existing changeCallbackRegistration) bool {
-				return existing.id == registrationID
+				return existing.registrationID == registrationID
 			})
 		})
 	}
