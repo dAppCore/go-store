@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"database/sql"
+	"database/sql/driver"
 	"sync"
 	"syscall"
 	"testing"
@@ -587,6 +588,109 @@ func TestStore_Close_Good_OperationsFailAfterClose(t *testing.T) {
 	assert.Error(t, err, "Render on closed store should fail")
 }
 
+func TestStore_Close_Bad_DriverCloseError(t *testing.T) {
+	db := testCloseErrorDatabase(t)
+	s := &Store{
+		database:    db,
+		cancelPurge: func() {},
+	}
+
+	err := s.Close()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "store.Close")
+}
+
+// ---------------------------------------------------------------------------
+// Test helpers
+// ---------------------------------------------------------------------------
+
+var testCloseErrorDriverOnce sync.Once
+
+func testCloseErrorDatabase(t *testing.T) *sql.DB {
+	t.Helper()
+
+	testCloseErrorDriverOnce.Do(func() {
+		sql.Register("test-close-error-driver", testCloseErrorDriver{})
+	})
+
+	database, err := sql.Open("test-close-error-driver", "")
+	require.NoError(t, err)
+	require.NoError(t, database.Ping())
+	return database
+}
+
+type testCloseErrorDriver struct{}
+
+func (testCloseErrorDriver) Open(name string) (driver.Conn, error) {
+	return testCloseErrorConn{}, nil
+}
+
+type testCloseErrorConn struct{}
+
+func (testCloseErrorConn) Prepare(query string) (driver.Stmt, error) {
+	return nil, core.E("test.CloseDriver", "prepare", nil)
+}
+
+func (testCloseErrorConn) Close() error {
+	return core.E("test.CloseDriver", "close", nil)
+}
+
+func (testCloseErrorConn) Begin() (driver.Tx, error) {
+	return nil, core.E("test.CloseDriver", "begin", nil)
+}
+
+func (testCloseErrorConn) Ping(ctx context.Context) error {
+	return nil
+}
+
+var testRowsAffectedErrorDriverOnce sync.Once
+
+func testRowsAffectedErrorDatabase(t *testing.T) *sql.DB {
+	t.Helper()
+
+	testRowsAffectedErrorDriverOnce.Do(func() {
+		sql.Register("test-rows-affected-error-driver", testRowsAffectedErrorDriver{})
+	})
+
+	database, err := sql.Open("test-rows-affected-error-driver", "")
+	require.NoError(t, err)
+	return database
+}
+
+type testRowsAffectedErrorDriver struct{}
+
+func (testRowsAffectedErrorDriver) Open(name string) (driver.Conn, error) {
+	return testRowsAffectedErrorConn{}, nil
+}
+
+type testRowsAffectedErrorConn struct{}
+
+func (testRowsAffectedErrorConn) Prepare(query string) (driver.Stmt, error) {
+	return nil, core.E("test.RowsAffectedDriver", "prepare", nil)
+}
+
+func (testRowsAffectedErrorConn) Close() error {
+	return nil
+}
+
+func (testRowsAffectedErrorConn) Begin() (driver.Tx, error) {
+	return nil, core.E("test.RowsAffectedDriver", "begin", nil)
+}
+
+func (testRowsAffectedErrorConn) ExecContext(ctx context.Context, query string, args []driver.NamedValue) (driver.Result, error) {
+	return testRowsAffectedErrorResult{}, nil
+}
+
+type testRowsAffectedErrorResult struct{}
+
+func (testRowsAffectedErrorResult) LastInsertId() (int64, error) {
+	return 0, nil
+}
+
+func (testRowsAffectedErrorResult) RowsAffected() (int64, error) {
+	return 0, core.E("test.RowsAffectedDriver", "rows affected", nil)
+}
+
 // ---------------------------------------------------------------------------
 // Edge cases
 // ---------------------------------------------------------------------------
@@ -1015,6 +1119,18 @@ func TestStore_PurgeExpired_Bad_ClosedStore(t *testing.T) {
 
 	_, err := s.PurgeExpired()
 	require.Error(t, err)
+}
+
+func TestStore_PurgeExpired_Bad_RowsAffectedError(t *testing.T) {
+	db := testRowsAffectedErrorDatabase(t)
+	s := &Store{
+		database:    db,
+		cancelPurge: func() {},
+	}
+
+	_, err := s.PurgeExpired()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "store.PurgeExpired")
 }
 
 func TestStore_PurgeExpired_Good_BackgroundPurge(t *testing.T) {

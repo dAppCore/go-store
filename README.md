@@ -29,8 +29,8 @@ func main() {
 	}
 	defer storeInstance.Close()
 
-	storeInstance.Set("config", "theme", "dark")
-	storeInstance.SetWithTTL("session", "token", "abc123", 24*time.Hour)
+	_ = storeInstance.Set("config", "theme", "dark")
+	_ = storeInstance.SetWithTTL("session", "token", "abc123", 24*time.Hour)
 	themeValue, err := storeInstance.Get("config", "theme")
 	fmt.Println(themeValue, err)
 
@@ -45,7 +45,7 @@ func main() {
 
 	// Scoped store for tenant isolation
 	scopedStore, _ := store.NewScoped(storeInstance, "tenant-42")
-	scopedStore.Set("prefs", "locale", "en-GB")
+	_ = scopedStore.Set("prefs", "locale", "en-GB")
 }
 ```
 

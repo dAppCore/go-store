@@ -34,12 +34,12 @@ func main() {
     defer storeInstance.Close()
 
     // Basic CRUD
-    storeInstance.Set("config", "theme", "dark")
+    _ = storeInstance.Set("config", "theme", "dark")
     themeValue, _ := storeInstance.Get("config", "theme")
     core.Println(themeValue) // "dark"
 
     // TTL expiry -- key disappears after the duration elapses
-    storeInstance.SetWithTTL("session", "token", "abc123", 24*time.Hour)
+    _ = storeInstance.SetWithTTL("session", "token", "abc123", 24*time.Hour)
 
     // Fetch all keys in a group
     configEntries, _ := storeInstance.GetAll("config")
@@ -53,7 +53,7 @@ func main() {
 
     // Namespace isolation for multi-tenant use
     scopedStore, _ := store.NewScoped(storeInstance, "tenant-42")
-    scopedStore.Set("prefs", "locale", "en-GB")
+    _ = scopedStore.Set("prefs", "locale", "en-GB")
     // Stored internally as group "tenant-42:prefs", key "locale"
 
     // Quota enforcement

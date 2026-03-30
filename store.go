@@ -76,7 +76,10 @@ func New(databasePath string) (*Store, error) {
 func (storeInstance *Store) Close() error {
 	storeInstance.cancelPurge()
 	storeInstance.purgeWaitGroup.Wait()
-	return storeInstance.database.Close()
+	if err := storeInstance.database.Close(); err != nil {
+		return core.E("store.Close", "database close", err)
+	}
+	return nil
 }
 
 // Usage example: `themeValue, err := storeInstance.Get("config", "theme")`
@@ -338,7 +341,11 @@ func (storeInstance *Store) PurgeExpired() (int64, error) {
 	if err != nil {
 		return 0, core.E("store.PurgeExpired", "exec", err)
 	}
-	return deleteResult.RowsAffected()
+	removedRows, rowsAffectedErr := deleteResult.RowsAffected()
+	if rowsAffectedErr != nil {
+		return 0, core.E("store.PurgeExpired", "rows affected", rowsAffectedErr)
+	}
+	return removedRows, nil
 }
 
 // startPurge launches a background goroutine that purges expired entries at the

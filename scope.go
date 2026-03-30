@@ -59,7 +59,7 @@ func (scopedStore *ScopedStore) Get(group, key string) (string, error) {
 
 // Usage example: `_ = scopedStore.Set("config", "theme", "dark")`
 func (scopedStore *ScopedStore) Set(group, key, value string) error {
-	if err := scopedStore.checkQuota(group, key); err != nil {
+	if err := scopedStore.checkQuota("store.ScopedStore.Set", group, key); err != nil {
 		return err
 	}
 	return scopedStore.storeInstance.Set(scopedStore.namespacedGroup(group), key, value)
@@ -67,7 +67,7 @@ func (scopedStore *ScopedStore) Set(group, key, value string) error {
 
 // Usage example: `_ = scopedStore.SetWithTTL("sessions", "token", "abc123", time.Hour)`
 func (scopedStore *ScopedStore) SetWithTTL(group, key, value string, ttl time.Duration) error {
-	if err := scopedStore.checkQuota(group, key); err != nil {
+	if err := scopedStore.checkQuota("store.ScopedStore.SetWithTTL", group, key); err != nil {
 		return err
 	}
 	return scopedStore.storeInstance.SetWithTTL(scopedStore.namespacedGroup(group), key, value, ttl)
@@ -106,7 +106,7 @@ func (scopedStore *ScopedStore) Render(templateSource, group string) (string, er
 // checkQuota verifies that inserting key into group would not exceed the
 // namespace's quota limits. It returns nil if no quota is set or the operation
 // is within bounds. Existing keys (upserts) are not counted as new.
-func (scopedStore *ScopedStore) checkQuota(group, key string) error {
+func (scopedStore *ScopedStore) checkQuota(operation, group, key string) error {
 	if scopedStore.quota.MaxKeys == 0 && scopedStore.quota.MaxGroups == 0 {
 		return nil
 	}
@@ -122,17 +122,17 @@ func (scopedStore *ScopedStore) checkQuota(group, key string) error {
 	}
 	if !core.Is(err, NotFoundError) {
 		// A database error occurred, not just a "not found" result.
-		return core.E("store.ScopedStore", "quota check", err)
+		return core.E(operation, "quota check", err)
 	}
 
 	// Check MaxKeys quota.
 	if scopedStore.quota.MaxKeys > 0 {
 		keyCount, err := scopedStore.storeInstance.CountAll(namespacePrefix)
 		if err != nil {
-			return core.E("store.ScopedStore", "quota check", err)
+			return core.E(operation, "quota check", err)
 		}
 		if keyCount >= scopedStore.quota.MaxKeys {
-			return core.E("store.ScopedStore", core.Sprintf("key limit (%d)", scopedStore.quota.MaxKeys), QuotaExceededError)
+			return core.E(operation, core.Sprintf("key limit (%d)", scopedStore.quota.MaxKeys), QuotaExceededError)
 		}
 	}
 
@@ -140,19 +140,19 @@ func (scopedStore *ScopedStore) checkQuota(group, key string) error {
 	if scopedStore.quota.MaxGroups > 0 {
 		existingGroupCount, err := scopedStore.storeInstance.Count(namespacedGroup)
 		if err != nil {
-			return core.E("store.ScopedStore", "quota check", err)
+			return core.E(operation, "quota check", err)
 		}
 		if existingGroupCount == 0 {
 			// This group is new — check if adding it would exceed the group limit.
 			knownGroupCount := 0
 			for _, iterationErr := range scopedStore.storeInstance.GroupsSeq(namespacePrefix) {
 				if iterationErr != nil {
-					return core.E("store.ScopedStore", "quota check", iterationErr)
+					return core.E(operation, "quota check", iterationErr)
 				}
 				knownGroupCount++
 			}
 			if knownGroupCount >= scopedStore.quota.MaxGroups {
-				return core.E("store.ScopedStore", core.Sprintf("group limit (%d)", scopedStore.quota.MaxGroups), QuotaExceededError)
+				return core.E(operation, core.Sprintf("group limit (%d)", scopedStore.quota.MaxGroups), QuotaExceededError)
 			}
 		}
 	}
