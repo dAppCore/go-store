@@ -31,21 +31,21 @@ func main() {
 
 	st.Set("config", "theme", "dark")
 	st.SetWithTTL("session", "token", "abc123", 24*time.Hour)
-	val, err := st.Get("config", "theme")
-	fmt.Println(val, err)
+	value, err := st.Get("config", "theme")
+	fmt.Println(value, err)
 
 	// Watch for mutations
-	w := st.Watch("config", "*")
-	defer st.Unwatch(w)
+	watcher := st.Watch("config", "*")
+	defer st.Unwatch(watcher)
 	go func() {
-		for e := range w.Events {
-			fmt.Println(e.Type, e.Key)
+		for event := range watcher.Events {
+			fmt.Println(event.Type, event.Key)
 		}
 	}()
 
 	// Scoped store for tenant isolation
-	sc, _ := store.NewScoped(st, "tenant-42")
-	sc.Set("prefs", "locale", "en-GB")
+	scopedStore, _ := store.NewScoped(st, "tenant-42")
+	scopedStore.Set("prefs", "locale", "en-GB")
 }
 ```
 

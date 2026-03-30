@@ -98,7 +98,7 @@ Both return `NotFoundError` if the key does not exist or has expired.
 
 ## Template Rendering
 
-`Render(tmplStr, group)` is a convenience method that fetches all non-expired key-value pairs from a group and renders a Go `text/template` against them. The template data is a `map[string]string` keyed by the field name.
+`Render(templateSource, group)` is a convenience method that fetches all non-expired key-value pairs from a group and renders a Go `text/template` against them. The template data is a `map[string]string` keyed by the field name.
 
 ```go
 st.Set("miner", "pool", "pool.lthn.io:3333")
@@ -145,16 +145,16 @@ Events are emitted synchronously after each successful database write inside the
 | `"mygroup"` | `"*"` | All mutations within the group, including `DeleteGroup` |
 | `"*"` | `"*"` | Every mutation across the entire store |
 
-`Unwatch(w)` removes the watcher from the registry and closes its channel. It is safe to call multiple times; subsequent calls are no-ops.
+`Unwatch(watcher)` removes the watcher from the registry and closes its channel. It is safe to call multiple times; subsequent calls are no-ops.
 
 **Backpressure.** Event dispatch to a watcher channel is non-blocking: if the channel buffer is full, the event is dropped silently. This prevents a slow consumer from blocking a writer. Applications that cannot afford dropped events should drain the channel promptly or use `OnChange` callbacks instead.
 
 ```go
-w := st.Watch("config", "*")
-defer st.Unwatch(w)
+watcher := st.Watch("config", "*")
+defer st.Unwatch(watcher)
 
-for e := range w.Events {
-    fmt.Println(e.Type, e.Group, e.Key, e.Value)
+for event := range watcher.Events {
+    fmt.Println(event.Type, event.Group, event.Key, event.Value)
 }
 ```
 
@@ -186,8 +186,8 @@ Watcher matching is handled by the `watcherMatches` helper, which checks the gro
 `ScopedStore` wraps a `*Store` and automatically prefixes all group names with `namespace + ":"`. This prevents key collisions when multiple tenants share a single underlying database.
 
 ```go
-sc, _ := store.NewScoped(st, "tenant-42")
-sc.Set("config", "theme", "dark")
+scopedStore, _ := store.NewScoped(st, "tenant-42")
+scopedStore.Set("config", "theme", "dark")
 // Stored in underlying store as group="tenant-42:config", key="theme"
 ```
 

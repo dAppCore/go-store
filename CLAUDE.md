@@ -47,28 +47,28 @@ defer st.Close()
 
 st.Set("group", "key", "value")                         // no expiry
 st.SetWithTTL("group", "key", "value", 5*time.Minute)   // expires after TTL
-val, _ := st.Get("group", "key")                         // lazy-deletes expired
+value, _ := st.Get("group", "key")                       // lazy-deletes expired
 st.Delete("group", "key")
 st.DeleteGroup("group")
-all, _ := st.GetAll("group")        // excludes expired
-n, _ := st.Count("group")           // excludes expired
-out, _ := st.Render(tmpl, "group")  // excludes expired
+entries, _ := st.GetAll("group")    // excludes expired
+count, _ := st.Count("group")       // excludes expired
+output, _ := st.Render(tmpl, "group") // excludes expired
 removed, _ := st.PurgeExpired()     // manual purge
 total, _ := st.CountAll("prefix:")  // count keys matching prefix (excludes expired)
-groups, _ := st.Groups("prefix:")   // distinct group names matching prefix
+groupNames, _ := st.Groups("prefix:") // distinct group names matching prefix
 
 // Namespace isolation (auto-prefixes groups with "tenant:")
-sc, _ := store.NewScoped(st, "tenant")
-sc.Set("config", "key", "val")     // stored as "tenant:config" in underlying store
+scopedStore, _ := store.NewScoped(st, "tenant")
+scopedStore.Set("config", "key", "value") // stored as "tenant:config" in underlying store
 
 // With quota enforcement
-sq, _ := store.NewScopedWithQuota(st, "tenant", store.QuotaConfig{MaxKeys: 100, MaxGroups: 10})
-sq.Set("g", "k", "v")             // returns QuotaExceededError if limits hit
+quotaScopedStore, _ := store.NewScopedWithQuota(st, "tenant", store.QuotaConfig{MaxKeys: 100, MaxGroups: 10})
+quotaScopedStore.Set("g", "k", "v") // returns QuotaExceededError if limits hit
 
 // Event hooks
-w := st.Watch("group", "*")       // wildcard: all keys in group ("*","*" for all)
-defer st.Unwatch(w)
-e := <-w.Events                   // buffered chan, cap 16
+watcher := st.Watch("group", "*") // wildcard: all keys in group ("*","*" for all)
+defer st.Unwatch(watcher)
+event := <-watcher.Events         // buffered chan, cap 16
 
 unreg := st.OnChange(func(e store.Event) { /* synchronous in writer goroutine */ })
 defer unreg()

@@ -35,8 +35,8 @@ func main() {
 
     // Basic CRUD
     st.Set("config", "theme", "dark")
-    val, _ := st.Get("config", "theme")
-    core.Println(val) // "dark"
+    value, _ := st.Get("config", "theme")
+    core.Println(value) // "dark"
 
     // TTL expiry -- key disappears after the duration elapses
     st.SetWithTTL("session", "token", "abc123", 24*time.Hour)
@@ -52,21 +52,21 @@ func main() {
     core.Println(out) // "smtp.example.com:587"
 
     // Namespace isolation for multi-tenant use
-    sc, _ := store.NewScoped(st, "tenant-42")
-    sc.Set("prefs", "locale", "en-GB")
+    scopedStore, _ := store.NewScoped(st, "tenant-42")
+    scopedStore.Set("prefs", "locale", "en-GB")
     // Stored internally as group "tenant-42:prefs", key "locale"
 
     // Quota enforcement
     quota := store.QuotaConfig{MaxKeys: 100, MaxGroups: 5}
-    sq, _ := store.NewScopedWithQuota(st, "tenant-99", quota)
-    err = sq.Set("g", "k", "v") // returns store.QuotaExceededError if limits are hit
+    quotaScopedStore, _ := store.NewScopedWithQuota(st, "tenant-99", quota)
+    err = quotaScopedStore.Set("g", "k", "v") // returns store.QuotaExceededError if limits are hit
 
     // Watch for mutations via a buffered channel
-    w := st.Watch("config", "*")
-    defer st.Unwatch(w)
+    watcher := st.Watch("config", "*")
+    defer st.Unwatch(watcher)
     go func() {
-        for e := range w.Events {
-            core.Println("event", e.Type, e.Group, e.Key)
+        for event := range watcher.Events {
+            core.Println("event", event.Type, event.Group, event.Key)
         }
     }()
 
