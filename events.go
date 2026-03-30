@@ -64,8 +64,8 @@ type Watcher struct {
 	registrationID uint64
 }
 
-// changeCallbackRegistration{registrationID: 7, callback: handleConfigChange} keeps one
-// OnChange callback so unregister can remove the exact entry later.
+// changeCallbackRegistration keeps the registration ID so unregister can remove
+// the exact callback later.
 type changeCallbackRegistration struct {
 	registrationID uint64
 	callback       func(Event)

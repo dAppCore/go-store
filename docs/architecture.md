@@ -171,7 +171,7 @@ for event := range watcher.Events {
 
 `OnChange(callback func(Event))` registers a synchronous callback that fires on every mutation. The callback runs in the goroutine that performed the write. Returns an idempotent unregister function.
 
-This is the designed integration point for consumers such as go-ws:
+This is the designed integration point for consumers such as go-crypt and go-devops:
 
 ```go
 unregister := storeInstance.OnChange(func(event store.Event) {
@@ -180,14 +180,14 @@ unregister := storeInstance.OnChange(func(event store.Event) {
 defer unregister()
 ```
 
-go-store does not import go-ws. The dependency flows in one direction only: go-ws (or any consumer) imports go-store.
+go-store does not import downstream consumers such as go-crypt or go-devops. The dependency flows in one direction only: downstream consumers import go-store.
 Callbacks may safely register or unregister watchers and callbacks while handling an event. Dispatch snapshots the callback list before invoking it, so re-entrant subscription management does not deadlock. Offload any significant work to a separate goroutine if needed.
 
 ### Internal Dispatch
 
 The `notify(event Event)` method first acquires the watcher read-lock, iterates all watchers with non-blocking channel sends, then releases the lock. It then acquires the callback read-lock, snapshots the registered callbacks, releases the lock, and invokes each callback synchronously. This keeps watcher delivery non-blocking while allowing callbacks to manage subscriptions re-entrantly.
 
-Watcher matching is handled by the `watcherMatches` helper, which checks the group and key filters against the event. Wildcard `"*"` matches any value in its position.
+Watcher matching is handled by the `watcherMatches` predicate, which checks the group and key filters against the event. Wildcard `"*"` matches any value in its position.
 
 ## Namespace Isolation (ScopedStore)
 
@@ -246,7 +246,7 @@ All operations are safe to call from multiple goroutines concurrently. The race 
 doc.go           Package comment with concrete usage examples
 store.go          Core Store type, CRUD, TTL, background purge, iterators, rendering
 events.go         EventType, Event, Watcher, OnChange, notify
-scope.go          ScopedStore, QuotaConfig, namespace-local helper delegation, quota enforcement
+scope.go          ScopedStore, QuotaConfig, namespace-local method delegation, quota enforcement
 store_test.go     Tests: CRUD, TTL, concurrency, edge cases, persistence
 events_test.go    Tests: Watch, Unwatch, OnChange, event dispatch
 scope_test.go     Tests: namespace isolation, quota enforcement

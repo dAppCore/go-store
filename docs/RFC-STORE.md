@@ -23,7 +23,7 @@ The public surface is intentionally small. Names are descriptive, comments show 
 | `doc.go` | Package comment with concrete usage examples |
 | `store.go` | `Store`, CRUD, TTL, background purge, bulk reads, prefix counts, group discovery, string splitting helpers, template rendering |
 | `events.go` | `EventType`, `Event`, `Watcher`, `Watch`, `Unwatch`, `OnChange`, internal dispatch |
-| `scope.go` | `ScopedStore`, `QuotaConfig`, namespace validation, namespace-local helper delegation, quota enforcement |
+| `scope.go` | `ScopedStore`, `QuotaConfig`, namespace validation, namespace-local method delegation, quota enforcement |
 | `*_test.go` | Behavioural tests for CRUD, TTL, events, quotas, and defensive error paths |
 
 ---

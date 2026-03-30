@@ -536,7 +536,6 @@ func migrateLegacyEntriesTable(database *sql.DB) error {
 	return nil
 }
 
-// tableExists reports whether the named table is present in the SQLite schema.
 func tableExists(database schemaDatabase, tableName string) (bool, error) {
 	var existingTableName string
 	err := database.QueryRow(
@@ -552,7 +551,6 @@ func tableExists(database schemaDatabase, tableName string) (bool, error) {
 	return true, nil
 }
 
-// tableHasColumn reports whether the named column exists on the table.
 func tableHasColumn(database schemaDatabase, tableName, columnName string) (bool, error) {
 	rows, err := database.Query("PRAGMA table_info(" + tableName + ")")
 	if err != nil {

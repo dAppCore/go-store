@@ -114,7 +114,7 @@ The entire package lives in a single Go package (`package store`) with three imp
 | `doc.go` | Package comment with concrete usage examples |
 | `store.go` | Core `Store` type, CRUD operations (`Get`, `Set`, `SetWithTTL`, `Delete`, `DeleteGroup`), bulk queries (`GetAll`, `All`, `Count`, `CountAll`, `Groups`, `GroupsSeq`), string splitting helpers (`GetSplit`, `GetFields`), template rendering (`Render`), TTL expiry, background purge goroutine |
 | `events.go` | `EventType` constants, `Event` struct, `Watcher` type, `Watch`/`Unwatch` subscription management, `OnChange` callback registration, internal `notify` dispatch |
-| `scope.go` | `ScopedStore` wrapper for namespace isolation, `QuotaConfig` struct, `NewScoped`/`NewScopedWithQuota` constructors, namespace-local helper delegation, quota enforcement logic |
+| `scope.go` | `ScopedStore` wrapper for namespace isolation, `QuotaConfig` struct, `NewScoped`/`NewScopedWithQuota` constructors, namespace-local method delegation, quota enforcement logic |
 
 Tests are organised in corresponding files:
 
@@ -140,7 +140,7 @@ Tests are organised in corresponding files:
 |--------|---------|
 | `github.com/stretchr/testify` | Assertion helpers (`assert`, `require`) for tests. |
 
-There are no other direct dependencies. The package uses the Go standard library plus `dappco.re/go/core` helper primitives for error wrapping, string handling, and filesystem-safe path composition.
+There are no other direct dependencies. The package uses the Go standard library plus `dappco.re/go/core` primitives for error wrapping, string handling, and filesystem-safe path composition.
 
 ## Key Types
 
