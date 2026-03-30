@@ -326,7 +326,8 @@ func (storeInstance *Store) GroupsSeq(groupPrefix string) iter.Seq2[string, erro
 	}
 }
 
-// escapeLike escapes SQLite LIKE wildcards and the escape character itself.
+// escapeLike("tenant_%") returns "tenant^_^%" so LIKE queries treat wildcards
+// literally.
 func escapeLike(text string) string {
 	text = core.Replace(text, "^", "^^")
 	text = core.Replace(text, "%", "^%")
@@ -348,8 +349,8 @@ func (storeInstance *Store) PurgeExpired() (int64, error) {
 	return removedRows, nil
 }
 
-// startPurge launches a background goroutine that purges expired entries at the
-// store's configured purge interval. It stops when the context is cancelled.
+// startPurge keeps calling PurgeExpired every 60 seconds until Close cancels
+// the context.
 func (storeInstance *Store) startPurge(purgeContext context.Context) {
 	storeInstance.purgeWaitGroup.Go(func() {
 		ticker := time.NewTicker(storeInstance.purgeInterval)
@@ -370,7 +371,8 @@ func (storeInstance *Store) startPurge(purgeContext context.Context) {
 	})
 }
 
-// splitSeq preserves the iter.Seq API without importing strings directly.
+// splitSeq("red,green,blue", ",") yields "red", "green", "blue" without
+// importing strings directly.
 func splitSeq(value, separator string) iter.Seq[string] {
 	return func(yield func(string) bool) {
 		for _, part := range core.Split(value, separator) {
@@ -381,7 +383,8 @@ func splitSeq(value, separator string) iter.Seq[string] {
 	}
 }
 
-// fieldsSeq yields whitespace-delimited fields without importing strings.
+// fieldsSeq("alpha  beta\tgamma") yields "alpha", "beta", "gamma" without
+// importing strings directly.
 func fieldsSeq(value string) iter.Seq[string] {
 	return func(yield func(string) bool) {
 		start := -1

@@ -56,13 +56,15 @@ type Watcher struct {
 	id    uint64
 }
 
-// changeCallbackRegistration pairs a change callback with its unique ID for unregistration.
+// changeCallbackRegistration keeps a callback and its registration ID together
+// so OnChange can unregister it later.
 type changeCallbackRegistration struct {
 	id       uint64
 	callback func(Event)
 }
 
-// watcherEventBufferCapacity is the capacity of each watcher's buffered channel.
+// Each watcher keeps 16 pending events before non-blocking sends start
+// dropping new ones.
 const watcherEventBufferCapacity = 16
 
 // Usage example: `watcher := storeInstance.Watch("*", "*")`

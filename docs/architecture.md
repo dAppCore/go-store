@@ -91,8 +91,10 @@ All bulk operations (`GetAll`, `All`, `Count`, `Render`, `CountAll`, `Groups`, `
 
 Two convenience methods build on `Get` to return iterators over parts of a stored value:
 
-- **`GetSplit(group, key, sep)`** splits the value by a custom separator, returning an `iter.Seq[string]` via `strings.SplitSeq`.
-- **`GetFields(group, key)`** splits the value by whitespace, returning an `iter.Seq[string]` via `strings.FieldsSeq`.
+- **`GetSplit(group, key, sep)`** splits the value by a custom separator, returning an `iter.Seq[string]` via `core.Split`.
+- **`GetFields(group, key)`** splits the value by whitespace, returning an `iter.Seq[string]` via the package's internal field iterator.
+
+`core.Split` keeps the package free of direct `strings` imports while preserving the same agent-facing API shape.
 
 Both return `NotFoundError` if the key does not exist or has expired.
 
@@ -229,6 +231,7 @@ All operations are safe to call from multiple goroutines concurrently. The race 
 ## File Layout
 
 ```
+doc.go           Package comment with concrete usage examples
 store.go          Core Store type, CRUD, TTL, background purge, iterators, rendering
 events.go         EventType, Event, Watcher, OnChange, notify
 scope.go          ScopedStore, QuotaConfig, quota enforcement
