@@ -29,7 +29,7 @@ type ScopedStore struct {
 // Usage example: `scopedStore, err := store.NewScoped(storeInstance, "tenant-a"); if err != nil { return }`
 func NewScoped(storeInstance *Store, namespace string) (*ScopedStore, error) {
 	if !validNamespace.MatchString(namespace) {
-		return nil, core.E("store.NewScoped", core.Sprintf("namespace %q is invalid (must be non-empty, alphanumeric + hyphens)", namespace), nil)
+		return nil, core.E("store.NewScoped", core.Sprintf("namespace %q is invalid; use names like %q or %q", namespace, "tenant-a", "tenant-42"), nil)
 	}
 	scopedStore := &ScopedStore{storeInstance: storeInstance, namespace: namespace}
 	return scopedStore, nil
@@ -68,11 +68,11 @@ func (scopedStore *ScopedStore) Set(group, key, value string) error {
 }
 
 // Usage example: `if err := scopedStore.SetWithTTL("sessions", "token", "abc123", time.Hour); err != nil { return }`
-func (scopedStore *ScopedStore) SetWithTTL(group, key, value string, ttl time.Duration) error {
+func (scopedStore *ScopedStore) SetWithTTL(group, key, value string, timeToLive time.Duration) error {
 	if err := scopedStore.checkQuota("store.ScopedStore.SetWithTTL", group, key); err != nil {
 		return err
 	}
-	return scopedStore.storeInstance.SetWithTTL(scopedStore.namespacedGroup(group), key, value, ttl)
+	return scopedStore.storeInstance.SetWithTTL(scopedStore.namespacedGroup(group), key, value, timeToLive)
 }
 
 // Usage example: `if err := scopedStore.Delete("config", "theme"); err != nil { return }`

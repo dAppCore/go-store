@@ -36,7 +36,7 @@ func TestCoverage_New_Bad_SchemaConflict(t *testing.T) {
 
 	_, err = New(databasePath)
 	require.Error(t, err, "New should fail when an index named entries already exists")
-	assert.Contains(t, err.Error(), "store.New: schema")
+	assert.Contains(t, err.Error(), "store.New: ensure schema")
 }
 
 // ---------------------------------------------------------------------------

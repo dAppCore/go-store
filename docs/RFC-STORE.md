@@ -36,7 +36,7 @@ The public surface is intentionally small. Names are descriptive, comments show 
 - `Close() error` stops the background purge goroutine and closes the database.
 - `Get(group, key string) (string, error)` returns a stored value or `NotFoundError`.
 - `Set(group, key, value string) error` stores a value and clears any existing TTL.
-- `SetWithTTL(group, key, value string, ttl time.Duration) error` stores a value that expires after the supplied duration.
+- `SetWithTTL(group, key, value string, timeToLive time.Duration) error` stores a value that expires after the supplied duration.
 - `Delete(group, key string) error` removes one key.
 - `DeleteGroup(group string) error` removes every key in a group.
 - `Count(group string) (int, error)` counts non-expired keys in one group.

@@ -116,7 +116,7 @@ if err != nil {
 // renderedTemplate: {"pool":"pool.lthn.io:3333","wallet":"iz..."}
 ```
 
-Template parse errors and execution errors are both returned as wrapped errors with context (e.g., `store.Render: parse: ...` and `store.Render: exec: ...`).
+Template parse errors and execution errors are both returned as wrapped errors with context (e.g., `store.Render: parse template: ...` and `store.Render: execute template: ...`).
 
 Missing template variables do not return an error by default -- Go's `text/template` renders them as `<no value>`. Applications requiring strict variable presence should validate data beforehand.
 

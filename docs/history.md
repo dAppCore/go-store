@@ -64,7 +64,7 @@ Added optional time-to-live for keys.
 ### Changes
 
 - `expires_at INTEGER` nullable column added to the key-value schema.
-- `SetWithTTL(group, key, value string, ttl time.Duration)` stores the current time plus TTL as a Unix millisecond timestamp in `expires_at`.
+- `SetWithTTL(group, key, value string, timeToLive time.Duration)` stores the current time plus TTL as a Unix millisecond timestamp in `expires_at`.
 - `Get()` performs lazy deletion: if a key is found with an `expires_at` in the past, it is deleted and `NotFoundError` is returned.
 - `Count()`, `GetAll()`, and `Render()` include `(expires_at IS NULL OR expires_at > ?)` in all queries, excluding expired keys from results.
 - `PurgeExpired()` public method deletes all physically stored expired rows and returns the count removed.
@@ -186,11 +186,11 @@ Renamed the internal SQLite schema to use descriptive names that are easier for 
 
 `coverage_test.go` exercises defensive error paths that integration tests cannot reach through normal usage:
 
-- Schema conflict: pre-existing SQLite index named `entries` causes `New()` to return `store.New: schema: ...`.
-- `GetAll` scan error: NULL key in a row (requires manually altering the schema to remove the NOT NULL constraint).
-- `GetAll` rows iteration error: physically corrupting database pages mid-file to trigger `rows.Err()` during multi-page scans.
-- `Render` scan error: same NULL-key technique.
-- `Render` rows iteration error: same corruption technique.
+- Schema conflict: pre-existing SQLite index named `entries` causes `New()` to return `store.New: ensure schema: ...`.
+- `GetAll` scan error: NULL key in a row (requires manually altering the schema to remove the NOT NULL constraint) to trigger `store.All: scan row: ...`.
+- `GetAll` rows iteration error: physically corrupting database pages mid-file to trigger `store.All: rows iteration: ...`.
+- `Render` scan error: same NULL-key technique, surfaced as `store.All: scan row: ...`.
+- `Render` rows iteration error: same corruption technique, surfaced as `store.All: rows iteration: ...`.
 
 These tests exercise correct defensive code. They must continue to pass but are not indicative of real failure modes in production.
 

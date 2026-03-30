@@ -157,9 +157,9 @@ func TestScope_ScopedStore_Good_GetAll(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, map[string]string{"x": "1", "y": "2"}, all)
 
-	allB, err := betaStore.GetAll("items")
+	betaEntries, err := betaStore.GetAll("items")
 	require.NoError(t, err)
-	assert.Equal(t, map[string]string{"z": "3"}, allB)
+	assert.Equal(t, map[string]string{"z": "3"}, betaEntries)
 }
 
 func TestScope_ScopedStore_Good_All(t *testing.T) {
