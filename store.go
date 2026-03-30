@@ -169,7 +169,10 @@ func (storeInstance *Store) DeleteGroup(group string) error {
 
 // Usage example: `for entry, err := range storeInstance.All("config") { if err != nil { break }; core.Println(entry.Key, entry.Value) }`
 type KeyValue struct {
-	Key, Value string
+	// Usage example: `if entry.Key == "theme" { return }`
+	Key string
+	// Usage example: `if entry.Value == "dark" { return }`
+	Value string
 }
 
 // Usage example: `configEntries, err := storeInstance.GetAll("config")`

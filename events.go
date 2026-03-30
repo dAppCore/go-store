@@ -36,10 +36,15 @@ func (t EventType) String() string {
 // Usage example: `event := store.Event{Type: store.EventSet, Group: "config", Key: "theme", Value: "dark"}`
 // Usage example: `event := store.Event{Type: store.EventDeleteGroup, Group: "config"}`
 type Event struct {
-	Type      EventType
-	Group     string
-	Key       string
-	Value     string
+	// Usage example: `if event.Type == store.EventDeleteGroup { return }`
+	Type EventType
+	// Usage example: `if event.Group == "config" { return }`
+	Group string
+	// Usage example: `if event.Key == "theme" { return }`
+	Key string
+	// Usage example: `if event.Value == "dark" { return }`
+	Value string
+	// Usage example: `if event.Timestamp.IsZero() { return }`
 	Timestamp time.Time
 }
 
