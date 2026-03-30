@@ -63,14 +63,14 @@ Added optional time-to-live for keys.
 
 ### Changes
 
-- `expires_at INTEGER` nullable column added to the `kv` schema.
+- `expires_at INTEGER` nullable column added to the key-value schema.
 - `SetWithTTL(group, key, value string, ttl time.Duration)` stores the current time plus TTL as a Unix millisecond timestamp in `expires_at`.
 - `Get()` performs lazy deletion: if a key is found with an `expires_at` in the past, it is deleted and `NotFoundError` is returned.
 - `Count()`, `GetAll()`, and `Render()` include `(expires_at IS NULL OR expires_at > ?)` in all queries, excluding expired keys from results.
 - `PurgeExpired()` public method deletes all physically stored expired rows and returns the count removed.
 - Background goroutine calls `PurgeExpired()` every 60 seconds, controlled by a `context.WithCancel` that is cancelled on `Close()`.
 - `Set()` clears any existing TTL when overwriting a key (sets `expires_at = NULL`).
-- Schema migration: `ALTER TABLE kv ADD COLUMN expires_at INTEGER` runs on `New()`. The "duplicate column" error on already-upgraded databases is silently ignored.
+- Schema migration: `ALTER TABLE entries ADD COLUMN expires_at INTEGER` runs on `New()`. The "duplicate column" error on already-upgraded databases is silently ignored.
 
 ### Tests added
 
@@ -117,14 +117,14 @@ Added a reactive notification system for store mutations.
 
 ### Changes
 
-- `events.go` introduced with `EventType` (`EventSet`, `EventDelete`, `EventDeleteGroup`), `Event` struct, `Watcher` struct, `callbackEntry` struct.
-- `watcherBufferSize = 16` constant.
+- `events.go` introduced with `EventType` (`EventSet`, `EventDelete`, `EventDeleteGroup`), `Event` struct, `Watcher` struct, `changeCallbackRegistration` struct.
+- `watcherEventBufferCapacity = 16` constant.
 - `Watch(group, key string) *Watcher`: creates a buffered channel watcher. Wildcard `"*"` supported for both group and key. Uses `atomic.AddUint64` for monotonic watcher IDs.
-- `Unwatch(w *Watcher)`: removes watcher from the registry and closes its channel. Idempotent.
-- `OnChange(fn func(Event)) func()`: registers a synchronous callback. Returns an idempotent unregister function using `sync.Once`.
-- `notify(e Event)`: internal dispatch. Acquires read-lock on `s.mu`; non-blocking send to each matching watcher channel (drop-on-full); calls each callback synchronously. Separate `watcherMatches` helper handles wildcard logic.
+- `Unwatch(watcher *Watcher)`: removes watcher from the registry and closes its channel. Idempotent.
+- `OnChange(callback func(Event)) func()`: registers a synchronous callback. Returns an idempotent unregister function using `sync.Once`.
+- `notify(event Event)`: internal dispatch. Acquires read-lock on `watchersLock`; non-blocking send to each matching watcher channel (drop-on-full); calls each callback synchronously. Separate `watcherMatches` helper handles wildcard logic.
 - `Set()`, `SetWithTTL()`, `Delete()`, `DeleteGroup()` each call `notify()` after the successful database write.
-- `Store` struct extended with `watchers []*Watcher`, `callbacks []callbackEntry`, `mu sync.RWMutex`, `nextID uint64`.
+- `Store` struct extended with `watchers []*Watcher`, `callbacks []changeCallbackRegistration`, `watchersLock sync.RWMutex`, `callbacksLock sync.RWMutex`, `nextWatcherID uint64`, `nextCallbackID uint64`.
 - ScopedStore mutations automatically emit events with the full prefixed group name — no extra implementation required.
 
 ### Tests added
@@ -175,9 +175,9 @@ Renamed the internal SQLite schema to use descriptive names that are easier for 
 
 ### Changes
 
-- Replaced the abbreviated `kv` table with the descriptive `entries` table.
+- Replaced the abbreviated key-value table with the descriptive `entries` table.
 - Renamed the `grp`, `key`, and `value` schema columns to `group_name`, `entry_key`, and `entry_value`.
-- Added a startup migration that copies legacy `kv` databases into the new schema and preserves TTL data when present.
+- Added a startup migration that copies legacy key-value databases into the new schema and preserves TTL data when present.
 - Kept the public Go API unchanged; the migration only affects the internal storage layout.
 
 ---

@@ -40,7 +40,7 @@ CREATE TABLE IF NOT EXISTS entries (
 
 The compound primary key `(group_name, entry_key)` enforces uniqueness per group-key pair and provides efficient indexed lookups. The `expires_at` column stores a Unix millisecond timestamp (nullable); a `NULL` value means the key never expires.
 
-**Schema migration.** Databases created before the AX schema rename used a legacy `kv` table. On `New()`, go-store migrates that legacy table into `entries`, preserving rows and copying the expiry data when present. Databases that already have `entries` but lack `expires_at` still receive an additive `ALTER TABLE entries ADD COLUMN expires_at INTEGER` migration; if the column already exists, SQLite returns a "duplicate column" error which is silently ignored.
+**Schema migration.** Databases created before the AX schema rename used a legacy key-value table. On `New()`, go-store migrates that legacy table into `entries`, preserving rows and copying the expiry data when present. Databases that already have `entries` but lack `expires_at` still receive an additive `ALTER TABLE entries ADD COLUMN expires_at INTEGER` migration; if the column already exists, SQLite returns a "duplicate column" error which is silently ignored.
 
 ## Group/Key Model
 
@@ -169,7 +169,7 @@ for event := range watcher.Events {
 
 ### OnChange Callbacks
 
-`OnChange(fn func(Event))` registers a synchronous callback that fires on every mutation. The callback runs in the goroutine that performed the write. Returns an idempotent unregister function.
+`OnChange(callback func(Event))` registers a synchronous callback that fires on every mutation. The callback runs in the goroutine that performed the write. Returns an idempotent unregister function.
 
 This is the designed integration point for consumers such as go-ws:
 
@@ -233,8 +233,8 @@ Exceeding a limit returns `QuotaExceededError`.
 
 All SQLite access is serialised through a single connection (`SetMaxOpenConns(1)`). The store's event registry uses two separate `sync.RWMutex` instances: `watchersLock` for watcher registration and dispatch, and `callbacksLock` for callback registration and dispatch. These locks do not interact:
 
-- DB writes acquire no application-level lock.
-- `notify()` acquires `watchersLock` (read) after the DB write completes, then `callbacksLock` (read) to snapshot callbacks.
+- Database writes acquire no application-level lock.
+- `notify()` acquires `watchersLock` (read) after the database write completes, then `callbacksLock` (read) to snapshot callbacks.
 - `Watch`/`Unwatch` acquire `watchersLock` (write) to modify watcher registrations.
 - `OnChange` acquires `callbacksLock` (write) to modify callback registrations.
 

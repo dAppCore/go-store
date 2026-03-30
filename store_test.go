@@ -68,7 +68,7 @@ func TestStore_New_Bad_ReadOnlyDir(t *testing.T) {
 	dir := t.TempDir()
 	dbPath := core.Path(dir, "readonly.db")
 
-	// Create a valid DB first, then make the directory read-only.
+	// Create a valid database first, then make the directory read-only.
 	s, err := New(dbPath)
 	require.NoError(t, err)
 	require.NoError(t, s.Close())
@@ -1262,7 +1262,7 @@ func TestStore_SchemaUpgrade_Good_LegacyAndCurrentTables(t *testing.T) {
 
 func TestStore_SchemaUpgrade_Good_PreTTLDatabase(t *testing.T) {
 	// Simulate a database created before the AX schema rename and TTL support.
-	// The legacy kv table has no expires_at column yet.
+	// The legacy key-value table has no expires_at column yet.
 	dbPath := testPath(t, "pre-ttl.db")
 	db, err := sql.Open("sqlite", dbPath)
 	require.NoError(t, err)

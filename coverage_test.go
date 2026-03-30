@@ -107,7 +107,7 @@ func TestCoverage_GetAll_Bad_RowsError(t *testing.T) {
 	for i := range garbage {
 		garbage[i] = 0xFF
 	}
-	require.Greater(t, len(data), len(garbage)*2, "DB should be large enough to corrupt")
+	require.Greater(t, len(data), len(garbage)*2, "database file should be large enough to corrupt")
 	offset := len(data) * 3 / 4
 	maxOffset := len(data) - (len(garbage) * 2)
 	if offset > maxOffset {
@@ -194,7 +194,7 @@ func TestCoverage_Render_Bad_RowsError(t *testing.T) {
 	for i := range garbage {
 		garbage[i] = 0xFF
 	}
-	require.Greater(t, len(data), len(garbage)*2, "DB should be large enough to corrupt")
+	require.Greater(t, len(data), len(garbage)*2, "database file should be large enough to corrupt")
 	offset := len(data) * 3 / 4
 	maxOffset := len(data) - (len(garbage) * 2)
 	if offset > maxOffset {

@@ -20,11 +20,11 @@ var NotFoundError = core.E("store", "not found", nil)
 var QuotaExceededError = core.E("store", "quota exceeded", nil)
 
 const (
-	entriesTableName       = "entries"
-	legacyEntriesTableName = "kv"
-	entryGroupColumn       = "group_name"
-	entryKeyColumn         = "entry_key"
-	entryValueColumn       = "entry_value"
+	entriesTableName        = "entries"
+	legacyKeyValueTableName = "kv"
+	entryGroupColumn        = "group_name"
+	entryKeyColumn          = "entry_key"
+	entryValueColumn        = "entry_value"
 )
 
 // Usage example: `storeInstance, err := store.New(":memory:"); if err != nil { return }; if err := storeInstance.Set("config", "theme", "dark"); err != nil { return }`
@@ -428,15 +428,15 @@ const createEntriesTableSQL = `CREATE TABLE IF NOT EXISTS entries (
 	PRIMARY KEY (group_name, entry_key)
 )`
 
-// ensureSchema creates the current entries table and migrates the legacy kv
-// table when present.
+// ensureSchema creates the current entries table and migrates the legacy
+// key-value table when present.
 func ensureSchema(database *sql.DB) error {
 	entriesTableExists, err := tableExists(database, entriesTableName)
 	if err != nil {
 		return core.E("store.New", "schema", err)
 	}
 
-	legacyEntriesTableExists, err := tableExists(database, legacyEntriesTableName)
+	legacyEntriesTableExists, err := tableExists(database, legacyKeyValueTableName)
 	if err != nil {
 		return core.E("store.New", "schema", err)
 	}
@@ -484,7 +484,7 @@ func ensureExpiryColumn(database schemaDatabase) error {
 	return nil
 }
 
-// migrateLegacyEntriesTable copies rows from the old kv table into the
+// migrateLegacyEntriesTable copies rows from the old key-value table into the
 // descriptive entries schema and then removes the legacy table.
 func migrateLegacyEntriesTable(database *sql.DB) error {
 	transaction, err := database.Begin()
@@ -511,19 +511,19 @@ func migrateLegacyEntriesTable(database *sql.DB) error {
 		}
 	}
 
-	legacyHasExpiryColumn, err := tableHasColumn(transaction, legacyEntriesTableName, "expires_at")
+	legacyHasExpiryColumn, err := tableHasColumn(transaction, legacyKeyValueTableName, "expires_at")
 	if err != nil {
 		return err
 	}
 
-	insertSQL := "INSERT OR IGNORE INTO " + entriesTableName + " (" + entryGroupColumn + ", " + entryKeyColumn + ", " + entryValueColumn + ", expires_at) SELECT grp, key, value, NULL FROM " + legacyEntriesTableName
+	insertSQL := "INSERT OR IGNORE INTO " + entriesTableName + " (" + entryGroupColumn + ", " + entryKeyColumn + ", " + entryValueColumn + ", expires_at) SELECT grp, key, value, NULL FROM " + legacyKeyValueTableName
 	if legacyHasExpiryColumn {
-		insertSQL = "INSERT OR IGNORE INTO " + entriesTableName + " (" + entryGroupColumn + ", " + entryKeyColumn + ", " + entryValueColumn + ", expires_at) SELECT grp, key, value, expires_at FROM " + legacyEntriesTableName
+		insertSQL = "INSERT OR IGNORE INTO " + entriesTableName + " (" + entryGroupColumn + ", " + entryKeyColumn + ", " + entryValueColumn + ", expires_at) SELECT grp, key, value, expires_at FROM " + legacyKeyValueTableName
 	}
 	if _, err := transaction.Exec(insertSQL); err != nil {
 		return err
 	}
-	if _, err := transaction.Exec("DROP TABLE " + legacyEntriesTableName); err != nil {
+	if _, err := transaction.Exec("DROP TABLE " + legacyKeyValueTableName); err != nil {
 		return err
 	}
 	if err := transaction.Commit(); err != nil {

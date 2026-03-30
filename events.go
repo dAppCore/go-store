@@ -61,8 +61,8 @@ type Watcher struct {
 	id    uint64
 }
 
-// changeCallbackRegistration{id: 7, callback: fn} keeps one OnChange callback
-// so unregister can remove the exact entry later.
+// changeCallbackRegistration{id: 7, callback: handleConfigChange} keeps one
+// OnChange callback so unregister can remove the exact entry later.
 type changeCallbackRegistration struct {
 	id       uint64
 	callback func(Event)
@@ -159,7 +159,8 @@ func (storeInstance *Store) notify(event Event) {
 	}
 }
 
-// watcherMatches reports whether a watcher's filter matches the given event.
+// watcherMatches reports whether Watch("config", "*") should receive
+// Event{Group: "config", Key: "theme"}.
 func watcherMatches(watcher *Watcher, event Event) bool {
 	if watcher.group != "*" && watcher.group != event.Group {
 		return false
