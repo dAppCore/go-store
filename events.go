@@ -11,13 +11,10 @@ import (
 type EventType int
 
 const (
-	// EventSet indicates a key was created or updated.
 	// Usage example: `if event.Type == store.EventSet { return }`
 	EventSet EventType = iota
-	// EventDelete indicates a single key was removed.
 	// Usage example: `if event.Type == store.EventDelete { return }`
 	EventDelete
-	// EventDeleteGroup indicates all keys in a group were removed.
 	// Usage example: `if event.Type == store.EventDeleteGroup { return }`
 	EventDeleteGroup
 )
@@ -38,7 +35,6 @@ func (t EventType) String() string {
 
 // Usage example: `event := store.Event{Type: store.EventSet, Group: "config", Key: "theme", Value: "dark"}`
 // Usage example: `event := store.Event{Type: store.EventDeleteGroup, Group: "config"}`
-// EventDeleteGroup leaves Key and Value empty.
 type Event struct {
 	Type      EventType
 	Group     string
@@ -69,8 +65,7 @@ type changeCallbackRegistration struct {
 // watcherEventBufferCapacity is the capacity of each watcher's buffered channel.
 const watcherEventBufferCapacity = 16
 
-// Usage example: `watcher := storeInstance.Watch("config", "*")`
-// `("*", "*")` matches every mutation and the watcher buffer holds 16 events.
+// Usage example: `watcher := storeInstance.Watch("*", "*")`
 func (storeInstance *Store) Watch(group, key string) *Watcher {
 	eventChannel := make(chan Event, watcherEventBufferCapacity)
 	watcher := &Watcher{
@@ -89,7 +84,6 @@ func (storeInstance *Store) Watch(group, key string) *Watcher {
 }
 
 // Usage example: `storeInstance.Unwatch(watcher)`
-// Safe to call multiple times; subsequent calls are no-ops.
 func (storeInstance *Store) Unwatch(watcher *Watcher) {
 	if watcher == nil {
 		return
@@ -107,8 +101,7 @@ func (storeInstance *Store) Unwatch(watcher *Watcher) {
 	})
 }
 
-// Usage example: `unregister := storeInstance.OnChange(func(event store.Event) { hub.SendToChannel("store-events", event) }); defer unregister()`
-// Callbacks run synchronously in the writer goroutine, so keep heavy work out of the handler.
+// Usage example: `events := make(chan store.Event, 1); unregister := storeInstance.OnChange(func(event store.Event) { events <- event }); defer unregister()`
 func (storeInstance *Store) OnChange(callback func(Event)) func() {
 	registrationID := atomic.AddUint64(&storeInstance.nextRegistrationID, 1)
 	callbackRegistration := changeCallbackRegistration{id: registrationID, callback: callback}

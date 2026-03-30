@@ -11,14 +11,12 @@ import (
 // validNamespace matches alphanumeric characters and hyphens (non-empty).
 var validNamespace = regexp.MustCompile(`^[a-zA-Z0-9-]+$`)
 
-// Zero values mean unlimited.
 // Usage example: `quota := store.QuotaConfig{MaxKeys: 100, MaxGroups: 10}`
 type QuotaConfig struct {
 	MaxKeys   int // maximum total keys across all groups in the namespace
 	MaxGroups int // maximum distinct groups in the namespace
 }
 
-// Group names are prefixed with namespace + ":" before reaching the underlying store.
 // Usage example: `scopedStore, _ := store.NewScoped(storeInstance, "tenant-a"); _ = scopedStore.Set("config", "theme", "dark")`
 type ScopedStore struct {
 	storeInstance *Store
@@ -26,7 +24,6 @@ type ScopedStore struct {
 	quota         QuotaConfig
 }
 
-// Namespaces must be non-empty and contain only alphanumeric characters and hyphens.
 // Usage example: `scopedStore, _ := store.NewScoped(storeInstance, "tenant-a")`
 func NewScoped(storeInstance *Store, namespace string) (*ScopedStore, error) {
 	if !validNamespace.MatchString(namespace) {
@@ -36,7 +33,6 @@ func NewScoped(storeInstance *Store, namespace string) (*ScopedStore, error) {
 	return scopedStore, nil
 }
 
-// Quotas are checked before new keys or groups are created.
 // Usage example: `scopedStore, _ := store.NewScopedWithQuota(storeInstance, "tenant-a", store.QuotaConfig{MaxKeys: 100, MaxGroups: 10})`
 func NewScopedWithQuota(storeInstance *Store, namespace string, quota QuotaConfig) (*ScopedStore, error) {
 	scopedStore, err := NewScoped(storeInstance, namespace)
@@ -47,7 +43,6 @@ func NewScopedWithQuota(storeInstance *Store, namespace string, quota QuotaConfi
 	return scopedStore, nil
 }
 
-// namespacedGroup returns the group name with the namespace prefix applied.
 func (scopedStore *ScopedStore) namespacedGroup(group string) string {
 	return scopedStore.namespace + ":" + group
 }
@@ -62,8 +57,7 @@ func (scopedStore *ScopedStore) Get(group, key string) (string, error) {
 	return scopedStore.storeInstance.Get(scopedStore.namespacedGroup(group), key)
 }
 
-// Quota checks happen before inserting new keys or groups.
-// Usage example: `err := scopedStore.Set("config", "theme", "dark")`
+// Usage example: `_ = scopedStore.Set("config", "theme", "dark")`
 func (scopedStore *ScopedStore) Set(group, key, value string) error {
 	if err := scopedStore.checkQuota(group, key); err != nil {
 		return err
@@ -71,8 +65,7 @@ func (scopedStore *ScopedStore) Set(group, key, value string) error {
 	return scopedStore.storeInstance.Set(scopedStore.namespacedGroup(group), key, value)
 }
 
-// Quota checks happen before inserting new keys or groups, even when the value expires later.
-// Usage example: `err := scopedStore.SetWithTTL("sessions", "token", "abc", time.Hour)`
+// Usage example: `_ = scopedStore.SetWithTTL("sessions", "token", "abc123", time.Hour)`
 func (scopedStore *ScopedStore) SetWithTTL(group, key, value string, ttl time.Duration) error {
 	if err := scopedStore.checkQuota(group, key); err != nil {
 		return err
@@ -80,12 +73,12 @@ func (scopedStore *ScopedStore) SetWithTTL(group, key, value string, ttl time.Du
 	return scopedStore.storeInstance.SetWithTTL(scopedStore.namespacedGroup(group), key, value, ttl)
 }
 
-// Usage example: `err := scopedStore.Delete("config", "theme")`
+// Usage example: `_ = scopedStore.Delete("config", "theme")`
 func (scopedStore *ScopedStore) Delete(group, key string) error {
 	return scopedStore.storeInstance.Delete(scopedStore.namespacedGroup(group), key)
 }
 
-// Usage example: `err := scopedStore.DeleteGroup("cache")`
+// Usage example: `_ = scopedStore.DeleteGroup("cache")`
 func (scopedStore *ScopedStore) DeleteGroup(group string) error {
 	return scopedStore.storeInstance.DeleteGroup(scopedStore.namespacedGroup(group))
 }
