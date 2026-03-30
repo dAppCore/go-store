@@ -172,6 +172,22 @@ func TestEvents_Watch_Good_DeleteEvent(t *testing.T) {
 	}
 }
 
+func TestEvents_Watch_Good_DeleteMissingKeyDoesNotEmitEvent(t *testing.T) {
+	storeInstance, _ := New(":memory:")
+	defer storeInstance.Close()
+
+	watcher := storeInstance.Watch("*", "*")
+	defer storeInstance.Unwatch(watcher)
+
+	require.NoError(t, storeInstance.Delete("g", "missing"))
+
+	select {
+	case event := <-watcher.Events:
+		t.Fatalf("unexpected event for missing key delete: %+v", event)
+	default:
+	}
+}
+
 // ---------------------------------------------------------------------------
 // DeleteGroup triggers event
 // ---------------------------------------------------------------------------
@@ -199,6 +215,22 @@ func TestEvents_Watch_Good_DeleteGroupEvent(t *testing.T) {
 		assert.Empty(t, event.Key, "DeleteGroup events should have empty Key")
 	case <-time.After(time.Second):
 		t.Fatal("timed out waiting for delete_group event")
+	}
+}
+
+func TestEvents_Watch_Good_DeleteMissingGroupDoesNotEmitEvent(t *testing.T) {
+	storeInstance, _ := New(":memory:")
+	defer storeInstance.Close()
+
+	watcher := storeInstance.Watch("*", "*")
+	defer storeInstance.Unwatch(watcher)
+
+	require.NoError(t, storeInstance.DeleteGroup("missing"))
+
+	select {
+	case event := <-watcher.Events:
+		t.Fatalf("unexpected event for missing group delete: %+v", event)
+	default:
 	}
 }
 
