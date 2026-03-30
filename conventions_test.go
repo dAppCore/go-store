@@ -124,6 +124,53 @@ func TestConventions_Exports_Good_UsageExamples(t *testing.T) {
 	assert.Empty(t, missing, "exported declarations must include a usage example in their doc comment")
 }
 
+func TestConventions_Exports_Good_NoCompatibilityAliases(t *testing.T) {
+	files := repoGoFiles(t, func(name string) bool {
+		return core.HasSuffix(name, ".go") && !core.HasSuffix(name, "_test.go")
+	})
+
+	var invalid []string
+	for _, path := range files {
+		file := parseGoFile(t, path)
+		for _, decl := range file.Decls {
+			switch node := decl.(type) {
+			case *ast.GenDecl:
+				for _, spec := range node.Specs {
+					switch item := spec.(type) {
+					case *ast.TypeSpec:
+						if item.Name.Name == "KV" {
+							invalid = append(invalid, core.Concat(path, ": ", item.Name.Name))
+						}
+						if item.Name.Name != "Watcher" {
+							continue
+						}
+						structType, ok := item.Type.(*ast.StructType)
+						if !ok {
+							continue
+						}
+						for _, field := range structType.Fields.List {
+							for _, name := range field.Names {
+								if name.Name == "Ch" {
+									invalid = append(invalid, core.Concat(path, ": Watcher.Ch"))
+								}
+							}
+						}
+					case *ast.ValueSpec:
+						for _, name := range item.Names {
+							if name.Name == "ErrNotFound" || name.Name == "ErrQuotaExceeded" {
+								invalid = append(invalid, core.Concat(path, ": ", name.Name))
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
+	slices.Sort(invalid)
+	assert.Empty(t, invalid, "legacy compatibility aliases should not appear in the public Go API")
+}
+
 func repoGoFiles(t *testing.T, keep func(name string) bool) []string {
 	t.Helper()
 

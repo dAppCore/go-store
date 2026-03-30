@@ -17,17 +17,9 @@ import (
 // Usage example: `if core.Is(err, store.NotFoundError) { return }`
 var NotFoundError = core.E("store", "not found", nil)
 
-// ErrNotFound is a compatibility alias for NotFoundError.
-// Usage example: `if core.Is(err, store.ErrNotFound) { return }`
-var ErrNotFound = NotFoundError
-
 // QuotaExceededError is returned when a namespace quota limit is reached.
 // Usage example: `if core.Is(err, store.QuotaExceededError) { return }`
 var QuotaExceededError = core.E("store", "quota exceeded", nil)
-
-// ErrQuotaExceeded is a compatibility alias for QuotaExceededError.
-// Usage example: `if core.Is(err, store.ErrQuotaExceeded) { return }`
-var ErrQuotaExceeded = QuotaExceededError
 
 // Store is a group-namespaced key-value store backed by SQLite.
 // Usage example: `st, _ := store.New(":memory:")`
@@ -195,10 +187,6 @@ func (s *Store) DeleteGroup(group string) error {
 type KeyValue struct {
 	Key, Value string
 }
-
-// KV is a compatibility alias for KeyValue.
-// Usage example: `item := store.KV{Key: "theme", Value: "dark"}`
-type KV = KeyValue
 
 // GetAll returns all non-expired key-value pairs in a group.
 // Usage example: `all, err := st.GetAll("config")`

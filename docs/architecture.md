@@ -137,7 +137,7 @@ Events are emitted synchronously after each successful database write inside the
 
 ### Watch/Unwatch
 
-`Watch(group, key)` creates a `Watcher` with a buffered channel (`Events <-chan Event`, capacity 16). `Ch` remains as a compatibility alias.
+`Watch(group, key)` creates a `Watcher` with a buffered channel (`Events <-chan Event`, capacity 16).
 
 | group argument | key argument | Receives |
 |---|---|---|

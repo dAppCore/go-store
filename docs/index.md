@@ -120,13 +120,13 @@ There are no other direct dependencies. The package uses the Go standard library
 - **`ScopedStore`** -- wraps a `*Store` with an auto-prefixed namespace. Provides the same API surface with group names transparently prefixed.
 - **`QuotaConfig`** -- configures per-namespace limits on total keys and distinct groups.
 - **`Event`** -- describes a single store mutation (type, group, key, value, timestamp).
-- **`Watcher`** -- a channel-based subscription to store events, created by `Watch`. `Events` is the primary read-only channel; `Ch` remains as a compatibility alias.
-- **`KeyValue`** -- a simple key-value pair struct, used by the `All` iterator. `KV` remains as a compatibility alias.
+- **`Watcher`** -- a channel-based subscription to store events, created by `Watch`. `Events` is the read-only channel to select on.
+- **`KeyValue`** -- a simple key-value pair struct, used by the `All` iterator.
 
 ## Sentinel Errors
 
-- **`NotFoundError`** -- returned by `Get` when the requested key does not exist or has expired. `ErrNotFound` remains as a compatibility alias.
-- **`QuotaExceededError`** -- returned by `ScopedStore.Set`/`SetWithTTL` when a namespace quota limit is reached. `ErrQuotaExceeded` remains as a compatibility alias.
+- **`NotFoundError`** -- returned by `Get` when the requested key does not exist or has expired.
+- **`QuotaExceededError`** -- returned by `ScopedStore.Set`/`SetWithTTL` when a namespace quota limit is reached.
 
 ## Further Reading
 

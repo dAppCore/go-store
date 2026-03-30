@@ -51,14 +51,11 @@ type Event struct {
 
 // Watcher receives events matching a group/key filter. Use Store.Watch to
 // create one and Store.Unwatch to stop delivery. Events is the primary
-// read-only channel; Ch remains for compatibility.
+// read-only channel.
 // Usage example: `watcher := st.Watch("config", "*"); for event := range watcher.Events { _ = event }`
 type Watcher struct {
 	// Events is the public read-only channel that consumers select on.
 	Events <-chan Event
-
-	// Ch is a compatibility alias for Events.
-	Ch <-chan Event
 
 	// ch is the internal write channel (same underlying channel as Events).
 	ch chan Event
@@ -86,7 +83,6 @@ func (s *Store) Watch(group, key string) *Watcher {
 	ch := make(chan Event, watcherBufferSize)
 	w := &Watcher{
 		Events: ch,
-		Ch:     ch,
 		ch:     ch,
 		group:  group,
 		key:    key,

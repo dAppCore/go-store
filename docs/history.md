@@ -65,7 +65,7 @@ Added optional time-to-live for keys.
 
 - `expires_at INTEGER` nullable column added to the `kv` schema.
 - `SetWithTTL(group, key, value string, ttl time.Duration)` stores the current time plus TTL as a Unix millisecond timestamp in `expires_at`.
-- `Get()` performs lazy deletion: if a key is found with an `expires_at` in the past, it is deleted and `NotFoundError` is returned (`ErrNotFound` remains as a compatibility alias).
+- `Get()` performs lazy deletion: if a key is found with an `expires_at` in the past, it is deleted and `NotFoundError` is returned.
 - `Count()`, `GetAll()`, and `Render()` include `(expires_at IS NULL OR expires_at > ?)` in all queries, excluding expired keys from results.
 - `PurgeExpired()` public method deletes all physically stored expired rows and returns the count removed.
 - Background goroutine calls `PurgeExpired()` every 60 seconds, controlled by a `context.WithCancel` that is cancelled on `Close()`.
@@ -95,7 +95,7 @@ Added `ScopedStore` for multi-tenant namespace isolation.
 - All `Store` methods delegated with group automatically prefixed as `namespace + ":" + group`.
 - `QuotaConfig{MaxKeys, MaxGroups int}` struct; zero means unlimited.
 - `NewScopedWithQuota(store, namespace, quota)` constructor.
-- `QuotaExceededError` sentinel error (`ErrQuotaExceeded` remains as a compatibility alias).
+- `QuotaExceededError` sentinel error.
 - `checkQuota(group, key)` internal method: skips upserts (existing key), checks `CountAll(namespace+":")` against `MaxKeys`, checks `Groups(namespace+":")` against `MaxGroups` only when the group is new.
 - `CountAll(prefix string)` added to `Store`: counts non-expired keys across all groups matching a prefix. Empty prefix counts across all groups.
 - `Groups(prefix string)` added to `Store`: returns distinct non-expired group names matching a prefix. Empty prefix returns all groups.
@@ -132,6 +132,21 @@ Added a reactive notification system for store mutations.
 Specific-key watcher receives matching events and ignores non-matching keys. Wildcard-key watcher receives all keys in a group. Global wildcard `("*", "*")` receives all mutations across all groups. `Unwatch` stops delivery and closes the channel. `Unwatch` is idempotent. Delete and DeleteGroup emit correct event types with correct populated fields. `OnChange` callback fires on Set and Delete. `OnChange` unregister stops future invocations (idempotent). Buffer-full (32 writes against cap-16 channel) does not block the writer. Multiple watchers on the same key receive events independently. Concurrent Watch/Unwatch during concurrent writes (race test, 10 goroutines). `ScopedStore` events carry the prefixed group name. `SetWithTTL` emits `EventSet`. `EventType.String()` returns correct labels including `"unknown"` for undefined values.
 
 Coverage: 94.7% to 95.5%.
+
+---
+
+## Phase 4 — AX API Cleanup
+
+**Agent:** Codex
+**Completed:** 2026-03-30
+
+Aligned the public API with the AX naming rules by removing compatibility aliases that were no longer used inside the repository.
+
+### Changes
+
+- Removed the legacy compatibility aliases for the not-found error, quota error, key-value pair, and watcher channel.
+- Kept the primary names `NotFoundError`, `QuotaExceededError`, `KeyValue`, and `Watcher.Events`.
+- Updated docs and examples to describe the primary names only.
 
 ---
 
