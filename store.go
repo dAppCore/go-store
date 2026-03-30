@@ -47,7 +47,7 @@ type Store struct {
 func New(databasePath string) (*Store, error) {
 	sqliteDatabase, err := sql.Open("sqlite", databasePath)
 	if err != nil {
-		return nil, core.E("store.New", "open", err)
+		return nil, core.E("store.New", "open database", err)
 	}
 	// Serialise all access through a single connection. SQLite only supports
 	// one writer at a time; using a pool causes SQLITE_BUSY under contention
@@ -56,15 +56,15 @@ func New(databasePath string) (*Store, error) {
 	sqliteDatabase.SetMaxOpenConns(1)
 	if _, err := sqliteDatabase.Exec("PRAGMA journal_mode=WAL"); err != nil {
 		sqliteDatabase.Close()
-		return nil, core.E("store.New", "WAL", err)
+		return nil, core.E("store.New", "set WAL journal mode", err)
 	}
 	if _, err := sqliteDatabase.Exec("PRAGMA busy_timeout=5000"); err != nil {
 		sqliteDatabase.Close()
-		return nil, core.E("store.New", "busy_timeout", err)
+		return nil, core.E("store.New", "set busy timeout", err)
 	}
 	if err := ensureSchema(sqliteDatabase); err != nil {
 		sqliteDatabase.Close()
-		return nil, err
+		return nil, core.E("store.New", "ensure schema", err)
 	}
 
 	purgeContext, cancel := context.WithCancel(context.Background())
@@ -95,11 +95,11 @@ func (storeInstance *Store) Get(group, key string) (string, error) {
 		return "", core.E("store.Get", core.Concat(group, "/", key), NotFoundError)
 	}
 	if err != nil {
-		return "", core.E("store.Get", "query", err)
+		return "", core.E("store.Get", "query row", err)
 	}
 	if expiresAt.Valid && expiresAt.Int64 <= time.Now().UnixMilli() {
 		if _, err := storeInstance.database.Exec("DELETE FROM "+entriesTableName+" WHERE "+entryGroupColumn+" = ? AND "+entryKeyColumn+" = ?", group, key); err != nil {
-			return "", core.E("store.Get", "lazy delete", err)
+			return "", core.E("store.Get", "delete expired row", err)
 		}
 		return "", core.E("store.Get", core.Concat(group, "/", key), NotFoundError)
 	}
@@ -114,22 +114,22 @@ func (storeInstance *Store) Set(group, key, value string) error {
 		group, key, value,
 	)
 	if err != nil {
-		return core.E("store.Set", "exec", err)
+		return core.E("store.Set", "execute upsert", err)
 	}
 	storeInstance.notify(Event{Type: EventSet, Group: group, Key: key, Value: value, Timestamp: time.Now()})
 	return nil
 }
 
 // Usage example: `if err := storeInstance.SetWithTTL("session", "token", "abc123", time.Minute); err != nil { return }`
-func (storeInstance *Store) SetWithTTL(group, key, value string, ttl time.Duration) error {
-	expiresAt := time.Now().Add(ttl).UnixMilli()
+func (storeInstance *Store) SetWithTTL(group, key, value string, timeToLive time.Duration) error {
+	expiresAt := time.Now().Add(timeToLive).UnixMilli()
 	_, err := storeInstance.database.Exec(
 		"INSERT INTO "+entriesTableName+" ("+entryGroupColumn+", "+entryKeyColumn+", "+entryValueColumn+", expires_at) VALUES (?, ?, ?, ?) "+
 			"ON CONFLICT("+entryGroupColumn+", "+entryKeyColumn+") DO UPDATE SET "+entryValueColumn+" = excluded."+entryValueColumn+", expires_at = excluded.expires_at",
 		group, key, value, expiresAt,
 	)
 	if err != nil {
-		return core.E("store.SetWithTTL", "exec", err)
+		return core.E("store.SetWithTTL", "execute upsert with expiry", err)
 	}
 	storeInstance.notify(Event{Type: EventSet, Group: group, Key: key, Value: value, Timestamp: time.Now()})
 	return nil
@@ -139,7 +139,7 @@ func (storeInstance *Store) SetWithTTL(group, key, value string, ttl time.Durati
 func (storeInstance *Store) Delete(group, key string) error {
 	_, err := storeInstance.database.Exec("DELETE FROM "+entriesTableName+" WHERE "+entryGroupColumn+" = ? AND "+entryKeyColumn+" = ?", group, key)
 	if err != nil {
-		return core.E("store.Delete", "exec", err)
+		return core.E("store.Delete", "delete row", err)
 	}
 	storeInstance.notify(Event{Type: EventDelete, Group: group, Key: key, Timestamp: time.Now()})
 	return nil
@@ -153,7 +153,7 @@ func (storeInstance *Store) Count(group string) (int, error) {
 		group, time.Now().UnixMilli(),
 	).Scan(&count)
 	if err != nil {
-		return 0, core.E("store.Count", "query", err)
+		return 0, core.E("store.Count", "count rows", err)
 	}
 	return count, nil
 }
@@ -162,7 +162,7 @@ func (storeInstance *Store) Count(group string) (int, error) {
 func (storeInstance *Store) DeleteGroup(group string) error {
 	_, err := storeInstance.database.Exec("DELETE FROM "+entriesTableName+" WHERE "+entryGroupColumn+" = ?", group)
 	if err != nil {
-		return core.E("store.DeleteGroup", "exec", err)
+		return core.E("store.DeleteGroup", "delete group", err)
 	}
 	storeInstance.notify(Event{Type: EventDeleteGroup, Group: group, Timestamp: time.Now()})
 	return nil
@@ -181,7 +181,7 @@ func (storeInstance *Store) GetAll(group string) (map[string]string, error) {
 	entriesByKey := make(map[string]string)
 	for entry, err := range storeInstance.All(group) {
 		if err != nil {
-			return nil, core.E("store.GetAll", "iterate", err)
+			return nil, core.E("store.GetAll", "iterate rows", err)
 		}
 		entriesByKey[entry.Key] = entry.Value
 	}
@@ -196,7 +196,7 @@ func (storeInstance *Store) All(group string) iter.Seq2[KeyValue, error] {
 			group, time.Now().UnixMilli(),
 		)
 		if err != nil {
-			yield(KeyValue{}, core.E("store.All", "query", err))
+			yield(KeyValue{}, core.E("store.All", "query rows", err))
 			return
 		}
 		defer rows.Close()
@@ -204,7 +204,7 @@ func (storeInstance *Store) All(group string) iter.Seq2[KeyValue, error] {
 		for rows.Next() {
 			var entry KeyValue
 			if err := rows.Scan(&entry.Key, &entry.Value); err != nil {
-				if !yield(KeyValue{}, core.E("store.All", "scan", err)) {
+				if !yield(KeyValue{}, core.E("store.All", "scan row", err)) {
 					return
 				}
 				continue
@@ -214,7 +214,7 @@ func (storeInstance *Store) All(group string) iter.Seq2[KeyValue, error] {
 			}
 		}
 		if err := rows.Err(); err != nil {
-			yield(KeyValue{}, core.E("store.All", "rows", err))
+			yield(KeyValue{}, core.E("store.All", "rows iteration", err))
 		}
 	}
 }
@@ -242,18 +242,18 @@ func (storeInstance *Store) Render(templateSource, group string) (string, error)
 	templateData := make(map[string]string)
 	for entry, err := range storeInstance.All(group) {
 		if err != nil {
-			return "", core.E("store.Render", "iterate", err)
+			return "", core.E("store.Render", "iterate rows", err)
 		}
 		templateData[entry.Key] = entry.Value
 	}
 
 	renderTemplate, err := template.New("render").Parse(templateSource)
 	if err != nil {
-		return "", core.E("store.Render", "parse", err)
+		return "", core.E("store.Render", "parse template", err)
 	}
 	builder := core.NewBuilder()
 	if err := renderTemplate.Execute(builder, templateData); err != nil {
-		return "", core.E("store.Render", "exec", err)
+		return "", core.E("store.Render", "execute template", err)
 	}
 	return builder.String(), nil
 }
@@ -274,7 +274,7 @@ func (storeInstance *Store) CountAll(groupPrefix string) (int, error) {
 		).Scan(&count)
 	}
 	if err != nil {
-		return 0, core.E("store.CountAll", "query", err)
+		return 0, core.E("store.CountAll", "count rows", err)
 	}
 	return count, nil
 }
@@ -309,7 +309,7 @@ func (storeInstance *Store) GroupsSeq(groupPrefix string) iter.Seq2[string, erro
 			)
 		}
 		if err != nil {
-			yield("", core.E("store.GroupsSeq", "query", err))
+			yield("", core.E("store.GroupsSeq", "query group names", err))
 			return
 		}
 		defer rows.Close()
@@ -317,7 +317,7 @@ func (storeInstance *Store) GroupsSeq(groupPrefix string) iter.Seq2[string, erro
 		for rows.Next() {
 			var groupName string
 			if err := rows.Scan(&groupName); err != nil {
-				if !yield("", core.E("store.GroupsSeq", "scan", err)) {
+				if !yield("", core.E("store.GroupsSeq", "scan group name", err)) {
 					return
 				}
 				continue
@@ -327,7 +327,7 @@ func (storeInstance *Store) GroupsSeq(groupPrefix string) iter.Seq2[string, erro
 			}
 		}
 		if err := rows.Err(); err != nil {
-			yield("", core.E("store.GroupsSeq", "rows", err))
+			yield("", core.E("store.GroupsSeq", "rows iteration", err))
 		}
 	}
 }
@@ -346,11 +346,11 @@ func (storeInstance *Store) PurgeExpired() (int64, error) {
 	deleteResult, err := storeInstance.database.Exec("DELETE FROM "+entriesTableName+" WHERE expires_at IS NOT NULL AND expires_at <= ?",
 		time.Now().UnixMilli())
 	if err != nil {
-		return 0, core.E("store.PurgeExpired", "exec", err)
+		return 0, core.E("store.PurgeExpired", "delete expired rows", err)
 	}
 	removedRows, rowsAffectedErr := deleteResult.RowsAffected()
 	if rowsAffectedErr != nil {
-		return 0, core.E("store.PurgeExpired", "rows affected", rowsAffectedErr)
+		return 0, core.E("store.PurgeExpired", "count deleted rows", rowsAffectedErr)
 	}
 	return removedRows, nil
 }
@@ -431,21 +431,21 @@ const createEntriesTableSQL = `CREATE TABLE IF NOT EXISTS entries (
 func ensureSchema(database *sql.DB) error {
 	entriesTableExists, err := tableExists(database, entriesTableName)
 	if err != nil {
-		return core.E("store.New", "schema", err)
+		return core.E("store.ensureSchema", "schema", err)
 	}
 
 	legacyEntriesTableExists, err := tableExists(database, legacyKeyValueTableName)
 	if err != nil {
-		return core.E("store.New", "schema", err)
+		return core.E("store.ensureSchema", "schema", err)
 	}
 
 	if entriesTableExists {
 		if err := ensureExpiryColumn(database); err != nil {
-			return core.E("store.New", "migration", err)
+			return core.E("store.ensureSchema", "migration", err)
 		}
 		if legacyEntriesTableExists {
 			if err := migrateLegacyEntriesTable(database); err != nil {
-				return core.E("store.New", "migration", err)
+				return core.E("store.ensureSchema", "migration", err)
 			}
 		}
 		return nil
@@ -453,13 +453,13 @@ func ensureSchema(database *sql.DB) error {
 
 	if legacyEntriesTableExists {
 		if err := migrateLegacyEntriesTable(database); err != nil {
-			return core.E("store.New", "migration", err)
+			return core.E("store.ensureSchema", "migration", err)
 		}
 		return nil
 	}
 
 	if _, err := database.Exec(createEntriesTableSQL); err != nil {
-		return core.E("store.New", "schema", err)
+		return core.E("store.ensureSchema", "schema", err)
 	}
 	return nil
 }

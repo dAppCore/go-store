@@ -26,8 +26,8 @@ func TestStore_New_Good_Memory(t *testing.T) {
 }
 
 func TestStore_New_Good_FileBacked(t *testing.T) {
-	dbPath := testPath(t, "test.db")
-	storeInstance, err := New(dbPath)
+	databasePath := testPath(t, "test.db")
+	storeInstance, err := New(databasePath)
 	require.NoError(t, err)
 	require.NotNil(t, storeInstance)
 	defer storeInstance.Close()
@@ -36,7 +36,7 @@ func TestStore_New_Good_FileBacked(t *testing.T) {
 	require.NoError(t, storeInstance.Set("g", "k", "v"))
 	require.NoError(t, storeInstance.Close())
 
-	reopenedStore, err := New(dbPath)
+	reopenedStore, err := New(databasePath)
 	require.NoError(t, err)
 	defer reopenedStore.Close()
 
@@ -55,10 +55,10 @@ func TestStore_New_Bad_InvalidPath(t *testing.T) {
 
 func TestStore_New_Bad_CorruptFile(t *testing.T) {
 	// A file that exists but is not a valid SQLite database should fail.
-	dbPath := testPath(t, "corrupt.db")
-	requireCoreOK(t, testFilesystem().Write(dbPath, "not a sqlite database"))
+	databasePath := testPath(t, "corrupt.db")
+	requireCoreOK(t, testFilesystem().Write(databasePath, "not a sqlite database"))
 
-	_, err := New(dbPath)
+	_, err := New(databasePath)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "store.New")
 }
@@ -66,20 +66,20 @@ func TestStore_New_Bad_CorruptFile(t *testing.T) {
 func TestStore_New_Bad_ReadOnlyDir(t *testing.T) {
 	// A path in a read-only directory should fail when SQLite tries to create the WAL file.
 	dir := t.TempDir()
-	dbPath := core.Path(dir, "readonly.db")
+	databasePath := core.Path(dir, "readonly.db")
 
 	// Create a valid database first, then make the directory read-only.
-	storeInstance, err := New(dbPath)
+	storeInstance, err := New(databasePath)
 	require.NoError(t, err)
 	require.NoError(t, storeInstance.Close())
 
 	// Remove WAL/SHM files and make directory read-only.
-	_ = testFilesystem().Delete(dbPath + "-wal")
-	_ = testFilesystem().Delete(dbPath + "-shm")
+	_ = testFilesystem().Delete(databasePath + "-wal")
+	_ = testFilesystem().Delete(databasePath + "-shm")
 	require.NoError(t, syscall.Chmod(dir, 0555))
 	defer func() { _ = syscall.Chmod(dir, 0755) }() // restore for cleanup
 
-	_, err = New(dbPath)
+	_, err = New(databasePath)
 	// May or may not fail depending on OS/filesystem — just exercise the code path.
 	if err != nil {
 		assert.Contains(t, err.Error(), "store.New")
@@ -87,8 +87,8 @@ func TestStore_New_Bad_ReadOnlyDir(t *testing.T) {
 }
 
 func TestStore_New_Good_WALMode(t *testing.T) {
-	dbPath := testPath(t, "wal.db")
-	storeInstance, err := New(dbPath)
+	databasePath := testPath(t, "wal.db")
+	storeInstance, err := New(databasePath)
 	require.NoError(t, err)
 	defer storeInstance.Close()
 
@@ -789,8 +789,8 @@ func TestStore_GroupIsolation_Good(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestStore_Concurrent_Good_ReadWrite(t *testing.T) {
-	dbPath := testPath(t, "concurrent.db")
-	storeInstance, err := New(dbPath)
+	databasePath := testPath(t, "concurrent.db")
+	storeInstance, err := New(databasePath)
 	require.NoError(t, err)
 	defer storeInstance.Close()
 
@@ -955,8 +955,8 @@ func BenchmarkGetAll(benchmark *testing.B) {
 }
 
 func BenchmarkSet_FileBacked(benchmark *testing.B) {
-	dbPath := testPath(benchmark, "bench.db")
-	storeInstance, _ := New(dbPath)
+	databasePath := testPath(benchmark, "bench.db")
+	storeInstance, _ := New(databasePath)
 	defer storeInstance.Close()
 
 	benchmark.ResetTimer()
@@ -1157,9 +1157,9 @@ func TestStore_PurgeExpired_Good_BackgroundPurge(t *testing.T) {
 	storeInstance.cancelPurge()
 	storeInstance.purgeWaitGroup.Wait()
 	storeInstance.purgeInterval = 20 * time.Millisecond
-	ctx, cancel := context.WithCancel(context.Background())
+	purgeContext, cancel := context.WithCancel(context.Background())
 	storeInstance.cancelPurge = cancel
-	storeInstance.startBackgroundPurge(ctx)
+	storeInstance.startBackgroundPurge(purgeContext)
 	defer storeInstance.Close()
 
 	require.NoError(t, storeInstance.SetWithTTL("g", "ephemeral", "v", 1*time.Millisecond))
@@ -1181,16 +1181,16 @@ func TestStore_PurgeExpired_Good_BackgroundPurge(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestStore_SchemaUpgrade_Good_ExistingDB(t *testing.T) {
-	dbPath := testPath(t, "upgrade.db")
+	databasePath := testPath(t, "upgrade.db")
 
 	// Open, write, close.
-	initialStore, err := New(dbPath)
+	initialStore, err := New(databasePath)
 	require.NoError(t, err)
 	require.NoError(t, initialStore.Set("g", "k", "v"))
 	require.NoError(t, initialStore.Close())
 
 	// Reopen — the ALTER TABLE ADD COLUMN should be a no-op.
-	reopenedStore, err := New(dbPath)
+	reopenedStore, err := New(databasePath)
 	require.NoError(t, err)
 	defer reopenedStore.Close()
 
@@ -1206,8 +1206,8 @@ func TestStore_SchemaUpgrade_Good_ExistingDB(t *testing.T) {
 }
 
 func TestStore_SchemaUpgrade_Good_EntriesWithoutExpiryColumn(t *testing.T) {
-	dbPath := testPath(t, "entries-no-expiry.db")
-	database, err := sql.Open("sqlite", dbPath)
+	databasePath := testPath(t, "entries-no-expiry.db")
+	database, err := sql.Open("sqlite", databasePath)
 	require.NoError(t, err)
 	database.SetMaxOpenConns(1)
 	_, err = database.Exec("PRAGMA journal_mode=WAL")
@@ -1223,7 +1223,7 @@ func TestStore_SchemaUpgrade_Good_EntriesWithoutExpiryColumn(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, database.Close())
 
-	storeInstance, err := New(dbPath)
+	storeInstance, err := New(databasePath)
 	require.NoError(t, err)
 	defer storeInstance.Close()
 
@@ -1238,8 +1238,8 @@ func TestStore_SchemaUpgrade_Good_EntriesWithoutExpiryColumn(t *testing.T) {
 }
 
 func TestStore_SchemaUpgrade_Good_LegacyAndCurrentTables(t *testing.T) {
-	dbPath := testPath(t, "entries-and-legacy.db")
-	database, err := sql.Open("sqlite", dbPath)
+	databasePath := testPath(t, "entries-and-legacy.db")
+	database, err := sql.Open("sqlite", databasePath)
 	require.NoError(t, err)
 	database.SetMaxOpenConns(1)
 	_, err = database.Exec("PRAGMA journal_mode=WAL")
@@ -1265,7 +1265,7 @@ func TestStore_SchemaUpgrade_Good_LegacyAndCurrentTables(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, database.Close())
 
-	storeInstance, err := New(dbPath)
+	storeInstance, err := New(databasePath)
 	require.NoError(t, err)
 	defer storeInstance.Close()
 
@@ -1281,8 +1281,8 @@ func TestStore_SchemaUpgrade_Good_LegacyAndCurrentTables(t *testing.T) {
 func TestStore_SchemaUpgrade_Good_PreTTLDatabase(t *testing.T) {
 	// Simulate a database created before the AX schema rename and TTL support.
 	// The legacy key-value table has no expires_at column yet.
-	dbPath := testPath(t, "pre-ttl.db")
-	database, err := sql.Open("sqlite", dbPath)
+	databasePath := testPath(t, "pre-ttl.db")
+	database, err := sql.Open("sqlite", databasePath)
 	require.NoError(t, err)
 	database.SetMaxOpenConns(1)
 	_, err = database.Exec("PRAGMA journal_mode=WAL")
@@ -1299,7 +1299,7 @@ func TestStore_SchemaUpgrade_Good_PreTTLDatabase(t *testing.T) {
 	require.NoError(t, database.Close())
 
 	// Open with New — should migrate the legacy table into the descriptive schema.
-	storeInstance, err := New(dbPath)
+	storeInstance, err := New(databasePath)
 	require.NoError(t, err)
 	defer storeInstance.Close()
 
