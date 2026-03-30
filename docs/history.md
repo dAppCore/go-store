@@ -188,6 +188,6 @@ These are design notes, not committed work:
 
 - **Pagination for `GetAll`.** A `GetPage(group string, offset, limit int)` method would support large groups without full in-memory materialisation.
 - **Indexed prefix keys.** An additional index on `(grp, key)` prefix would accelerate prefix scans without a full-table scan.
-- **TTL background purge interval as constructor option.** Currently only settable by mutating `s.purgeInterval` directly in tests. A `WithPurgeInterval(d time.Duration)` functional option would make this part of the public API.
+- **TTL background purge interval as constructor configuration.** Currently only settable by mutating `storeInstance.purgeInterval` directly in tests. A constructor-level `PurgeInterval` field or config entry would make this part of the public API.
 - **Cross-group atomic operations.** Exposing a `Transaction(func(tx *StoreTx) error)` API would allow callers to compose atomic multi-group operations.
 - **`DeletePrefix(prefix string)` method.** Would enable efficient cleanup of an entire namespace without first listing groups.
