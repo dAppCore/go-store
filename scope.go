@@ -11,6 +11,7 @@ import (
 // validNamespace.MatchString("tenant-a") is true; validNamespace.MatchString("tenant_a") is false.
 var validNamespace = regexp.MustCompile(`^[a-zA-Z0-9-]+$`)
 
+// QuotaConfig sets per-namespace key and group limits.
 // Usage example: `quota := store.QuotaConfig{MaxKeys: 100, MaxGroups: 10}`
 type QuotaConfig struct {
 	// Usage example: `store.QuotaConfig{MaxKeys: 100, MaxGroups: 10}` limits a namespace to 100 keys.
@@ -19,6 +20,7 @@ type QuotaConfig struct {
 	MaxGroups int
 }
 
+// ScopedStore prefixes group names with namespace + ":" before delegating to Store.
 // Usage example: `scopedStore, err := store.NewScoped(storeInstance, "tenant-a"); if err != nil { return }; if err := scopedStore.Set("config", "colour", "blue"); err != nil { return }`
 type ScopedStore struct {
 	storeInstance *Store
@@ -26,6 +28,7 @@ type ScopedStore struct {
 	quota         QuotaConfig
 }
 
+// NewScoped validates a namespace and prefixes groups with namespace + ":".
 // Usage example: `scopedStore, err := store.NewScoped(storeInstance, "tenant-a"); if err != nil { return }`
 func NewScoped(storeInstance *Store, namespace string) (*ScopedStore, error) {
 	if !validNamespace.MatchString(namespace) {
@@ -35,6 +38,7 @@ func NewScoped(storeInstance *Store, namespace string) (*ScopedStore, error) {
 	return scopedStore, nil
 }
 
+// NewScopedWithQuota adds per-namespace key and group limits.
 // Usage example: `scopedStore, err := store.NewScopedWithQuota(storeInstance, "tenant-a", store.QuotaConfig{MaxKeys: 100, MaxGroups: 10}); if err != nil { return }`
 func NewScopedWithQuota(storeInstance *Store, namespace string, quota QuotaConfig) (*ScopedStore, error) {
 	scopedStore, err := NewScoped(storeInstance, namespace)
@@ -49,6 +53,7 @@ func (scopedStore *ScopedStore) namespacedGroup(group string) string {
 	return scopedStore.namespace + ":" + group
 }
 
+// Namespace returns the namespace string.
 // Usage example: `scopedStore, err := store.NewScoped(storeInstance, "tenant-a"); if err != nil { return }; namespace := scopedStore.Namespace(); fmt.Println(namespace)`
 func (scopedStore *ScopedStore) Namespace() string {
 	return scopedStore.namespace
