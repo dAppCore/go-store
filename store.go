@@ -39,7 +39,7 @@ type Store struct {
 
 	// Event dispatch state.
 	watchers           []*Watcher
-	callbacks          []callbackEntry
+	callbacks          []changeCallbackRegistration
 	watchersLock       sync.RWMutex // protects watcher registration and dispatch
 	callbacksLock      sync.RWMutex // protects callback registration and dispatch
 	nextRegistrationID uint64       // monotonic ID for watchers and callbacks
@@ -433,8 +433,8 @@ const createEntriesTableSQL = `CREATE TABLE IF NOT EXISTS entries (
 	PRIMARY KEY (group_name, entry_key)
 )`
 
-// ensureSchema creates the current entries table or migrates the legacy kv
-// table into the descriptive schema used by the AX refactor.
+// ensureSchema creates the current entries table and migrates the legacy kv
+// table when present.
 func ensureSchema(database *sql.DB) error {
 	entriesTableExists, err := tableExists(database, entriesTableName)
 	if err != nil {

@@ -299,16 +299,16 @@ func TestEvents_Watch_Good_BufferFullDoesNotBlock(t *testing.T) {
 		t.Fatal("writes blocked — buffer-full condition caused deadlock")
 	}
 
-	// Drain what we can — should get exactly watcherBufferSize events.
+	// Drain what we can — should get exactly watcherEventBufferCapacity events.
 	var received int
-	for range watcherBufferSize {
+	for range watcherEventBufferCapacity {
 		select {
 		case <-w.Events:
 			received++
 		default:
 		}
 	}
-	assert.Equal(t, watcherBufferSize, received, "should receive exactly buffer-size events")
+	assert.Equal(t, watcherEventBufferCapacity, received, "should receive exactly buffer-size events")
 }
 
 // ---------------------------------------------------------------------------

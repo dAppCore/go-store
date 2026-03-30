@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-// EventType values identify the mutation stored in Event.Type.
+// EventType labels the mutation stored in Event.Type.
 // Usage example: `if event.Type == store.EventSet { return }`
 type EventType int
 
@@ -37,7 +37,7 @@ func (t EventType) String() string {
 	}
 }
 
-// Event records the mutation details sent to watchers and callbacks.
+// Event records mutation details sent to watchers and callbacks.
 // Usage example: `event := store.Event{Type: store.EventSet, Group: "config", Key: "theme", Value: "dark"}`
 // Usage example: `event := store.Event{Type: store.EventDeleteGroup, Group: "config"}`
 // EventDeleteGroup leaves Key and Value empty.
@@ -55,34 +55,34 @@ type Watcher struct {
 	// Usage example: `for event := range watcher.Events { _ = event }`
 	Events <-chan Event
 
-	// eventsChannel is the internal write channel (same underlying channel as Events).
-	eventsChannel chan Event
+	// eventChannel is the internal write channel (same underlying channel as Events).
+	eventChannel chan Event
 
 	group string
 	key   string
 	id    uint64
 }
 
-// callbackEntry pairs a change callback with its unique ID for unregistration.
-type callbackEntry struct {
+// changeCallbackRegistration pairs a change callback with its unique ID for unregistration.
+type changeCallbackRegistration struct {
 	id       uint64
 	callback func(Event)
 }
 
-// watcherBufferSize is the capacity of each watcher's buffered channel.
-const watcherBufferSize = 16
+// watcherEventBufferCapacity is the capacity of each watcher's buffered channel.
+const watcherEventBufferCapacity = 16
 
 // Watch creates a buffered subscription for a group/key filter.
 // Usage example: `watcher := storeInstance.Watch("config", "*")`
 // `("*", "*")` matches every mutation and the watcher buffer holds 16 events.
 func (storeInstance *Store) Watch(group, key string) *Watcher {
-	eventsChannel := make(chan Event, watcherBufferSize)
+	eventChannel := make(chan Event, watcherEventBufferCapacity)
 	watcher := &Watcher{
-		Events:        eventsChannel,
-		eventsChannel: eventsChannel,
-		group:         group,
-		key:           key,
-		id:            atomic.AddUint64(&storeInstance.nextRegistrationID, 1),
+		Events:       eventChannel,
+		eventChannel: eventChannel,
+		group:        group,
+		key:          key,
+		id:           atomic.AddUint64(&storeInstance.nextRegistrationID, 1),
 	}
 
 	storeInstance.watchersLock.Lock()
@@ -105,7 +105,7 @@ func (storeInstance *Store) Unwatch(watcher *Watcher) {
 
 	storeInstance.watchers = slices.DeleteFunc(storeInstance.watchers, func(existing *Watcher) bool {
 		if existing.id == watcher.id {
-			close(watcher.eventsChannel)
+			close(watcher.eventChannel)
 			return true
 		}
 		return false
@@ -117,10 +117,10 @@ func (storeInstance *Store) Unwatch(watcher *Watcher) {
 // Callbacks run synchronously in the writer goroutine, so keep heavy work out of the handler.
 func (storeInstance *Store) OnChange(callback func(Event)) func() {
 	registrationID := atomic.AddUint64(&storeInstance.nextRegistrationID, 1)
-	registrationRecord := callbackEntry{id: registrationID, callback: callback}
+	callbackRegistration := changeCallbackRegistration{id: registrationID, callback: callback}
 
 	storeInstance.callbacksLock.Lock()
-	storeInstance.callbacks = append(storeInstance.callbacks, registrationRecord)
+	storeInstance.callbacks = append(storeInstance.callbacks, callbackRegistration)
 	storeInstance.callbacksLock.Unlock()
 
 	// Return an idempotent unregister function.
@@ -129,7 +129,7 @@ func (storeInstance *Store) OnChange(callback func(Event)) func() {
 		once.Do(func() {
 			storeInstance.callbacksLock.Lock()
 			defer storeInstance.callbacksLock.Unlock()
-			storeInstance.callbacks = slices.DeleteFunc(storeInstance.callbacks, func(existing callbackEntry) bool {
+			storeInstance.callbacks = slices.DeleteFunc(storeInstance.callbacks, func(existing changeCallbackRegistration) bool {
 				return existing.id == registrationID
 			})
 		})
@@ -150,14 +150,14 @@ func (storeInstance *Store) notify(event Event) {
 		}
 		// Non-blocking send: drop the event rather than block the writer.
 		select {
-		case watcher.eventsChannel <- event:
+		case watcher.eventChannel <- event:
 		default:
 		}
 	}
 	storeInstance.watchersLock.RUnlock()
 
 	storeInstance.callbacksLock.RLock()
-	callbacks := append([]callbackEntry(nil), storeInstance.callbacks...)
+	callbacks := append([]changeCallbackRegistration(nil), storeInstance.callbacks...)
 	storeInstance.callbacksLock.RUnlock()
 
 	for _, callback := range callbacks {
