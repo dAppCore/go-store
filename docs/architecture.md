@@ -103,8 +103,8 @@ Both return `NotFoundError` if the key does not exist or has expired.
 ```go
 storeInstance.Set("miner", "pool", "pool.lthn.io:3333")
 storeInstance.Set("miner", "wallet", "iz...")
-out, _ := storeInstance.Render(`{"pool":"{{ .pool }}","wallet":"{{ .wallet }}"}`, "miner")
-// out: {"pool":"pool.lthn.io:3333","wallet":"iz..."}
+renderedTemplate, _ := storeInstance.Render(`{"pool":"{{ .pool }}","wallet":"{{ .wallet }}"}`, "miner")
+// renderedTemplate: {"pool":"pool.lthn.io:3333","wallet":"iz..."}
 ```
 
 Template parse errors and execution errors are both returned as wrapped errors with context (e.g., `store.Render: parse: ...` and `store.Render: exec: ...`).

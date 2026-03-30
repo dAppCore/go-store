@@ -85,7 +85,7 @@ func (storeInstance *Store) Close() error {
 }
 
 // Expired keys are lazily removed and treated as not found.
-// Usage example: `value, err := storeInstance.Get("config", "theme")`
+// Usage example: `themeValue, err := storeInstance.Get("config", "theme")`
 func (storeInstance *Store) Get(group, key string) (string, error) {
 	var value string
 	var expiresAt sql.NullInt64
@@ -106,7 +106,6 @@ func (storeInstance *Store) Get(group, key string) (string, error) {
 	return value, nil
 }
 
-// Overwrites any existing row and clears its expiry.
 // Usage example: `err := storeInstance.Set("config", "theme", "dark")`
 func (storeInstance *Store) Set(group, key, value string) error {
 	_, err := storeInstance.database.Exec(
@@ -137,7 +136,6 @@ func (storeInstance *Store) SetWithTTL(group, key, value string, ttl time.Durati
 	return nil
 }
 
-// Removes a single key from a group.
 // Usage example: `err := storeInstance.Delete("config", "theme")`
 func (storeInstance *Store) Delete(group, key string) error {
 	_, err := storeInstance.database.Exec("DELETE FROM "+entriesTableName+" WHERE "+entryGroupColumn+" = ? AND "+entryKeyColumn+" = ?", group, key)
@@ -148,8 +146,7 @@ func (storeInstance *Store) Delete(group, key string) error {
 	return nil
 }
 
-// Counts live keys only.
-// Usage example: `count, err := storeInstance.Count("config")`
+// Usage example: `keyCount, err := storeInstance.Count("config")`
 func (storeInstance *Store) Count(group string) (int, error) {
 	var count int
 	err := storeInstance.database.QueryRow(
@@ -162,7 +159,6 @@ func (storeInstance *Store) Count(group string) (int, error) {
 	return count, nil
 }
 
-// Removes all keys from a group.
 // Usage example: `err := storeInstance.DeleteGroup("cache")`
 func (storeInstance *Store) DeleteGroup(group string) error {
 	_, err := storeInstance.database.Exec("DELETE FROM "+entriesTableName+" WHERE "+entryGroupColumn+" = ?", group)
@@ -173,14 +169,12 @@ func (storeInstance *Store) DeleteGroup(group string) error {
 	return nil
 }
 
-// KeyValue represents a key-value pair.
 // Usage example: `for entry, err := range storeInstance.All("config") { if err != nil { break }; _ = entry }`
 type KeyValue struct {
 	Key, Value string
 }
 
-// Returns live key-value pairs only.
-// Usage example: `entries, err := storeInstance.GetAll("config")`
+// Usage example: `configEntries, err := storeInstance.GetAll("config")`
 func (storeInstance *Store) GetAll(group string) (map[string]string, error) {
 	entriesByKey := make(map[string]string)
 	for entry, err := range storeInstance.All(group) {
@@ -192,7 +186,6 @@ func (storeInstance *Store) GetAll(group string) (map[string]string, error) {
 	return entriesByKey, nil
 }
 
-// Returns live key-value pairs only.
 // Usage example: `for entry, err := range storeInstance.All("config") { if err != nil { break }; _ = entry }`
 func (storeInstance *Store) All(group string) iter.Seq2[KeyValue, error] {
 	return func(yield func(KeyValue, error) bool) {
@@ -244,8 +237,7 @@ func (storeInstance *Store) GetFields(group, key string) (iter.Seq[string], erro
 	return fieldsSeq(value), nil
 }
 
-// Renders a Go template from live key-value pairs.
-// Usage example: `out, err := storeInstance.Render("Hello {{ .name }}", "user")`
+// Usage example: `renderedTemplate, err := storeInstance.Render("Hello {{ .name }}", "user")`
 func (storeInstance *Store) Render(templateSource, group string) (string, error) {
 	templateData := make(map[string]string)
 	for entry, err := range storeInstance.All(group) {
@@ -266,8 +258,7 @@ func (storeInstance *Store) Render(templateSource, group string) (string, error)
 	return builder.String(), nil
 }
 
-// Counts live keys across groups with the given prefix.
-// Usage example: `count, err := storeInstance.CountAll("tenant-a:")`
+// Usage example: `tenantKeyCount, err := storeInstance.CountAll("tenant-a:")`
 func (storeInstance *Store) CountAll(groupPrefix string) (int, error) {
 	var count int
 	var err error
@@ -288,8 +279,7 @@ func (storeInstance *Store) CountAll(groupPrefix string) (int, error) {
 	return count, nil
 }
 
-// Returns distinct live group names with the given prefix.
-// Usage example: `groupNames, err := storeInstance.Groups("tenant-a:")`
+// Usage example: `tenantGroupNames, err := storeInstance.Groups("tenant-a:")`
 func (storeInstance *Store) Groups(groupPrefix string) ([]string, error) {
 	var groupNames []string
 	for groupName, err := range storeInstance.GroupsSeq(groupPrefix) {
@@ -301,8 +291,7 @@ func (storeInstance *Store) Groups(groupPrefix string) ([]string, error) {
 	return groupNames, nil
 }
 
-// Returns distinct live group names with the given prefix.
-// Usage example: `for groupName, err := range storeInstance.GroupsSeq("tenant-a:") { if err != nil { break }; _ = groupName }`
+// Usage example: `for tenantGroupName, err := range storeInstance.GroupsSeq("tenant-a:") { if err != nil { break }; _ = tenantGroupName }`
 func (storeInstance *Store) GroupsSeq(groupPrefix string) iter.Seq2[string, error] {
 	return func(yield func(string, error) bool) {
 		var rows *sql.Rows

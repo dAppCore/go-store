@@ -35,21 +35,21 @@ func main() {
 
     // Basic CRUD
     storeInstance.Set("config", "theme", "dark")
-    value, _ := storeInstance.Get("config", "theme")
-    core.Println(value) // "dark"
+    themeValue, _ := storeInstance.Get("config", "theme")
+    core.Println(themeValue) // "dark"
 
     // TTL expiry -- key disappears after the duration elapses
     storeInstance.SetWithTTL("session", "token", "abc123", 24*time.Hour)
 
     // Fetch all keys in a group
-    all, _ := storeInstance.GetAll("config")
-    core.Println(all) // map[theme:dark]
+    configEntries, _ := storeInstance.GetAll("config")
+    core.Println(configEntries) // map[theme:dark]
 
     // Template rendering from stored values
     storeInstance.Set("mail", "host", "smtp.example.com")
     storeInstance.Set("mail", "port", "587")
-    out, _ := storeInstance.Render(`{{ .host }}:{{ .port }}`, "mail")
-    core.Println(out) // "smtp.example.com:587"
+    renderedTemplate, _ := storeInstance.Render(`{{ .host }}:{{ .port }}`, "mail")
+    core.Println(renderedTemplate) // "smtp.example.com:587"
 
     // Namespace isolation for multi-tenant use
     scopedStore, _ := store.NewScoped(storeInstance, "tenant-42")
@@ -66,13 +66,13 @@ func main() {
     defer storeInstance.Unwatch(watcher)
     go func() {
         for event := range watcher.Events {
-            core.Println("event", event.Type, event.Group, event.Key)
+            core.Println("event", event.Type, event.Group, event.Key, event.Value)
         }
     }()
 
     // Or register a synchronous callback
-    unregister := storeInstance.OnChange(func(e store.Event) {
-        core.Println("changed", e.Key)
+    unregister := storeInstance.OnChange(func(event store.Event) {
+        core.Println("changed", event.Group, event.Key, event.Value)
     })
     defer unregister()
 }

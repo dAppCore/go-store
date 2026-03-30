@@ -7,7 +7,6 @@ import (
 	"time"
 )
 
-// EventType labels the mutation stored in Event.Type.
 // Usage example: `if event.Type == store.EventSet { return }`
 type EventType int
 
@@ -37,7 +36,6 @@ func (t EventType) String() string {
 	}
 }
 
-// Event records mutation details sent to watchers and callbacks.
 // Usage example: `event := store.Event{Type: store.EventSet, Group: "config", Key: "theme", Value: "dark"}`
 // Usage example: `event := store.Event{Type: store.EventDeleteGroup, Group: "config"}`
 // EventDeleteGroup leaves Key and Value empty.
@@ -49,7 +47,6 @@ type Event struct {
 	Timestamp time.Time
 }
 
-// Watcher exposes the buffered event channel for a group/key filter.
 // Usage example: `watcher := storeInstance.Watch("config", "*"); defer storeInstance.Unwatch(watcher); for event := range watcher.Events { _ = event }`
 type Watcher struct {
 	// Usage example: `for event := range watcher.Events { _ = event }`
@@ -72,7 +69,6 @@ type changeCallbackRegistration struct {
 // watcherEventBufferCapacity is the capacity of each watcher's buffered channel.
 const watcherEventBufferCapacity = 16
 
-// Watch creates a buffered subscription for a group/key filter.
 // Usage example: `watcher := storeInstance.Watch("config", "*")`
 // `("*", "*")` matches every mutation and the watcher buffer holds 16 events.
 func (storeInstance *Store) Watch(group, key string) *Watcher {
@@ -92,7 +88,6 @@ func (storeInstance *Store) Watch(group, key string) *Watcher {
 	return watcher
 }
 
-// Unwatch removes a watcher and closes its channel.
 // Usage example: `storeInstance.Unwatch(watcher)`
 // Safe to call multiple times; subsequent calls are no-ops.
 func (storeInstance *Store) Unwatch(watcher *Watcher) {
@@ -112,7 +107,6 @@ func (storeInstance *Store) Unwatch(watcher *Watcher) {
 	})
 }
 
-// OnChange registers a synchronous callback for every mutation.
 // Usage example: `unregister := storeInstance.OnChange(func(event store.Event) { hub.SendToChannel("store-events", event) }); defer unregister()`
 // Callbacks run synchronously in the writer goroutine, so keep heavy work out of the handler.
 func (storeInstance *Store) OnChange(callback func(Event)) func() {

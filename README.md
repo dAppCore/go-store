@@ -31,15 +31,15 @@ func main() {
 
 	storeInstance.Set("config", "theme", "dark")
 	storeInstance.SetWithTTL("session", "token", "abc123", 24*time.Hour)
-	value, err := storeInstance.Get("config", "theme")
-	fmt.Println(value, err)
+	themeValue, err := storeInstance.Get("config", "theme")
+	fmt.Println(themeValue, err)
 
 	// Watch for mutations
 	watcher := storeInstance.Watch("config", "*")
 	defer storeInstance.Unwatch(watcher)
 	go func() {
 		for event := range watcher.Events {
-			fmt.Println(event.Type, event.Key)
+			fmt.Println(event.Type, event.Group, event.Key, event.Value)
 		}
 	}()
 

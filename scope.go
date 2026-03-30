@@ -52,20 +52,17 @@ func (scopedStore *ScopedStore) namespacedGroup(group string) string {
 	return scopedStore.namespace + ":" + group
 }
 
-// Returns the namespace string for this scoped store.
 // Usage example: `scopedStore, _ := store.NewScoped(storeInstance, "tenant-a"); namespace := scopedStore.Namespace()`
 func (scopedStore *ScopedStore) Namespace() string {
 	return scopedStore.namespace
 }
 
-// Get retrieves a value by group and key within the namespace.
-// Usage example: `value, err := scopedStore.Get("config", "theme")`
+// Usage example: `themeValue, err := scopedStore.Get("config", "theme")`
 func (scopedStore *ScopedStore) Get(group, key string) (string, error) {
 	return scopedStore.storeInstance.Get(scopedStore.namespacedGroup(group), key)
 }
 
-// Set stores a value by group and key within the namespace. If quotas are
-// configured, they are checked before inserting new keys or groups.
+// Quota checks happen before inserting new keys or groups.
 // Usage example: `err := scopedStore.Set("config", "theme", "dark")`
 func (scopedStore *ScopedStore) Set(group, key, value string) error {
 	if err := scopedStore.checkQuota(group, key); err != nil {
@@ -74,8 +71,7 @@ func (scopedStore *ScopedStore) Set(group, key, value string) error {
 	return scopedStore.storeInstance.Set(scopedStore.namespacedGroup(group), key, value)
 }
 
-// SetWithTTL stores a value with a time-to-live within the namespace. Quota
-// checks are applied for new keys and groups.
+// Quota checks happen before inserting new keys or groups, even when the value expires later.
 // Usage example: `err := scopedStore.SetWithTTL("sessions", "token", "abc", time.Hour)`
 func (scopedStore *ScopedStore) SetWithTTL(group, key, value string, ttl time.Duration) error {
 	if err := scopedStore.checkQuota(group, key); err != nil {
@@ -84,41 +80,32 @@ func (scopedStore *ScopedStore) SetWithTTL(group, key, value string, ttl time.Du
 	return scopedStore.storeInstance.SetWithTTL(scopedStore.namespacedGroup(group), key, value, ttl)
 }
 
-// Delete removes a single key from a group within the namespace.
 // Usage example: `err := scopedStore.Delete("config", "theme")`
 func (scopedStore *ScopedStore) Delete(group, key string) error {
 	return scopedStore.storeInstance.Delete(scopedStore.namespacedGroup(group), key)
 }
 
-// DeleteGroup removes all keys in a group within the namespace.
 // Usage example: `err := scopedStore.DeleteGroup("cache")`
 func (scopedStore *ScopedStore) DeleteGroup(group string) error {
 	return scopedStore.storeInstance.DeleteGroup(scopedStore.namespacedGroup(group))
 }
 
-// GetAll returns all non-expired key-value pairs in a group within the
-// namespace.
-// Usage example: `entries, err := scopedStore.GetAll("config")`
+// Usage example: `configEntries, err := scopedStore.GetAll("config")`
 func (scopedStore *ScopedStore) GetAll(group string) (map[string]string, error) {
 	return scopedStore.storeInstance.GetAll(scopedStore.namespacedGroup(group))
 }
 
-// All returns an iterator over all non-expired key-value pairs in a group
-// within the namespace.
 // Usage example: `for entry, err := range scopedStore.All("config") { if err != nil { break }; _ = entry }`
 func (scopedStore *ScopedStore) All(group string) iter.Seq2[KeyValue, error] {
 	return scopedStore.storeInstance.All(scopedStore.namespacedGroup(group))
 }
 
-// Count returns the number of non-expired keys in a group within the namespace.
-// Usage example: `count, err := scopedStore.Count("config")`
+// Usage example: `keyCount, err := scopedStore.Count("config")`
 func (scopedStore *ScopedStore) Count(group string) (int, error) {
 	return scopedStore.storeInstance.Count(scopedStore.namespacedGroup(group))
 }
 
-// Render loads all non-expired key-value pairs from a namespaced group and
-// renders a Go template.
-// Usage example: `output, err := scopedStore.Render("Hello {{ .name }}", "user")`
+// Usage example: `renderedTemplate, err := scopedStore.Render("Hello {{ .name }}", "user")`
 func (scopedStore *ScopedStore) Render(templateSource, group string) (string, error) {
 	return scopedStore.storeInstance.Render(templateSource, scopedStore.namespacedGroup(group))
 }
