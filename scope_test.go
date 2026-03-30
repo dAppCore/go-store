@@ -76,6 +76,24 @@ func TestScope_NewScopedWithQuota_Bad_NilStore(t *testing.T) {
 	assert.Contains(t, err.Error(), "store instance is nil")
 }
 
+func TestScope_NewScopedWithQuota_Bad_NegativeMaxKeys(t *testing.T) {
+	storeInstance, _ := New(":memory:")
+	defer storeInstance.Close()
+
+	_, err := NewScopedWithQuota(storeInstance, "tenant-a", QuotaConfig{MaxKeys: -1})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "zero or positive")
+}
+
+func TestScope_NewScopedWithQuota_Bad_NegativeMaxGroups(t *testing.T) {
+	storeInstance, _ := New(":memory:")
+	defer storeInstance.Close()
+
+	_, err := NewScopedWithQuota(storeInstance, "tenant-a", QuotaConfig{MaxGroups: -1})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "zero or positive")
+}
+
 // ---------------------------------------------------------------------------
 // ScopedStore — basic CRUD
 // ---------------------------------------------------------------------------
@@ -378,6 +396,28 @@ func TestScope_ScopedStore_Good_PurgeExpired(t *testing.T) {
 
 	_, err = scopedStore.Get("session", "token")
 	assert.True(t, core.Is(err, NotFoundError))
+}
+
+func TestScope_ScopedStore_Good_PurgeExpired_NamespaceLocal(t *testing.T) {
+	storeInstance, _ := New(":memory:")
+	defer storeInstance.Close()
+
+	alphaStore, _ := NewScoped(storeInstance, "tenant-a")
+	betaStore, _ := NewScoped(storeInstance, "tenant-b")
+
+	require.NoError(t, alphaStore.SetWithTTL("session", "alpha-token", "alpha", 1*time.Millisecond))
+	require.NoError(t, betaStore.SetWithTTL("session", "beta-token", "beta", 1*time.Millisecond))
+	time.Sleep(5 * time.Millisecond)
+
+	assert.Equal(t, 1, rawEntryCount(t, storeInstance, "tenant-a:session"))
+	assert.Equal(t, 1, rawEntryCount(t, storeInstance, "tenant-b:session"))
+
+	removedRows, err := alphaStore.PurgeExpired()
+	require.NoError(t, err)
+	assert.Equal(t, int64(1), removedRows)
+
+	assert.Equal(t, 0, rawEntryCount(t, storeInstance, "tenant-a:session"))
+	assert.Equal(t, 1, rawEntryCount(t, storeInstance, "tenant-b:session"))
 }
 
 // ---------------------------------------------------------------------------
@@ -813,4 +853,16 @@ func TestScope_Groups_Bad_ClosedStore(t *testing.T) {
 
 func keyName(i int) string {
 	return "key-" + string(rune('a'+i%26))
+}
+
+func rawEntryCount(t *testing.T, storeInstance *Store, group string) int {
+	t.Helper()
+
+	var count int
+	err := storeInstance.database.QueryRow(
+		"SELECT COUNT(*) FROM "+entriesTableName+" WHERE "+entryGroupColumn+" = ?",
+		group,
+	).Scan(&count)
+	require.NoError(t, err)
+	return count
 }

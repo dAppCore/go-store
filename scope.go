@@ -48,6 +48,13 @@ func NewScopedWithQuota(storeInstance *Store, namespace string, quota QuotaConfi
 	if err != nil {
 		return nil, err
 	}
+	if quota.MaxKeys < 0 || quota.MaxGroups < 0 {
+		return nil, core.E(
+			"store.NewScopedWithQuota",
+			core.Sprintf("quota values must be zero or positive; got MaxKeys=%d MaxGroups=%d", quota.MaxKeys, quota.MaxGroups),
+			nil,
+		)
+	}
 	scopedStore.quota = quota
 	return scopedStore, nil
 }
@@ -168,7 +175,11 @@ func (scopedStore *ScopedStore) GetFields(group, key string) (iter.Seq[string], 
 
 // Usage example: `removedRows, err := scopedStore.PurgeExpired(); if err != nil { return }; fmt.Println(removedRows)`
 func (scopedStore *ScopedStore) PurgeExpired() (int64, error) {
-	return scopedStore.storeInstance.PurgeExpired()
+	removedRows, err := scopedStore.storeInstance.purgeExpiredMatchingGroupPrefix(scopedStore.namespacePrefix())
+	if err != nil {
+		return 0, core.E("store.ScopedStore.PurgeExpired", "delete expired rows", err)
+	}
+	return removedRows, nil
 }
 
 // checkQuota("store.ScopedStore.Set", "config", "colour") returns nil when the

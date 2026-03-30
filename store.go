@@ -141,11 +141,17 @@ func (storeInstance *Store) SetWithTTL(group, key, value string, timeToLive time
 
 // Usage example: `if err := storeInstance.Delete("config", "colour"); err != nil { return }`
 func (storeInstance *Store) Delete(group, key string) error {
-	_, err := storeInstance.database.Exec("DELETE FROM "+entriesTableName+" WHERE "+entryGroupColumn+" = ? AND "+entryKeyColumn+" = ?", group, key)
+	deleteResult, err := storeInstance.database.Exec("DELETE FROM "+entriesTableName+" WHERE "+entryGroupColumn+" = ? AND "+entryKeyColumn+" = ?", group, key)
 	if err != nil {
 		return core.E("store.Delete", "delete row", err)
 	}
-	storeInstance.notify(Event{Type: EventDelete, Group: group, Key: key, Timestamp: time.Now()})
+	deletedRows, rowsAffectedError := deleteResult.RowsAffected()
+	if rowsAffectedError != nil {
+		return core.E("store.Delete", "count deleted rows", rowsAffectedError)
+	}
+	if deletedRows > 0 {
+		storeInstance.notify(Event{Type: EventDelete, Group: group, Key: key, Timestamp: time.Now()})
+	}
 	return nil
 }
 
@@ -164,11 +170,17 @@ func (storeInstance *Store) Count(group string) (int, error) {
 
 // Usage example: `if err := storeInstance.DeleteGroup("cache"); err != nil { return }`
 func (storeInstance *Store) DeleteGroup(group string) error {
-	_, err := storeInstance.database.Exec("DELETE FROM "+entriesTableName+" WHERE "+entryGroupColumn+" = ?", group)
+	deleteResult, err := storeInstance.database.Exec("DELETE FROM "+entriesTableName+" WHERE "+entryGroupColumn+" = ?", group)
 	if err != nil {
 		return core.E("store.DeleteGroup", "delete group", err)
 	}
-	storeInstance.notify(Event{Type: EventDeleteGroup, Group: group, Timestamp: time.Now()})
+	deletedRows, rowsAffectedError := deleteResult.RowsAffected()
+	if rowsAffectedError != nil {
+		return core.E("store.DeleteGroup", "count deleted rows", rowsAffectedError)
+	}
+	if deletedRows > 0 {
+		storeInstance.notify(Event{Type: EventDeleteGroup, Group: group, Timestamp: time.Now()})
+	}
 	return nil
 }
 
@@ -348,14 +360,9 @@ func escapeLike(text string) string {
 
 // Usage example: `removed, err := storeInstance.PurgeExpired()`
 func (storeInstance *Store) PurgeExpired() (int64, error) {
-	deleteResult, err := storeInstance.database.Exec("DELETE FROM "+entriesTableName+" WHERE expires_at IS NOT NULL AND expires_at <= ?",
-		time.Now().UnixMilli())
+	removedRows, err := storeInstance.purgeExpiredMatchingGroupPrefix("")
 	if err != nil {
 		return 0, core.E("store.PurgeExpired", "delete expired rows", err)
-	}
-	removedRows, rowsAffectedErr := deleteResult.RowsAffected()
-	if rowsAffectedErr != nil {
-		return 0, core.E("store.PurgeExpired", "count deleted rows", rowsAffectedErr)
 	}
 	return removedRows, nil
 }
@@ -415,6 +422,36 @@ func fieldsValueSeq(value string) iter.Seq[string] {
 			yield(value[start:])
 		}
 	}
+}
+
+// purgeExpiredMatchingGroupPrefix deletes expired rows globally when
+// groupPrefix is empty, otherwise only rows whose group starts with the given
+// prefix.
+func (storeInstance *Store) purgeExpiredMatchingGroupPrefix(groupPrefix string) (int64, error) {
+	var (
+		deleteResult sql.Result
+		err          error
+	)
+	now := time.Now().UnixMilli()
+	if groupPrefix == "" {
+		deleteResult, err = storeInstance.database.Exec(
+			"DELETE FROM "+entriesTableName+" WHERE expires_at IS NOT NULL AND expires_at <= ?",
+			now,
+		)
+	} else {
+		deleteResult, err = storeInstance.database.Exec(
+			"DELETE FROM "+entriesTableName+" WHERE expires_at IS NOT NULL AND expires_at <= ? AND "+entryGroupColumn+" LIKE ? ESCAPE '^'",
+			now, escapeLike(groupPrefix)+"%",
+		)
+	}
+	if err != nil {
+		return 0, err
+	}
+	removedRows, rowsAffectedErr := deleteResult.RowsAffected()
+	if rowsAffectedErr != nil {
+		return 0, rowsAffectedErr
+	}
+	return removedRows, nil
 }
 
 type schemaDatabase interface {
