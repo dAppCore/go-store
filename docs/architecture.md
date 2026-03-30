@@ -24,7 +24,7 @@ WAL (Write-Ahead Logging) mode allows concurrent readers to proceed without bloc
 
 The `database/sql` package maintains a connection pool by default. SQLite pragmas are per-connection: if the pool hands out a second connection, that connection inherits none of the WAL or busy-timeout settings, causing `SQLITE_BUSY` errors under concurrent load.
 
-go-store calls `db.SetMaxOpenConns(1)` to pin all access to a single connection. Since SQLite serialises writes at the file level regardless, this introduces no additional throughput penalty. It eliminates the BUSY errors by ensuring the pragma settings always apply.
+go-store calls `database.SetMaxOpenConns(1)` to pin all access to a single connection. Since SQLite serialises writes at the file level regardless, this introduces no additional throughput penalty. It eliminates the BUSY errors by ensuring the pragma settings always apply.
 
 ### Schema
 
@@ -165,8 +165,8 @@ for event := range watcher.Events {
 This is the designed integration point for consumers such as go-ws:
 
 ```go
-unregister := storeInstance.OnChange(func(e store.Event) {
-    hub.SendToChannel("store-events", e)
+unregister := storeInstance.OnChange(func(event store.Event) {
+    hub.SendToChannel("store-events", event)
 })
 defer unregister()
 ```
@@ -176,7 +176,7 @@ Callbacks may safely register or unregister watchers and callbacks while handlin
 
 ### Internal Dispatch
 
-The `notify(e Event)` method first acquires the watcher read-lock, iterates all watchers with non-blocking channel sends, then releases the lock. It then acquires the callback read-lock, snapshots the registered callbacks, releases the lock, and invokes each callback synchronously. This keeps watcher delivery non-blocking while allowing callbacks to manage subscriptions re-entrantly.
+The `notify(event Event)` method first acquires the watcher read-lock, iterates all watchers with non-blocking channel sends, then releases the lock. It then acquires the callback read-lock, snapshots the registered callbacks, releases the lock, and invokes each callback synchronously. This keeps watcher delivery non-blocking while allowing callbacks to manage subscriptions re-entrantly.
 
 Watcher matching is handled by the `watcherMatches` helper, which checks the group and key filters against the event. Wildcard `"*"` matches any value in its position.
 

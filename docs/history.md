@@ -17,7 +17,7 @@ At extraction the package comprised a single source file and a single test file.
 
 **Problem.** The `database/sql` connection pool hands out different physical connections for each `Exec` or `Query` call. SQLite pragmas (`PRAGMA journal_mode=WAL`, `PRAGMA busy_timeout`) are per-connection. Under concurrent write load (10 goroutines, 100 ops each), connections from the pool that had not received the WAL pragma would block and return `SQLITE_BUSY` immediately rather than waiting.
 
-**Fix.** `db.SetMaxOpenConns(1)` serialises all database access through a single connection. Because SQLite is a single-writer database by design (it serialises writes at the file-lock level regardless of pool size), this does not reduce write throughput. It eliminates the BUSY errors by ensuring the pragma settings always apply.
+**Fix.** `database.SetMaxOpenConns(1)` serialises all database access through a single connection. Because SQLite is a single-writer database by design (it serialises writes at the file-lock level regardless of pool size), this does not reduce write throughput. It eliminates the BUSY errors by ensuring the pragma settings always apply.
 
 **Defence in depth.** `PRAGMA busy_timeout=5000` was added to make the single connection wait up to 5 seconds before reporting a timeout error, providing additional resilience.
 

@@ -47,8 +47,8 @@ type Store struct {
 
 // New creates a Store at the given SQLite path. Use ":memory:" for tests.
 // Usage example: `storeInstance, _ := store.New("/tmp/config.db")`
-func New(dbPath string) (*Store, error) {
-	database, err := sql.Open("sqlite", dbPath)
+func New(databasePath string) (*Store, error) {
+	sqliteDatabase, err := sql.Open("sqlite", databasePath)
 	if err != nil {
 		return nil, core.E("store.New", "open", err)
 	}
@@ -56,23 +56,23 @@ func New(dbPath string) (*Store, error) {
 	// one writer at a time; using a pool causes SQLITE_BUSY under contention
 	// because pragmas (journal_mode, busy_timeout) are per-connection and the
 	// pool hands out different connections for each call.
-	database.SetMaxOpenConns(1)
-	if _, err := database.Exec("PRAGMA journal_mode=WAL"); err != nil {
-		database.Close()
+	sqliteDatabase.SetMaxOpenConns(1)
+	if _, err := sqliteDatabase.Exec("PRAGMA journal_mode=WAL"); err != nil {
+		sqliteDatabase.Close()
 		return nil, core.E("store.New", "WAL", err)
 	}
-	if _, err := database.Exec("PRAGMA busy_timeout=5000"); err != nil {
-		database.Close()
+	if _, err := sqliteDatabase.Exec("PRAGMA busy_timeout=5000"); err != nil {
+		sqliteDatabase.Close()
 		return nil, core.E("store.New", "busy_timeout", err)
 	}
-	if err := ensureSchema(database); err != nil {
-		database.Close()
+	if err := ensureSchema(sqliteDatabase); err != nil {
+		sqliteDatabase.Close()
 		return nil, err
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
-	storeInstance := &Store{database: database, cancelPurge: cancel, purgeInterval: 60 * time.Second}
-	storeInstance.startPurge(ctx)
+	purgeContext, cancel := context.WithCancel(context.Background())
+	storeInstance := &Store{database: sqliteDatabase, cancelPurge: cancel, purgeInterval: 60 * time.Second}
+	storeInstance.startPurge(purgeContext)
 	return storeInstance, nil
 }
 
@@ -330,7 +330,7 @@ func (storeInstance *Store) GroupsSeq(groupPrefix string) iter.Seq2[string, erro
 			)
 		}
 		if err != nil {
-			yield("", core.E("store.Groups", "query", err))
+			yield("", core.E("store.GroupsSeq", "query", err))
 			return
 		}
 		defer rows.Close()
@@ -338,7 +338,7 @@ func (storeInstance *Store) GroupsSeq(groupPrefix string) iter.Seq2[string, erro
 		for rows.Next() {
 			var groupName string
 			if err := rows.Scan(&groupName); err != nil {
-				if !yield("", core.E("store.Groups", "scan", err)) {
+				if !yield("", core.E("store.GroupsSeq", "scan", err)) {
 					return
 				}
 				continue
@@ -348,7 +348,7 @@ func (storeInstance *Store) GroupsSeq(groupPrefix string) iter.Seq2[string, erro
 			}
 		}
 		if err := rows.Err(); err != nil {
-			yield("", core.E("store.Groups", "rows", err))
+			yield("", core.E("store.GroupsSeq", "rows", err))
 		}
 	}
 }
@@ -365,23 +365,23 @@ func escapeLike(text string) string {
 // of rows removed.
 // Usage example: `removed, err := storeInstance.PurgeExpired()`
 func (storeInstance *Store) PurgeExpired() (int64, error) {
-	result, err := storeInstance.database.Exec("DELETE FROM "+entriesTableName+" WHERE expires_at IS NOT NULL AND expires_at <= ?",
+	deleteResult, err := storeInstance.database.Exec("DELETE FROM "+entriesTableName+" WHERE expires_at IS NOT NULL AND expires_at <= ?",
 		time.Now().UnixMilli())
 	if err != nil {
 		return 0, core.E("store.PurgeExpired", "exec", err)
 	}
-	return result.RowsAffected()
+	return deleteResult.RowsAffected()
 }
 
 // startPurge launches a background goroutine that purges expired entries at the
 // store's configured purge interval. It stops when the context is cancelled.
-func (storeInstance *Store) startPurge(ctx context.Context) {
+func (storeInstance *Store) startPurge(purgeContext context.Context) {
 	storeInstance.purgeWaitGroup.Go(func() {
 		ticker := time.NewTicker(storeInstance.purgeInterval)
 		defer ticker.Stop()
 		for {
 			select {
-			case <-ctx.Done():
+			case <-purgeContext.Done():
 				return
 			case <-ticker.C:
 				if _, err := storeInstance.PurgeExpired(); err != nil {
