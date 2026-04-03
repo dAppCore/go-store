@@ -184,7 +184,7 @@ func TestWorkspace_RecoverOrphans_Good(t *testing.T) {
 	assert.False(t, testFilesystem().Exists(workspaceFilePath(stateDirectory, "orphan-session")))
 }
 
-func TestWorkspace_New_Good_CleansUpOrphanedWorkspaces(t *testing.T) {
+func TestWorkspace_New_Good_LeavesOrphanedWorkspacesForRecovery(t *testing.T) {
 	stateDirectory := useWorkspaceStateDirectory(t)
 	requireCoreOK(t, testFilesystem().EnsureDir(stateDirectory))
 
@@ -198,6 +198,12 @@ func TestWorkspace_New_Good_CleansUpOrphanedWorkspaces(t *testing.T) {
 	require.NoError(t, err)
 	defer storeInstance.Close()
 
+	assert.True(t, testFilesystem().Exists(orphanDatabasePath))
+
+	orphans := storeInstance.RecoverOrphans(stateDirectory)
+	require.Len(t, orphans, 1)
+	assert.Equal(t, "orphan-session", orphans[0].Name())
+	orphans[0].Discard()
 	assert.False(t, testFilesystem().Exists(orphanDatabasePath))
 	assert.False(t, testFilesystem().Exists(orphanDatabasePath+"-wal"))
 	assert.False(t, testFilesystem().Exists(orphanDatabasePath+"-shm"))

@@ -159,17 +159,6 @@ func discoverOrphanWorkspacePaths(stateDirectory string) []string {
 	return orphanPaths
 }
 
-func (storeInstance *Store) cleanUpOrphanedWorkspaces(stateDirectory string) {
-	if storeInstance == nil {
-		return
-	}
-
-	for _, orphanWorkspace := range storeInstance.RecoverOrphans(stateDirectory) {
-		_ = orphanWorkspace.Aggregate()
-		orphanWorkspace.Discard()
-	}
-}
-
 func workspaceNameFromPath(stateDirectory, databasePath string) string {
 	relativePath := core.TrimPrefix(databasePath, joinPath(stateDirectory, ""))
 	return core.TrimSuffix(relativePath, ".duckdb")
