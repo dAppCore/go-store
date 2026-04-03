@@ -202,7 +202,7 @@ These tests exercise correct defensive code. They must continue to pass but are 
 
 **File-backed write throughput.** File-backed `Set` operations (~3,800 ops/sec on Apple M-series) are dominated by fsync. Applications writing at higher rates should use in-memory stores or consider WAL checkpoint tuning.
 
-**`GetAll` memory usage.** Fetching a group with 10,000 keys allocates approximately 2.3 MB per call. There is no pagination API. Applications with very large groups should restructure data into smaller groups or query selectively.
+**`GetAll` memory usage.** Fetching a group with 10,000 keys allocates approximately 2.3 MB per call. Use `GetPage()` when you need offset/limit pagination over a large group. Applications with very large groups should still prefer smaller groups or selective queries.
 
 **No cross-group transactions.** There is no API for atomic multi-group operations. Each method is individually atomic at the SQLite level, but there is no `Begin`/`Commit` exposed to callers.
 
