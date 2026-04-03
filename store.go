@@ -48,6 +48,8 @@ type Store struct {
 	purgeWaitGroup sync.WaitGroup
 	purgeInterval  time.Duration // interval between background purge cycles
 	journal        journalConfig
+	closeLock      sync.Mutex
+	closed         bool
 
 	// Event dispatch state.
 	watchers                   map[string][]chan Event
@@ -109,6 +111,14 @@ func New(databasePath string, options ...StoreOption) (*Store, error) {
 
 // Usage example: `storeInstance, err := store.New(":memory:"); if err != nil { return }; defer storeInstance.Close()`
 func (storeInstance *Store) Close() error {
+	storeInstance.closeLock.Lock()
+	if storeInstance.closed {
+		storeInstance.closeLock.Unlock()
+		return nil
+	}
+	storeInstance.closed = true
+	storeInstance.closeLock.Unlock()
+
 	storeInstance.cancelPurge()
 	storeInstance.purgeWaitGroup.Wait()
 	if err := storeInstance.database.Close(); err != nil {

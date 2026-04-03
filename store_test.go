@@ -655,6 +655,13 @@ func TestStore_Close_Good(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestStore_Close_Good_Idempotent(t *testing.T) {
+	storeInstance, _ := New(":memory:")
+
+	require.NoError(t, storeInstance.Close())
+	require.NoError(t, storeInstance.Close())
+}
+
 func TestStore_Close_Good_OperationsFailAfterClose(t *testing.T) {
 	storeInstance, _ := New(":memory:")
 	require.NoError(t, storeInstance.Close())
