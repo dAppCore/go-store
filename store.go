@@ -276,11 +276,6 @@ func (storeInstance *Store) All(group string) iter.Seq2[KeyValue, error] {
 	}
 }
 
-// Usage example: `for entry, err := range storeInstance.AllSeq("config") { if err != nil { break }; fmt.Println(entry.Key, entry.Value) }`
-func (storeInstance *Store) AllSeq(group string) iter.Seq2[KeyValue, error] {
-	return storeInstance.All(group)
-}
-
 // Usage example: `parts, err := storeInstance.GetSplit("config", "hosts", ","); if err != nil { return }; for part := range parts { fmt.Println(part) }`
 func (storeInstance *Store) GetSplit(group, key, separator string) (iter.Seq[string], error) {
 	value, err := storeInstance.Get(group, key)

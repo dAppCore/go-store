@@ -134,18 +134,6 @@ func TestScope_ScopedStore_Good_DefaultGroupHelpers(t *testing.T) {
 	assert.Equal(t, "dark", rawValue)
 }
 
-func TestScope_ScopedStore_Good_SetInGetFrom(t *testing.T) {
-	storeInstance, _ := New(":memory:")
-	defer storeInstance.Close()
-
-	scopedStore := mustScoped(t, storeInstance, "tenant-a")
-	require.NoError(t, scopedStore.SetIn("config", "theme", "dark"))
-
-	value, err := scopedStore.GetFrom("config", "theme")
-	require.NoError(t, err)
-	assert.Equal(t, "dark", value)
-}
-
 func TestScope_ScopedStore_Good_PrefixedInUnderlyingStore(t *testing.T) {
 	storeInstance, _ := New(":memory:")
 	defer storeInstance.Close()

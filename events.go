@@ -117,9 +117,7 @@ func (storeInstance *Store) Unwatch(group string, events <-chan Event) {
 
 // OnChange registers a synchronous mutation callback.
 // Usage example: `events := make(chan store.Event, 1); unregister := storeInstance.OnChange(func(event store.Event) { events <- event }); defer unregister()`
-// Usage example: `unregister := storeInstance.OnChange("config", func(key, value string) { fmt.Println(key, value) })`
-func (storeInstance *Store) OnChange(arguments ...any) func() {
-	callback := onChangeCallback(arguments)
+func (storeInstance *Store) OnChange(callback func(Event)) func() {
 	if callback == nil {
 		return func() {}
 	}
@@ -144,39 +142,6 @@ func (storeInstance *Store) OnChange(arguments ...any) func() {
 				}
 			}
 		})
-	}
-}
-
-func onChangeCallback(arguments []any) func(Event) {
-	switch len(arguments) {
-	case 0:
-		return nil
-	case 1:
-		if arguments[0] == nil {
-			return nil
-		}
-		callback, ok := arguments[0].(func(Event))
-		if !ok {
-			return nil
-		}
-		return callback
-	case 2:
-		group, ok := arguments[0].(string)
-		if !ok {
-			return nil
-		}
-		callback, ok := arguments[1].(func(string, string))
-		if !ok || callback == nil {
-			return nil
-		}
-		return func(event Event) {
-			if event.Group != group {
-				return
-			}
-			callback(event.Key, event.Value)
-		}
-	default:
-		return nil
 	}
 }
 
