@@ -106,6 +106,7 @@ func New(databasePath string, options ...StoreOption) (*Store, error) {
 		}
 	}
 	storeInstance.startBackgroundPurge(purgeContext)
+	storeInstance.cleanUpOrphanedWorkspaces(defaultWorkspaceStateDirectory)
 	return storeInstance, nil
 }
 
