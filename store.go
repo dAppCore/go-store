@@ -113,10 +113,7 @@ func New(databasePath string, options ...StoreOption) (*Store, error) {
 		}
 	}
 	storeInstance.startBackgroundPurge(purgeContext)
-	orphanWorkspaces := storeInstance.RecoverOrphans(defaultWorkspaceStateDirectory)
-	for _, orphanWorkspace := range orphanWorkspaces {
-		orphanWorkspace.Discard()
-	}
+	storeInstance.cleanUpOrphanedWorkspaces(defaultWorkspaceStateDirectory)
 	return storeInstance, nil
 }
 

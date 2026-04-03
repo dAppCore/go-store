@@ -20,12 +20,12 @@ type CompactOptions struct {
 }
 
 type compactArchiveEntry struct {
-	id          int64
-	bucket      string
-	measurement string
-	fieldsJSON  string
-	tagsJSON    string
-	committedAt int64
+	entryID              int64
+	bucketName           string
+	measurementName      string
+	fieldsJSON           string
+	tagsJSON             string
+	committedAtUnixMilli int64
 }
 
 // Compact archives old journal entries as newline-delimited JSON.
@@ -65,12 +65,12 @@ func (storeInstance *Store) Compact(options CompactOptions) core.Result {
 	for rows.Next() {
 		var entry compactArchiveEntry
 		if err := rows.Scan(
-			&entry.id,
-			&entry.bucket,
-			&entry.measurement,
+			&entry.entryID,
+			&entry.bucketName,
+			&entry.measurementName,
 			&entry.fieldsJSON,
 			&entry.tagsJSON,
-			&entry.committedAt,
+			&entry.committedAtUnixMilli,
 		); err != nil {
 			return core.Result{Value: core.E("store.Compact", "scan journal row", err), OK: false}
 		}
@@ -84,12 +84,12 @@ func (storeInstance *Store) Compact(options CompactOptions) core.Result {
 	}
 
 	outputPath := compactOutputPath(outputDirectory, format)
-	createResult := filesystem.Create(outputPath)
-	if !createResult.OK {
-		return core.Result{Value: core.E("store.Compact", "create archive file", createResult.Value.(error)), OK: false}
+	archiveFileResult := filesystem.Create(outputPath)
+	if !archiveFileResult.OK {
+		return core.Result{Value: core.E("store.Compact", "create archive file", archiveFileResult.Value.(error)), OK: false}
 	}
 
-	file, ok := createResult.Value.(io.WriteCloser)
+	file, ok := archiveFileResult.Value.(io.WriteCloser)
 	if !ok {
 		return core.Result{Value: core.E("store.Compact", "archive file is not writable", nil), OK: false}
 	}
@@ -150,7 +150,7 @@ func (storeInstance *Store) Compact(options CompactOptions) core.Result {
 		if _, err := transaction.Exec(
 			"UPDATE "+journalEntriesTableName+" SET archived_at = ? WHERE entry_id = ?",
 			archivedAt,
-			entry.id,
+			entry.entryID,
 		); err != nil {
 			return core.Result{Value: core.E("store.Compact", "mark journal row archived", err), OK: false}
 		}
@@ -177,11 +177,11 @@ func compactArchiveLine(entry compactArchiveEntry) (map[string]any, error) {
 	}
 
 	return map[string]any{
-		"bucket":       entry.bucket,
-		"measurement":  entry.measurement,
+		"bucket":       entry.bucketName,
+		"measurement":  entry.measurementName,
 		"fields":       fields,
 		"tags":         tags,
-		"committed_at": entry.committedAt,
+		"committed_at": entry.committedAtUnixMilli,
 	}, nil
 }
 
