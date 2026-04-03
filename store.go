@@ -128,6 +128,8 @@ func WithPurgeInterval(interval time.Duration) StoreOption {
 }
 
 // Usage example: `storeInstance, err := store.NewConfigured(store.StoreConfig{DatabasePath: ":memory:", Journal: store.JournalConfiguration{EndpointURL: "http://127.0.0.1:8086", Organisation: "core", BucketName: "events"}, PurgeInterval: 20 * time.Millisecond})`
+// NewConfigured also scans `.core/state` for leftover `.duckdb` workspace files
+// so orphan recovery can happen before the first explicit recovery call.
 func NewConfigured(config StoreConfig) (*Store, error) {
 	storeInstance, err := openStore("store.NewConfigured", config.DatabasePath)
 	if err != nil {
@@ -145,11 +147,14 @@ func NewConfigured(config StoreConfig) (*Store, error) {
 		storeInstance.purgeInterval = config.PurgeInterval
 	}
 
+	_ = discoverOrphanWorkspacePaths(defaultWorkspaceStateDirectory)
 	storeInstance.startBackgroundPurge()
 	return storeInstance, nil
 }
 
 // Usage example: `storeInstance, err := store.New("/tmp/go-store.db", store.WithJournal("http://127.0.0.1:8086", "core", "events"))`
+// New scans `.core/state` for leftover `.duckdb` workspace files before the
+// store starts its background purge loop.
 func New(databasePath string, options ...StoreOption) (*Store, error) {
 	storeInstance, err := openStore("store.New", databasePath)
 	if err != nil {
@@ -160,6 +165,7 @@ func New(databasePath string, options ...StoreOption) (*Store, error) {
 			option(storeInstance)
 		}
 	}
+	_ = discoverOrphanWorkspacePaths(defaultWorkspaceStateDirectory)
 	storeInstance.startBackgroundPurge()
 	return storeInstance, nil
 }
