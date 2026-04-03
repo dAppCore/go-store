@@ -2,6 +2,9 @@
 // namespace isolation, quota enforcement, reactive change notifications,
 // workspace journalling, and explicit orphan recovery.
 //
+// Workspace files are created under `.core/state/` and can be recovered with
+// `RecoverOrphans(".core/state")`.
+//
 // Prefer `store.NewConfigured(store.StoreConfig{...})` when constructing a
 // store from an agent-written configuration literal.
 //

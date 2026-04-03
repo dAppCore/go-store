@@ -32,7 +32,8 @@ FROM workspace_entries`
 
 var defaultWorkspaceStateDirectory = ".core/state"
 
-// Workspace buffers mutable work-in-progress in a temporary database file.
+// Workspace buffers mutable work-in-progress in `.core/state/scroll-session.duckdb`
+// until Commit or Discard removes the file.
 //
 // Usage example: `workspace, err := storeInstance.NewWorkspace("scroll-session-2026-03-30"); if err != nil { return }; defer workspace.Discard()`
 type Workspace struct {
