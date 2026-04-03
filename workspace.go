@@ -32,7 +32,7 @@ FROM workspace_entries`
 
 var defaultWorkspaceStateDirectory = ".core/state"
 
-// Workspace is a named SQLite buffer for mutable work-in-progress.
+// Workspace buffers mutable work-in-progress in a temporary SQLite file.
 //
 // Usage example: `workspace, err := storeInstance.NewWorkspace("scroll-session-2026-03-30"); if err != nil { return }; defer workspace.Discard()`
 type Workspace struct {
@@ -109,8 +109,8 @@ func (storeInstance *Store) NewWorkspace(name string) (*Workspace, error) {
 	}, nil
 }
 
-// RecoverOrphans opens leftover workspace files in a state directory so
-// callers can inspect them before calling Discard().
+// RecoverOrphans(".core/state") returns orphaned workspaces such as
+// `scroll-session.duckdb` so callers can inspect Aggregate() and then Discard().
 // Usage example: `orphans := storeInstance.RecoverOrphans(".core/state")`
 func (storeInstance *Store) RecoverOrphans(stateDirectory string) []*Workspace {
 	if storeInstance == nil {
@@ -212,8 +212,8 @@ func (workspace *Workspace) Aggregate() map[string]any {
 	return fields
 }
 
-// Commit writes the aggregated workspace state to the journal and updates the
-// store summary entry for the workspace.
+// Commit writes one journal point for the workspace and upserts the summary
+// row in `workspace:NAME`.
 // Usage example: `result := workspace.Commit()`
 func (workspace *Workspace) Commit() core.Result {
 	if err := workspace.ensureReady("store.Workspace.Commit"); err != nil {
