@@ -38,7 +38,6 @@ type journalConfiguration struct {
 	bucketName   string
 }
 
-// JournalConfiguration is the public snapshot returned by Store.JournalConfiguration().
 // Usage example: `config := storeInstance.JournalConfiguration(); fmt.Println(config.EndpointURL, config.Organisation, config.BucketName)`
 type JournalConfiguration struct {
 	// Usage example: `config := store.JournalConfiguration{EndpointURL: "http://127.0.0.1:8086"}`
@@ -255,7 +254,6 @@ func (storeInstance *Store) DeleteGroup(group string) error {
 	return nil
 }
 
-// KeyValue is one item returned by All.
 // Usage example: `for entry, err := range storeInstance.All("config") { if err != nil { break }; fmt.Println(entry.Key, entry.Value) }`
 type KeyValue struct {
 	// Usage example: `if entry.Key == "colour" { return }`

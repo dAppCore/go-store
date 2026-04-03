@@ -13,7 +13,6 @@ var validNamespace = regexp.MustCompile(`^[a-zA-Z0-9-]+$`)
 
 const defaultScopedGroupName = "default"
 
-// QuotaConfig sets per-namespace key and group limits.
 // Usage example: `quota := store.QuotaConfig{MaxKeys: 100, MaxGroups: 10}`
 type QuotaConfig struct {
 	// Usage example: `store.QuotaConfig{MaxKeys: 100, MaxGroups: 10}` limits a namespace to 100 keys.
@@ -30,7 +29,6 @@ type ScopedStore struct {
 	MaxGroups int
 }
 
-// NewScoped validates a namespace and prefixes groups with namespace + ":".
 // Usage example: `scopedStore := store.NewScoped(storeInstance, "tenant-a")`
 func NewScoped(storeInstance *Store, namespace string) *ScopedStore {
 	if storeInstance == nil {
@@ -43,7 +41,6 @@ func NewScoped(storeInstance *Store, namespace string) *ScopedStore {
 	return scopedStore
 }
 
-// NewScopedWithQuota adds per-namespace key and group limits.
 // Usage example: `scopedStore, err := store.NewScopedWithQuota(storeInstance, "tenant-a", store.QuotaConfig{MaxKeys: 100, MaxGroups: 10}); if err != nil { return }`
 func NewScopedWithQuota(storeInstance *Store, namespace string, quota QuotaConfig) (*ScopedStore, error) {
 	scopedStore := NewScoped(storeInstance, namespace)
@@ -77,7 +74,6 @@ func (scopedStore *ScopedStore) trimNamespacePrefix(groupName string) string {
 	return core.TrimPrefix(groupName, scopedStore.namespacePrefix())
 }
 
-// Namespace returns the namespace string.
 // Usage example: `scopedStore := store.NewScoped(storeInstance, "tenant-a"); if scopedStore == nil { return }; namespace := scopedStore.Namespace(); fmt.Println(namespace)`
 func (scopedStore *ScopedStore) Namespace() string {
 	return scopedStore.namespace

@@ -36,7 +36,6 @@ type journalExecutor interface {
 	Exec(query string, args ...any) (sql.Result, error)
 }
 
-// CommitToJournal records one completed unit of work in the store journal.
 // Usage example: `result := storeInstance.CommitToJournal("scroll-session", map[string]any{"like": 4}, map[string]string{"workspace": "scroll-session"})`
 func (storeInstance *Store) CommitToJournal(measurement string, fields map[string]any, tags map[string]string) core.Result {
 	if measurement == "" {
@@ -85,8 +84,6 @@ func (storeInstance *Store) CommitToJournal(measurement string, fields map[strin
 	}
 }
 
-// QueryJournal reads journal rows either through a small Flux-like filter
-// surface or a direct SQL SELECT against the internal journal table.
 // Usage example: `result := storeInstance.QueryJournal(\`from(bucket: "store") |> range(start: -24h)\`)`
 func (storeInstance *Store) QueryJournal(flux string) core.Result {
 	if err := ensureJournalSchema(storeInstance.database); err != nil {

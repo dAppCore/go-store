@@ -44,7 +44,6 @@ type Workspace struct {
 	closed    bool
 }
 
-// NewWorkspace creates a workspace state file under `.core/state/`.
 // Usage example: `workspace, err := storeInstance.NewWorkspace("scroll-session-2026-03-30")`
 func (storeInstance *Store) NewWorkspace(name string) (*Workspace, error) {
 	validation := core.ValidateName(name)
@@ -138,7 +137,6 @@ func (storeInstance *Store) cleanUpOrphanedWorkspaces(stateDirectory string) {
 	}
 }
 
-// Put appends one entry to the workspace buffer.
 // Usage example: `err := workspace.Put("like", map[string]any{"user": "@alice", "post": "video_123"})`
 func (workspace *Workspace) Put(kind string, data map[string]any) error {
 	if kind == "" {
@@ -165,7 +163,6 @@ func (workspace *Workspace) Put(kind string, data map[string]any) error {
 	return nil
 }
 
-// Aggregate returns the current per-kind entry counts in the workspace.
 // Usage example: `summary := workspace.Aggregate()`
 func (workspace *Workspace) Aggregate() map[string]any {
 	fields, err := workspace.aggregateFields()
@@ -192,13 +189,11 @@ func (workspace *Workspace) Commit() core.Result {
 	return core.Result{Value: fields, OK: true}
 }
 
-// Discard closes the workspace and removes its backing file.
 // Usage example: `workspace.Discard()`
 func (workspace *Workspace) Discard() {
 	_ = workspace.closeAndDelete()
 }
 
-// Query runs ad-hoc SQL against the workspace buffer.
 // Usage example: `result := workspace.Query("SELECT entry_kind, COUNT(*) AS count FROM workspace_entries GROUP BY entry_kind")`
 func (workspace *Workspace) Query(sqlQuery string) core.Result {
 	rows, err := workspace.database.Query(sqlQuery)

@@ -11,7 +11,6 @@ import (
 
 var defaultArchiveOutputDirectory = ".core/archive"
 
-// CompactOptions controls cold archive generation.
 // Usage example: `options := store.CompactOptions{Before: time.Now().Add(-90 * 24 * time.Hour), Output: "/tmp/archive", Format: "gzip"}`
 type CompactOptions struct {
 	Before time.Time
@@ -28,7 +27,6 @@ type compactArchiveEntry struct {
 	committedAtUnixMilli int64
 }
 
-// Compact archives old journal entries as newline-delimited JSON.
 // Usage example: `result := storeInstance.Compact(store.CompactOptions{Before: time.Now().Add(-30 * 24 * time.Hour), Output: "/tmp/archive", Format: "gzip"})`
 func (storeInstance *Store) Compact(options CompactOptions) core.Result {
 	if err := ensureJournalSchema(storeInstance.database); err != nil {
