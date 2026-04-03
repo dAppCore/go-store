@@ -133,6 +133,12 @@ func (storeInstance *Store) RecoverOrphans(stateDirectory string) []*Workspace {
 	return workspaces
 }
 
+func (storeInstance *Store) cleanUpOrphanedWorkspaces(stateDirectory string) {
+	for _, orphanWorkspace := range storeInstance.RecoverOrphans(stateDirectory) {
+		orphanWorkspace.Discard()
+	}
+}
+
 // Put appends one entry to the workspace buffer.
 // Usage example: `err := workspace.Put("like", map[string]any{"user": "@alice", "post": "video_123"})`
 func (workspace *Workspace) Put(kind string, data map[string]any) error {
