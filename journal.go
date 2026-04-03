@@ -108,7 +108,7 @@ func (storeInstance *Store) QueryJournal(flux string) core.Result {
 			"SELECT bucket_name, measurement, fields_json, tags_json, committed_at, archived_at FROM " + journalEntriesTableName + " WHERE archived_at IS NULL ORDER BY committed_at",
 		)
 	}
-	if core.HasPrefix(trimmedQuery, "SELECT") || core.HasPrefix(trimmedQuery, "select") {
+	if isRawSQLJournalQuery(trimmedQuery) {
 		return storeInstance.queryJournalRows(trimmedQuery)
 	}
 
@@ -117,6 +117,13 @@ func (storeInstance *Store) QueryJournal(flux string) core.Result {
 		return core.Result{Value: err, OK: false}
 	}
 	return storeInstance.queryJournalRows(selectSQL, arguments...)
+}
+
+func isRawSQLJournalQuery(query string) bool {
+	upperQuery := core.Upper(core.Trim(query))
+	return core.HasPrefix(upperQuery, "SELECT") ||
+		core.HasPrefix(upperQuery, "WITH") ||
+		core.HasPrefix(upperQuery, "EXPLAIN")
 }
 
 func (storeInstance *Store) queryJournalRows(query string, arguments ...any) core.Result {
