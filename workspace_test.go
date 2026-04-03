@@ -177,6 +177,7 @@ func TestWorkspace_RecoverOrphans_Good(t *testing.T) {
 
 	orphans := storeInstance.RecoverOrphans(stateDirectory)
 	require.Len(t, orphans, 1)
+	assert.Equal(t, "orphan-session", orphans[0].Name())
 	assert.Equal(t, map[string]any{"like": 1}, orphans[0].Aggregate())
 
 	orphans[0].Discard()
