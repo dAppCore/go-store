@@ -18,7 +18,7 @@ SQLite key-value store with TTL, namespace isolation, and reactive events. Pure 
 
 ## Getting Started
 
-Part of the Go workspace at `~/Code/go.work`—run `go work sync` after cloning. Single Go package with `store.go` (core), `events.go` (watchers/callbacks), and `scope.go` (scoping/quota).
+Part of the Go workspace at `~/Code/go.work`—run `go work sync` after cloning. Single Go package with `store.go` (core store API), `events.go` (watchers/callbacks), `scope.go` (scoping/quota), `journal.go` (journal persistence/query), `workspace.go` (workspace buffering), and `compact.go` (archive generation).
 
 ```bash
 go test ./... -count=1
@@ -44,6 +44,9 @@ go vet ./...                         # Vet
 - `store.go` — Core `Store` type: CRUD on an `entries` table keyed by `(group_name, entry_key)`, TTL via `expires_at` (Unix ms), background purge goroutine (60s interval), `text/template` rendering, `iter.Seq2` iterators
 - `events.go` — Event system: `Watch`/`Unwatch` (buffered chan, cap 16, non-blocking sends drop events) and `OnChange` callbacks (synchronous in writer goroutine). Watcher and callback registries use separate locks, so callbacks can register or unregister subscriptions without deadlocking.
 - `scope.go` — `ScopedStore` wraps `*Store`, prefixes groups with `namespace:`. Quota enforcement (`MaxKeys`/`MaxGroups`) checked before writes; upserts bypass quota. Namespace regex: `^[a-zA-Z0-9-]+$`
+- `journal.go` — Journal persistence and query helpers layered on SQLite.
+- `workspace.go` — Workspace buffers, commit flow, and orphan recovery.
+- `compact.go` — Cold archive generation for completed journal entries.
 
 **TTL enforcement is triple-layered:** lazy delete on `Get`, query-time `WHERE` filtering on bulk reads, and background purge goroutine.
 
