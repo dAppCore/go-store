@@ -35,7 +35,7 @@ var defaultWorkspaceStateDirectory = ".core/state"
 // Usage example: `workspace, err := storeInstance.NewWorkspace("scroll-session-2026-03-30"); if err != nil { return }; defer workspace.Discard()`
 type Workspace struct {
 	name         string
-	store        *Store
+	backingStore *Store
 	database     *sql.DB
 	databasePath string
 	filesystem   *core.Fs
@@ -48,7 +48,7 @@ func (workspace *Workspace) ensureReady(operation string) error {
 	if workspace == nil {
 		return core.E(operation, "workspace is nil", nil)
 	}
-	if workspace.store == nil {
+	if workspace.backingStore == nil {
 		return core.E(operation, "workspace store is nil", nil)
 	}
 	if workspace.database == nil {
@@ -57,7 +57,7 @@ func (workspace *Workspace) ensureReady(operation string) error {
 	if workspace.filesystem == nil {
 		return core.E(operation, "workspace filesystem is nil", nil)
 	}
-	if err := workspace.store.ensureReady(operation); err != nil {
+	if err := workspace.backingStore.ensureReady(operation); err != nil {
 		return err
 	}
 
@@ -98,7 +98,7 @@ func (storeInstance *Store) NewWorkspace(name string) (*Workspace, error) {
 
 	return &Workspace{
 		name:         name,
-		store:        storeInstance,
+		backingStore: storeInstance,
 		database:     workspaceDatabase,
 		databasePath: databasePath,
 		filesystem:   filesystem,
@@ -156,7 +156,7 @@ func (storeInstance *Store) RecoverOrphans(stateDirectory string) []*Workspace {
 		}
 		workspaces = append(workspaces, &Workspace{
 			name:         name,
-			store:        storeInstance,
+			backingStore: storeInstance,
 			database:     workspaceDatabase,
 			databasePath: databasePath,
 			filesystem:   filesystem,
@@ -231,7 +231,7 @@ func (workspace *Workspace) Commit() core.Result {
 	if err != nil {
 		return core.Result{Value: core.E("store.Workspace.Commit", "aggregate workspace", err), OK: false}
 	}
-	if err := workspace.store.commitWorkspaceAggregate(workspace.name, fields); err != nil {
+	if err := workspace.backingStore.commitWorkspaceAggregate(workspace.name, fields); err != nil {
 		return core.Result{Value: err, OK: false}
 	}
 	if err := workspace.closeAndDelete(); err != nil {

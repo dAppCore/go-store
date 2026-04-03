@@ -23,23 +23,23 @@ type QuotaConfig struct {
 
 // Usage example: `scopedStore := store.NewScoped(storeInstance, "tenant-a"); if scopedStore == nil { return }; if err := scopedStore.Set("config", "colour", "blue"); err != nil { return }`
 type ScopedStore struct {
-	store     *Store
-	namespace string
-	MaxKeys   int
-	MaxGroups int
+	backingStore *Store
+	namespace    string
+	MaxKeys      int
+	MaxGroups    int
 }
 
 func (scopedStore *ScopedStore) storeInstance(operation string) (*Store, error) {
 	if scopedStore == nil {
 		return nil, core.E(operation, "scoped store is nil", nil)
 	}
-	if scopedStore.store == nil {
+	if scopedStore.backingStore == nil {
 		return nil, core.E(operation, "underlying store is nil", nil)
 	}
-	if err := scopedStore.store.ensureReady(operation); err != nil {
+	if err := scopedStore.backingStore.ensureReady(operation); err != nil {
 		return nil, err
 	}
-	return scopedStore.store, nil
+	return scopedStore.backingStore, nil
 }
 
 // Usage example: `scopedStore := store.NewScoped(storeInstance, "tenant-a")`
@@ -50,7 +50,7 @@ func NewScoped(storeInstance *Store, namespace string) *ScopedStore {
 	if !validNamespace.MatchString(namespace) {
 		return nil
 	}
-	scopedStore := &ScopedStore{store: storeInstance, namespace: namespace}
+	scopedStore := &ScopedStore{backingStore: storeInstance, namespace: namespace}
 	return scopedStore
 }
 
@@ -308,7 +308,7 @@ func (scopedStore *ScopedStore) checkQuota(operation, group, key string) error {
 	namespacePrefix := scopedStore.namespacePrefix()
 
 	// Check if this is an upsert (key already exists) — upserts never exceed quota.
-	_, err := scopedStore.store.Get(namespacedGroup, key)
+	_, err := scopedStore.backingStore.Get(namespacedGroup, key)
 	if err == nil {
 		// Key exists — this is an upsert, no quota check needed.
 		return nil
@@ -320,7 +320,7 @@ func (scopedStore *ScopedStore) checkQuota(operation, group, key string) error {
 
 	// Check MaxKeys quota.
 	if scopedStore.MaxKeys > 0 {
-		keyCount, err := scopedStore.store.CountAll(namespacePrefix)
+		keyCount, err := scopedStore.backingStore.CountAll(namespacePrefix)
 		if err != nil {
 			return core.E(operation, "quota check", err)
 		}
@@ -331,14 +331,14 @@ func (scopedStore *ScopedStore) checkQuota(operation, group, key string) error {
 
 	// Check MaxGroups quota — only if this would create a new group.
 	if scopedStore.MaxGroups > 0 {
-		existingGroupCount, err := scopedStore.store.Count(namespacedGroup)
+		existingGroupCount, err := scopedStore.backingStore.Count(namespacedGroup)
 		if err != nil {
 			return core.E(operation, "quota check", err)
 		}
 		if existingGroupCount == 0 {
 			// This group is new — check if adding it would exceed the group limit.
 			knownGroupCount := 0
-			for _, iterationErr := range scopedStore.store.GroupsSeq(namespacePrefix) {
+			for _, iterationErr := range scopedStore.backingStore.GroupsSeq(namespacePrefix) {
 				if iterationErr != nil {
 					return core.E(operation, "quota check", iterationErr)
 				}
