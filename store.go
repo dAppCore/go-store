@@ -156,6 +156,7 @@ func newStoreFromConfig(operation string, config StoreConfig) (*Store, error) {
 	}
 
 	storeInstance.startBackgroundPurge()
+	storeInstance.cleanUpOrphanedWorkspaces(defaultWorkspaceStateDirectory)
 	return storeInstance, nil
 }
 
