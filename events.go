@@ -54,7 +54,6 @@ type Event struct {
 // the exact callback later.
 type changeCallbackRegistration struct {
 	registrationID uint64
-	group          string
 	callback       func(Event)
 }
 
@@ -118,51 +117,13 @@ func (storeInstance *Store) Unwatch(group string, events <-chan Event) {
 
 // OnChange registers a synchronous mutation callback.
 // Usage example: `unregister := storeInstance.OnChange(func(event store.Event) { fmt.Println(event.Group, event.Key, event.Value) })`
-// Usage example: `unregister := storeInstance.OnChange("config", func(key, value string) { fmt.Println(key, value) })`
-func (storeInstance *Store) OnChange(arguments ...any) func() {
-	if len(arguments) == 0 {
-		return func() {}
-	}
-
-	var (
-		callbackGroup string
-		callback      func(Event)
-	)
-
-	switch len(arguments) {
-	case 1:
-		switch typedCallback := arguments[0].(type) {
-		case func(Event):
-			callback = typedCallback
-		default:
-			return func() {}
-		}
-	case 2:
-		groupName, ok := arguments[0].(string)
-		if !ok {
-			return func() {}
-		}
-		callbackGroup = groupName
-		switch typedCallback := arguments[1].(type) {
-		case func(Event):
-			callback = typedCallback
-		case func(string, string):
-			callback = func(event Event) {
-				typedCallback(event.Key, event.Value)
-			}
-		default:
-			return func() {}
-		}
-	default:
-		return func() {}
-	}
-
+func (storeInstance *Store) OnChange(callback func(Event)) func() {
 	if callback == nil {
 		return func() {}
 	}
 
 	registrationID := atomic.AddUint64(&storeInstance.nextCallbackRegistrationID, 1)
-	callbackRegistration := changeCallbackRegistration{registrationID: registrationID, group: callbackGroup, callback: callback}
+	callbackRegistration := changeCallbackRegistration{registrationID: registrationID, callback: callback}
 
 	storeInstance.callbacksLock.Lock()
 	storeInstance.callbacks = append(storeInstance.callbacks, callbackRegistration)
@@ -211,9 +172,6 @@ func (storeInstance *Store) notify(event Event) {
 	storeInstance.callbacksLock.RUnlock()
 
 	for _, callback := range callbacks {
-		if callback.group != "" && callback.group != "*" && callback.group != event.Group {
-			continue
-		}
 		callback.callback(event)
 	}
 }

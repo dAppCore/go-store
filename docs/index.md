@@ -113,7 +113,7 @@ The entire package lives in a single Go package (`package store`) with three imp
 |------|---------|
 | `doc.go` | Package comment with concrete usage examples |
 | `store.go` | Core `Store` type, CRUD operations (`Get`, `Set`, `SetWithTTL`, `Delete`, `DeleteGroup`), bulk queries (`GetAll`, `All`, `Count`, `CountAll`, `Groups`, `GroupsSeq`), string splitting helpers (`GetSplit`, `GetFields`), template rendering (`Render`), TTL expiry, background purge goroutine |
-| `events.go` | `EventType` constants, `Event` struct, `Watcher` type, `Watch`/`Unwatch` subscription management, `OnChange` callback registration, internal `notify` dispatch |
+| `events.go` | `EventType` constants, `Event` struct, `Watch`/`Unwatch` channel subscriptions, `OnChange` callback registration, internal `notify` dispatch |
 | `scope.go` | `ScopedStore` wrapper for namespace isolation, `QuotaConfig` struct, `NewScoped`/`NewScopedWithQuota` constructors, namespace-local helper delegation, quota enforcement logic |
 
 Tests are organised in corresponding files:
@@ -148,7 +148,7 @@ There are no other direct dependencies. The package uses the Go standard library
 - **`ScopedStore`** -- wraps a `*Store` with an auto-prefixed namespace. Provides the same API surface with group names transparently prefixed.
 - **`QuotaConfig`** -- configures per-namespace limits on total keys and distinct groups.
 - **`Event`** -- describes a single store mutation (type, group, key, value, timestamp).
-- **`Watcher`** -- a channel-based subscription to store events, created by `Watch`. `Events` is the read-only channel to select on.
+- **`Watch`** -- returns a buffered channel subscription to store events. Use `Unwatch(group, events)` to stop delivery and close the channel.
 - **`KeyValue`** -- a simple key-value pair struct, used by the `All` iterator.
 
 ## Sentinel Errors

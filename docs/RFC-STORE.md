@@ -90,7 +90,7 @@ for group := range st.GroupsSeq() { ... }
 
 // Events
 ch := st.Watch("group")
-st.OnChange("group", func(key, val string) { ... })
+st.OnChange(func(event store.Event) { ... })
 ```
 
 ---
@@ -136,7 +136,7 @@ func (ss *ScopedStore) GetFrom(group, key string) (string, error) { }
 
 - `Watch(group string) <-chan Event` — returns buffered channel (cap 16), non-blocking sends drop events
 - `Unwatch(group string, ch <-chan Event)` — remove a watcher
-- `OnChange(group, callback)` — synchronous callback in writer goroutine
+- `OnChange(callback)` — synchronous callback in writer goroutine
 - **Deadlock warning:** `notify()` holds `s.mu` read-lock — calling Watch/Unwatch/OnChange from inside a callback will deadlock
 
 ---
