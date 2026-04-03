@@ -3,6 +3,7 @@ package store
 import (
 	"database/sql"
 	"io/fs"
+	"slices"
 	"sync"
 	"time"
 
@@ -98,6 +99,17 @@ func (storeInstance *Store) RecoverOrphans(stateDirectory string) []*Workspace {
 	if !ok {
 		return nil
 	}
+
+	slices.SortFunc(entries, func(left, right fs.DirEntry) int {
+		switch {
+		case left.Name() < right.Name():
+			return -1
+		case left.Name() > right.Name():
+			return 1
+		default:
+			return 0
+		}
+	})
 
 	var workspaces []*Workspace
 	for _, dirEntry := range entries {

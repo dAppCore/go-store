@@ -89,10 +89,10 @@ func main() {
     }
 
     // Watch "config" changes and print each event as it arrives.
-    watcher := storeInstance.Watch("config", "*")
-    defer storeInstance.Unwatch(watcher)
+    events := storeInstance.Watch("config")
+    defer storeInstance.Unwatch("config", events)
     go func() {
-        for event := range watcher.Events {
+        for event := range events {
             fmt.Println("event", event.Type, event.Group, event.Key, event.Value)
         }
     }()
