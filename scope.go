@@ -85,20 +85,8 @@ func (scopedStore *ScopedStore) Namespace() string {
 }
 
 // Usage example: `colourValue, err := scopedStore.Get("colour")`
-// Usage example: `colourValue, err := scopedStore.Get("config", "colour")`
-func (scopedStore *ScopedStore) Get(arguments ...string) (string, error) {
-	switch len(arguments) {
-	case 1:
-		return scopedStore.GetFrom(defaultScopedGroupName, arguments[0])
-	case 2:
-		return scopedStore.GetFrom(arguments[0], arguments[1])
-	default:
-		return "", core.E(
-			"store.ScopedStore.Get",
-			core.Sprintf("expected 1 or 2 arguments; got %d", len(arguments)),
-			nil,
-		)
-	}
+func (scopedStore *ScopedStore) Get(key string) (string, error) {
+	return scopedStore.GetFrom(defaultScopedGroupName, key)
 }
 
 // Usage example: `colourValue, err := scopedStore.GetFrom("config", "colour")`
@@ -107,20 +95,8 @@ func (scopedStore *ScopedStore) GetFrom(group, key string) (string, error) {
 }
 
 // Usage example: `if err := scopedStore.Set("colour", "blue"); err != nil { return }`
-// Usage example: `if err := scopedStore.Set("config", "colour", "blue"); err != nil { return }`
-func (scopedStore *ScopedStore) Set(arguments ...string) error {
-	switch len(arguments) {
-	case 2:
-		return scopedStore.SetIn(defaultScopedGroupName, arguments[0], arguments[1])
-	case 3:
-		return scopedStore.SetIn(arguments[0], arguments[1], arguments[2])
-	default:
-		return core.E(
-			"store.ScopedStore.Set",
-			core.Sprintf("expected 2 or 3 arguments; got %d", len(arguments)),
-			nil,
-		)
-	}
+func (scopedStore *ScopedStore) Set(key, value string) error {
+	return scopedStore.SetIn(defaultScopedGroupName, key, value)
 }
 
 // Usage example: `if err := scopedStore.SetIn("config", "colour", "blue"); err != nil { return }`

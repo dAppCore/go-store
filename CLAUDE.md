@@ -85,7 +85,7 @@ func main() {
 	if err != nil {
 		return
 	}
-	if err := scopedStore.Set("config", "theme", "dark"); err != nil {
+	if err := scopedStore.SetIn("config", "theme", "dark"); err != nil {
 		return
 	}
 
@@ -93,7 +93,7 @@ func main() {
 	if err != nil {
 		return
 	}
-	if err := quotaScopedStore.Set("prefs", "locale", "en-GB"); err != nil {
+	if err := quotaScopedStore.SetIn("prefs", "locale", "en-GB"); err != nil {
 		return
 	}
 
