@@ -38,6 +38,9 @@ type journalExecutor interface {
 
 // Usage example: `result := storeInstance.CommitToJournal("scroll-session", map[string]any{"like": 4}, map[string]string{"workspace": "scroll-session"})`
 func (storeInstance *Store) CommitToJournal(measurement string, fields map[string]any, tags map[string]string) core.Result {
+	if err := storeInstance.ensureReady("store.CommitToJournal"); err != nil {
+		return core.Result{Value: err, OK: false}
+	}
 	if measurement == "" {
 		return core.Result{Value: core.E("store.CommitToJournal", "measurement is empty", nil), OK: false}
 	}
@@ -86,6 +89,9 @@ func (storeInstance *Store) CommitToJournal(measurement string, fields map[strin
 
 // Usage example: `result := storeInstance.QueryJournal(\`from(bucket: "store") |> range(start: -24h)\`)`
 func (storeInstance *Store) QueryJournal(flux string) core.Result {
+	if err := storeInstance.ensureReady("store.QueryJournal"); err != nil {
+		return core.Result{Value: err, OK: false}
+	}
 	if err := ensureJournalSchema(storeInstance.database); err != nil {
 		return core.Result{Value: core.E("store.QueryJournal", "ensure journal schema", err), OK: false}
 	}

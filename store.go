@@ -66,6 +66,24 @@ type Store struct {
 	nextCallbackRegistrationID uint64       // monotonic ID for callback registrations
 }
 
+func (storeInstance *Store) ensureReady(operation string) error {
+	if storeInstance == nil {
+		return core.E(operation, "store is nil", nil)
+	}
+	if storeInstance.database == nil {
+		return core.E(operation, "store is not initialised", nil)
+	}
+
+	storeInstance.closeLock.Lock()
+	closed := storeInstance.closed
+	storeInstance.closeLock.Unlock()
+	if closed {
+		return core.E(operation, "store is closed", nil)
+	}
+
+	return nil
+}
+
 // Usage example: `storeInstance, err := store.New("/tmp/go-store.db", store.WithJournal("http://127.0.0.1:8086", "core", "events"))`
 func WithJournal(endpointURL, organisation, bucketName string) StoreOption {
 	return func(storeInstance *Store) {
@@ -141,6 +159,10 @@ func New(databasePath string, options ...StoreOption) (*Store, error) {
 
 // Usage example: `storeInstance, err := store.New(":memory:"); if err != nil { return }; defer storeInstance.Close()`
 func (storeInstance *Store) Close() error {
+	if storeInstance == nil {
+		return nil
+	}
+
 	storeInstance.closeLock.Lock()
 	if storeInstance.closed {
 		storeInstance.closeLock.Unlock()
@@ -149,8 +171,13 @@ func (storeInstance *Store) Close() error {
 	storeInstance.closed = true
 	storeInstance.closeLock.Unlock()
 
-	storeInstance.cancelPurge()
+	if storeInstance.cancelPurge != nil {
+		storeInstance.cancelPurge()
+	}
 	storeInstance.purgeWaitGroup.Wait()
+	if storeInstance.database == nil {
+		return nil
+	}
 	if err := storeInstance.database.Close(); err != nil {
 		return core.E("store.Close", "database close", err)
 	}
@@ -159,6 +186,10 @@ func (storeInstance *Store) Close() error {
 
 // Usage example: `colourValue, err := storeInstance.Get("config", "colour")`
 func (storeInstance *Store) Get(group, key string) (string, error) {
+	if err := storeInstance.ensureReady("store.Get"); err != nil {
+		return "", err
+	}
+
 	var value string
 	var expiresAt sql.NullInt64
 	err := storeInstance.database.QueryRow(
@@ -182,6 +213,10 @@ func (storeInstance *Store) Get(group, key string) (string, error) {
 
 // Usage example: `if err := storeInstance.Set("config", "colour", "blue"); err != nil { return }`
 func (storeInstance *Store) Set(group, key, value string) error {
+	if err := storeInstance.ensureReady("store.Set"); err != nil {
+		return err
+	}
+
 	_, err := storeInstance.database.Exec(
 		"INSERT INTO "+entriesTableName+" ("+entryGroupColumn+", "+entryKeyColumn+", "+entryValueColumn+", expires_at) VALUES (?, ?, ?, NULL) "+
 			"ON CONFLICT("+entryGroupColumn+", "+entryKeyColumn+") DO UPDATE SET "+entryValueColumn+" = excluded."+entryValueColumn+", expires_at = NULL",
@@ -196,6 +231,10 @@ func (storeInstance *Store) Set(group, key, value string) error {
 
 // Usage example: `if err := storeInstance.SetWithTTL("session", "token", "abc123", time.Minute); err != nil { return }`
 func (storeInstance *Store) SetWithTTL(group, key, value string, timeToLive time.Duration) error {
+	if err := storeInstance.ensureReady("store.SetWithTTL"); err != nil {
+		return err
+	}
+
 	expiresAt := time.Now().Add(timeToLive).UnixMilli()
 	_, err := storeInstance.database.Exec(
 		"INSERT INTO "+entriesTableName+" ("+entryGroupColumn+", "+entryKeyColumn+", "+entryValueColumn+", expires_at) VALUES (?, ?, ?, ?) "+
@@ -211,6 +250,10 @@ func (storeInstance *Store) SetWithTTL(group, key, value string, timeToLive time
 
 // Usage example: `if err := storeInstance.Delete("config", "colour"); err != nil { return }`
 func (storeInstance *Store) Delete(group, key string) error {
+	if err := storeInstance.ensureReady("store.Delete"); err != nil {
+		return err
+	}
+
 	deleteResult, err := storeInstance.database.Exec("DELETE FROM "+entriesTableName+" WHERE "+entryGroupColumn+" = ? AND "+entryKeyColumn+" = ?", group, key)
 	if err != nil {
 		return core.E("store.Delete", "delete row", err)
@@ -227,6 +270,10 @@ func (storeInstance *Store) Delete(group, key string) error {
 
 // Usage example: `keyCount, err := storeInstance.Count("config")`
 func (storeInstance *Store) Count(group string) (int, error) {
+	if err := storeInstance.ensureReady("store.Count"); err != nil {
+		return 0, err
+	}
+
 	var count int
 	err := storeInstance.database.QueryRow(
 		"SELECT COUNT(*) FROM "+entriesTableName+" WHERE "+entryGroupColumn+" = ? AND (expires_at IS NULL OR expires_at > ?)",
@@ -240,6 +287,10 @@ func (storeInstance *Store) Count(group string) (int, error) {
 
 // Usage example: `if err := storeInstance.DeleteGroup("cache"); err != nil { return }`
 func (storeInstance *Store) DeleteGroup(group string) error {
+	if err := storeInstance.ensureReady("store.DeleteGroup"); err != nil {
+		return err
+	}
+
 	deleteResult, err := storeInstance.database.Exec("DELETE FROM "+entriesTableName+" WHERE "+entryGroupColumn+" = ?", group)
 	if err != nil {
 		return core.E("store.DeleteGroup", "delete group", err)
@@ -264,6 +315,10 @@ type KeyValue struct {
 
 // Usage example: `colourEntries, err := storeInstance.GetAll("config")`
 func (storeInstance *Store) GetAll(group string) (map[string]string, error) {
+	if err := storeInstance.ensureReady("store.GetAll"); err != nil {
+		return nil, err
+	}
+
 	entriesByKey := make(map[string]string)
 	for entry, err := range storeInstance.All(group) {
 		if err != nil {
@@ -277,6 +332,11 @@ func (storeInstance *Store) GetAll(group string) (map[string]string, error) {
 // Usage example: `for entry, err := range storeInstance.AllSeq("config") { if err != nil { break }; fmt.Println(entry.Key, entry.Value) }`
 func (storeInstance *Store) AllSeq(group string) iter.Seq2[KeyValue, error] {
 	return func(yield func(KeyValue, error) bool) {
+		if err := storeInstance.ensureReady("store.All"); err != nil {
+			yield(KeyValue{}, err)
+			return
+		}
+
 		rows, err := storeInstance.database.Query(
 			"SELECT "+entryKeyColumn+", "+entryValueColumn+" FROM "+entriesTableName+" WHERE "+entryGroupColumn+" = ? AND (expires_at IS NULL OR expires_at > ?) ORDER BY "+entryKeyColumn,
 			group, time.Now().UnixMilli(),
@@ -312,6 +372,10 @@ func (storeInstance *Store) All(group string) iter.Seq2[KeyValue, error] {
 
 // Usage example: `parts, err := storeInstance.GetSplit("config", "hosts", ","); if err != nil { return }; for part := range parts { fmt.Println(part) }`
 func (storeInstance *Store) GetSplit(group, key, separator string) (iter.Seq[string], error) {
+	if err := storeInstance.ensureReady("store.GetSplit"); err != nil {
+		return nil, err
+	}
+
 	value, err := storeInstance.Get(group, key)
 	if err != nil {
 		return nil, err
@@ -321,6 +385,10 @@ func (storeInstance *Store) GetSplit(group, key, separator string) (iter.Seq[str
 
 // Usage example: `fields, err := storeInstance.GetFields("config", "flags"); if err != nil { return }; for field := range fields { fmt.Println(field) }`
 func (storeInstance *Store) GetFields(group, key string) (iter.Seq[string], error) {
+	if err := storeInstance.ensureReady("store.GetFields"); err != nil {
+		return nil, err
+	}
+
 	value, err := storeInstance.Get(group, key)
 	if err != nil {
 		return nil, err
@@ -330,6 +398,10 @@ func (storeInstance *Store) GetFields(group, key string) (iter.Seq[string], erro
 
 // Usage example: `renderedTemplate, err := storeInstance.Render("Hello {{ .name }}", "user")`
 func (storeInstance *Store) Render(templateSource, group string) (string, error) {
+	if err := storeInstance.ensureReady("store.Render"); err != nil {
+		return "", err
+	}
+
 	templateData := make(map[string]string)
 	for entry, err := range storeInstance.All(group) {
 		if err != nil {
@@ -351,6 +423,10 @@ func (storeInstance *Store) Render(templateSource, group string) (string, error)
 
 // Usage example: `tenantKeyCount, err := storeInstance.CountAll("tenant-a:")`
 func (storeInstance *Store) CountAll(groupPrefix string) (int, error) {
+	if err := storeInstance.ensureReady("store.CountAll"); err != nil {
+		return 0, err
+	}
+
 	var count int
 	var err error
 	if groupPrefix == "" {
@@ -373,6 +449,10 @@ func (storeInstance *Store) CountAll(groupPrefix string) (int, error) {
 // Usage example: `tenantGroupNames, err := storeInstance.Groups("tenant-a:")`
 // Usage example: `allGroupNames, err := storeInstance.Groups()`
 func (storeInstance *Store) Groups(groupPrefix ...string) ([]string, error) {
+	if err := storeInstance.ensureReady("store.Groups"); err != nil {
+		return nil, err
+	}
+
 	var groupNames []string
 	for groupName, err := range storeInstance.GroupsSeq(groupPrefix...) {
 		if err != nil {
@@ -388,6 +468,11 @@ func (storeInstance *Store) Groups(groupPrefix ...string) ([]string, error) {
 func (storeInstance *Store) GroupsSeq(groupPrefix ...string) iter.Seq2[string, error] {
 	actualGroupPrefix := firstOrEmptyString(groupPrefix)
 	return func(yield func(string, error) bool) {
+		if err := storeInstance.ensureReady("store.GroupsSeq"); err != nil {
+			yield("", err)
+			return
+		}
+
 		var rows *sql.Rows
 		var err error
 		now := time.Now().UnixMilli()
@@ -444,6 +529,10 @@ func escapeLike(text string) string {
 
 // Usage example: `removed, err := storeInstance.PurgeExpired()`
 func (storeInstance *Store) PurgeExpired() (int64, error) {
+	if err := storeInstance.ensureReady("store.PurgeExpired"); err != nil {
+		return 0, err
+	}
+
 	removedRows, err := storeInstance.purgeExpiredMatchingGroupPrefix("")
 	if err != nil {
 		return 0, core.E("store.PurgeExpired", "delete expired rows", err)
@@ -454,6 +543,10 @@ func (storeInstance *Store) PurgeExpired() (int64, error) {
 // New(":memory:") starts a background goroutine that calls PurgeExpired every
 // 60 seconds until Close stops the store.
 func (storeInstance *Store) startBackgroundPurge(purgeContext context.Context) {
+	if storeInstance == nil {
+		return
+	}
+
 	storeInstance.purgeWaitGroup.Go(func() {
 		ticker := time.NewTicker(storeInstance.purgeInterval)
 		defer ticker.Stop()
@@ -512,6 +605,10 @@ func fieldsValueSeq(value string) iter.Seq[string] {
 // groupPrefix is empty, otherwise only rows whose group starts with the given
 // prefix.
 func (storeInstance *Store) purgeExpiredMatchingGroupPrefix(groupPrefix string) (int64, error) {
+	if err := storeInstance.ensureReady("store.purgeExpiredMatchingGroupPrefix"); err != nil {
+		return 0, err
+	}
+
 	var (
 		deleteResult sql.Result
 		err          error
