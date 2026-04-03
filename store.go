@@ -146,7 +146,7 @@ func NewConfigured(config StoreConfig) (*Store, error) {
 	}
 
 	storeInstance.startBackgroundPurge()
-	storeInstance.cleanUpOrphanedWorkspaces(defaultWorkspaceStateDirectory)
+	storeInstance.discardRecoveredOrphans(defaultWorkspaceStateDirectory)
 	return storeInstance, nil
 }
 
@@ -162,7 +162,7 @@ func New(databasePath string, options ...StoreOption) (*Store, error) {
 		}
 	}
 	storeInstance.startBackgroundPurge()
-	storeInstance.cleanUpOrphanedWorkspaces(defaultWorkspaceStateDirectory)
+	storeInstance.discardRecoveredOrphans(defaultWorkspaceStateDirectory)
 	return storeInstance, nil
 }
 
