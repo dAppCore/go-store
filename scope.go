@@ -172,6 +172,15 @@ func (scopedStore *ScopedStore) DeleteGroup(group string) error {
 	return storeInstance.DeleteGroup(scopedStore.namespacedGroup(group))
 }
 
+// Usage example: `if err := scopedStore.DeletePrefix("config"); err != nil { return }`
+func (scopedStore *ScopedStore) DeletePrefix(groupPrefix string) error {
+	storeInstance, err := scopedStore.storeInstance("store.DeletePrefix")
+	if err != nil {
+		return err
+	}
+	return storeInstance.DeletePrefix(scopedStore.namespacedGroup(groupPrefix))
+}
+
 // Usage example: `colourEntries, err := scopedStore.GetAll("config")`
 func (scopedStore *ScopedStore) GetAll(group string) (map[string]string, error) {
 	storeInstance, err := scopedStore.storeInstance("store.GetAll")

@@ -340,6 +340,26 @@ func TestStore_DeleteGroup_Good_IsolatesOtherGroups(t *testing.T) {
 	assert.Equal(t, "2", value, "other group should be untouched")
 }
 
+func TestStore_DeletePrefix_Good(t *testing.T) {
+	storeInstance, _ := New(":memory:")
+	defer storeInstance.Close()
+
+	_ = storeInstance.Set("tenant-a:config", "colour", "blue")
+	_ = storeInstance.Set("tenant-a:sessions", "token", "abc123")
+	_ = storeInstance.Set("tenant-b:config", "colour", "green")
+
+	require.NoError(t, storeInstance.DeletePrefix("tenant-a:"))
+
+	_, err := storeInstance.Get("tenant-a:config", "colour")
+	assert.Error(t, err)
+	_, err = storeInstance.Get("tenant-a:sessions", "token")
+	assert.Error(t, err)
+
+	value, err := storeInstance.Get("tenant-b:config", "colour")
+	require.NoError(t, err)
+	assert.Equal(t, "green", value)
+}
+
 func TestStore_DeleteGroup_Bad_ClosedStore(t *testing.T) {
 	storeInstance, _ := New(":memory:")
 	storeInstance.Close()

@@ -54,7 +54,7 @@ group: "user:42:config"     key: "language"
 group: "session:abc"        key: "token"
 ```
 
-All read operations (`Get`, `GetAll`, `Count`, `Render`) are scoped to a single group. `DeleteGroup` atomically removes all keys in a group. `CountAll` and `Groups` operate across groups by prefix match.
+All read operations (`Get`, `GetAll`, `Count`, `Render`) are scoped to a single group. `DeleteGroup` atomically removes all keys in a group. `DeletePrefix` removes every group whose name starts with a supplied prefix. `CountAll` and `Groups` operate across groups by prefix match.
 
 ## UPSERT Semantics
 
@@ -207,7 +207,7 @@ Namespace strings must match `^[a-zA-Z0-9-]+$`. Invalid namespaces are rejected 
 
 `ScopedStore` delegates all operations to the underlying `Store` after prefixing. Events emitted by scoped operations carry the full prefixed group name in `Event.Group`, enabling watchers on the underlying store to observe scoped mutations.
 
-`ScopedStore` exposes the same read helpers as `Store` for `Get`, `Set`, `SetWithTTL`, `Delete`, `DeleteGroup`, `GetAll`, `All`, `Count`, `CountAll`, `Groups`, `GroupsSeq`, `GetSplit`, `GetFields`, `Render`, and `PurgeExpired`. Methods that return group names strip the namespace prefix before returning results. The `Namespace()` method returns the namespace string.
+`ScopedStore` exposes the same read helpers as `Store` for `Get`, `Set`, `SetWithTTL`, `Delete`, `DeleteGroup`, `DeletePrefix`, `GetAll`, `All`, `Count`, `CountAll`, `Groups`, `GroupsSeq`, `GetSplit`, `GetFields`, `Render`, and `PurgeExpired`. Methods that return group names strip the namespace prefix before returning results. The `Namespace()` method returns the namespace string.
 
 ### Quota Enforcement
 
@@ -243,7 +243,7 @@ All operations are safe to call from multiple goroutines concurrently. The race 
 
 ```
 doc.go            Package comment with concrete usage examples
-store.go          Core Store type, CRUD, TTL, background purge, iterators, rendering
+store.go          Core Store type, CRUD, prefix cleanup, TTL, background purge, iterators, rendering
 events.go         EventType, Event, Watch, Unwatch, OnChange, notify
 scope.go          ScopedStore, QuotaConfig, namespace-local helper delegation, quota enforcement
 journal.go        Journal persistence, Flux-like querying, JSON row inflation
