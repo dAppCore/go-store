@@ -29,8 +29,7 @@ const (
 	entryValueColumn        = "entry_value"
 )
 
-// StoreOption customises Store construction.
-// Usage example: `storeInstance, err := store.New("/tmp/go-store.db", store.WithJournal("http://127.0.0.1:8086", "core", "events"))`
+// Usage example: `storeOptions := []store.StoreOption{store.WithJournal("http://127.0.0.1:8086", "core", "events")}`
 type StoreOption func(*Store)
 
 type journalDestinationConfig struct {
@@ -39,9 +38,7 @@ type journalDestinationConfig struct {
 	bucketName   string
 }
 
-// Store provides SQLite-backed grouped entries with TTL expiry, namespace
-// isolation, reactive change notifications, and optional journal support.
-// Usage example: `storeInstance, err := store.New(":memory:"); if err != nil { return }; if err := storeInstance.Set("config", "colour", "blue"); err != nil { return }`
+// Usage example: `storeInstance, err := store.New(":memory:")`
 type Store struct {
 	database       *sql.DB
 	cancelPurge    context.CancelFunc
@@ -59,8 +56,6 @@ type Store struct {
 	nextCallbackRegistrationID uint64       // monotonic ID for callback registrations
 }
 
-// WithJournal records journal connection metadata for workspace commits,
-// journal queries, and archive generation.
 // Usage example: `storeInstance, err := store.New("/tmp/go-store.db", store.WithJournal("http://127.0.0.1:8086", "core", "events"))`
 func WithJournal(endpointURL, organisation, bucketName string) StoreOption {
 	return func(storeInstance *Store) {
@@ -72,7 +67,6 @@ func WithJournal(endpointURL, organisation, bucketName string) StoreOption {
 	}
 }
 
-// WithPurgeInterval changes how often the background expiry sweep runs.
 // Usage example: `storeInstance, err := store.New(":memory:", store.WithPurgeInterval(20*time.Millisecond))`
 func WithPurgeInterval(interval time.Duration) StoreOption {
 	return func(storeInstance *Store) {
@@ -82,7 +76,6 @@ func WithPurgeInterval(interval time.Duration) StoreOption {
 	}
 }
 
-// Usage example: `storeInstance, err := store.New(":memory:")`
 // Usage example: `storeInstance, err := store.New("/tmp/go-store.db", store.WithJournal("http://127.0.0.1:8086", "core", "events"))`
 func New(databasePath string, options ...StoreOption) (*Store, error) {
 	sqliteDatabase, err := sql.Open("sqlite", databasePath)
