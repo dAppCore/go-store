@@ -109,19 +109,13 @@ func (storeInstance *Store) NewWorkspace(name string) (*Workspace, error) {
 	}, nil
 }
 
-// RecoverOrphans(".core/state") returns orphaned workspaces such as
-// `scroll-session.duckdb` so callers can inspect Aggregate() and then Discard().
-// Usage example: `orphans := storeInstance.RecoverOrphans(".core/state")`
-func (storeInstance *Store) RecoverOrphans(stateDirectory string) []*Workspace {
-	if storeInstance == nil {
-		return nil
-	}
-
+// discoverOrphanWorkspacePaths(".core/state") returns leftover workspace files
+// such as `scroll-session.duckdb` without opening them.
+func discoverOrphanWorkspacePaths(stateDirectory string) []string {
+	filesystem := (&core.Fs{}).NewUnrestricted()
 	if stateDirectory == "" {
 		stateDirectory = defaultWorkspaceStateDirectory
 	}
-
-	filesystem := (&core.Fs{}).NewUnrestricted()
 	if !filesystem.Exists(stateDirectory) {
 		return nil
 	}
@@ -147,19 +141,42 @@ func (storeInstance *Store) RecoverOrphans(stateDirectory string) []*Workspace {
 		}
 	})
 
-	var orphanWorkspaces []*Workspace
+	orphanPaths := make([]string, 0, len(directoryEntries))
 	for _, dirEntry := range directoryEntries {
 		if dirEntry.IsDir() || !core.HasSuffix(dirEntry.Name(), ".duckdb") {
 			continue
 		}
-		name := core.TrimSuffix(dirEntry.Name(), ".duckdb")
-		databasePath := workspaceFilePath(stateDirectory, name)
+		orphanPaths = append(orphanPaths, workspaceFilePath(stateDirectory, core.TrimSuffix(dirEntry.Name(), ".duckdb")))
+	}
+	return orphanPaths
+}
+
+func workspaceNameFromPath(stateDirectory, databasePath string) string {
+	relativePath := core.TrimPrefix(databasePath, joinPath(stateDirectory, ""))
+	return core.TrimSuffix(relativePath, ".duckdb")
+}
+
+// RecoverOrphans(".core/state") returns orphaned workspaces such as
+// `scroll-session.duckdb` so callers can inspect Aggregate() and then Discard().
+// Usage example: `orphans := storeInstance.RecoverOrphans(".core/state")`
+func (storeInstance *Store) RecoverOrphans(stateDirectory string) []*Workspace {
+	if storeInstance == nil {
+		return nil
+	}
+
+	if stateDirectory == "" {
+		stateDirectory = defaultWorkspaceStateDirectory
+	}
+
+	filesystem := (&core.Fs{}).NewUnrestricted()
+	var orphanWorkspaces []*Workspace
+	for _, databasePath := range discoverOrphanWorkspacePaths(stateDirectory) {
 		workspaceDatabase, err := openWorkspaceDatabase(databasePath)
 		if err != nil {
 			continue
 		}
 		orphanWorkspaces = append(orphanWorkspaces, &Workspace{
-			name:         name,
+			name:         workspaceNameFromPath(stateDirectory, databasePath),
 			backingStore: storeInstance,
 			database:     workspaceDatabase,
 			databasePath: databasePath,
