@@ -44,7 +44,7 @@ type Workspace struct {
 	closed    bool
 }
 
-// NewWorkspace creates a temporary SQLite state file under `.core/state/`.
+// NewWorkspace creates a workspace state file under `.core/state/`.
 // Usage example: `workspace, err := storeInstance.NewWorkspace("scroll-session-2026-03-30")`
 func (storeInstance *Store) NewWorkspace(name string) (*Workspace, error) {
 	validation := core.ValidateName(name)
