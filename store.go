@@ -245,8 +245,8 @@ func (storeInstance *Store) GetAll(group string) (map[string]string, error) {
 	return entriesByKey, nil
 }
 
-// Usage example: `for entry, err := range storeInstance.All("config") { if err != nil { break }; fmt.Println(entry.Key, entry.Value) }`
-func (storeInstance *Store) All(group string) iter.Seq2[KeyValue, error] {
+// Usage example: `for entry, err := range storeInstance.AllSeq("config") { if err != nil { break }; fmt.Println(entry.Key, entry.Value) }`
+func (storeInstance *Store) AllSeq(group string) iter.Seq2[KeyValue, error] {
 	return func(yield func(KeyValue, error) bool) {
 		rows, err := storeInstance.database.Query(
 			"SELECT "+entryKeyColumn+", "+entryValueColumn+" FROM "+entriesTableName+" WHERE "+entryGroupColumn+" = ? AND (expires_at IS NULL OR expires_at > ?) ORDER BY "+entryKeyColumn,
@@ -274,6 +274,11 @@ func (storeInstance *Store) All(group string) iter.Seq2[KeyValue, error] {
 			yield(KeyValue{}, core.E("store.All", "rows iteration", err))
 		}
 	}
+}
+
+// Usage example: `for entry, err := range storeInstance.All("config") { if err != nil { break }; fmt.Println(entry.Key, entry.Value) }`
+func (storeInstance *Store) All(group string) iter.Seq2[KeyValue, error] {
+	return storeInstance.AllSeq(group)
 }
 
 // Usage example: `parts, err := storeInstance.GetSplit("config", "hosts", ","); if err != nil { return }; for part := range parts { fmt.Println(part) }`

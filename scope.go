@@ -74,10 +74,6 @@ func (scopedStore *ScopedStore) namespacePrefix() string {
 	return scopedStore.namespace + ":"
 }
 
-func (scopedStore *ScopedStore) defaultGroup() string {
-	return defaultScopedGroupName
-}
-
 func (scopedStore *ScopedStore) trimNamespacePrefix(groupName string) string {
 	return core.TrimPrefix(groupName, scopedStore.namespacePrefix())
 }
@@ -91,21 +87,45 @@ func (scopedStore *ScopedStore) Namespace() string {
 // Usage example: `colourValue, err := scopedStore.Get("colour")`
 // Usage example: `colourValue, err := scopedStore.Get("config", "colour")`
 func (scopedStore *ScopedStore) Get(arguments ...string) (string, error) {
-	group, key, err := scopedStore.getArguments(arguments)
-	if err != nil {
-		return "", err
+	switch len(arguments) {
+	case 1:
+		return scopedStore.GetFrom(defaultScopedGroupName, arguments[0])
+	case 2:
+		return scopedStore.GetFrom(arguments[0], arguments[1])
+	default:
+		return "", core.E(
+			"store.ScopedStore.Get",
+			core.Sprintf("expected 1 or 2 arguments; got %d", len(arguments)),
+			nil,
+		)
 	}
+}
+
+// Usage example: `colourValue, err := scopedStore.GetFrom("config", "colour")`
+func (scopedStore *ScopedStore) GetFrom(group, key string) (string, error) {
 	return scopedStore.storeInstance.Get(scopedStore.namespacedGroup(group), key)
 }
 
 // Usage example: `if err := scopedStore.Set("colour", "blue"); err != nil { return }`
 // Usage example: `if err := scopedStore.Set("config", "colour", "blue"); err != nil { return }`
 func (scopedStore *ScopedStore) Set(arguments ...string) error {
-	group, key, value, err := scopedStore.setArguments(arguments)
-	if err != nil {
-		return err
+	switch len(arguments) {
+	case 2:
+		return scopedStore.SetIn(defaultScopedGroupName, arguments[0], arguments[1])
+	case 3:
+		return scopedStore.SetIn(arguments[0], arguments[1], arguments[2])
+	default:
+		return core.E(
+			"store.ScopedStore.Set",
+			core.Sprintf("expected 2 or 3 arguments; got %d", len(arguments)),
+			nil,
+		)
 	}
-	if err := scopedStore.checkQuota("store.ScopedStore.Set", group, key); err != nil {
+}
+
+// Usage example: `if err := scopedStore.SetIn("config", "colour", "blue"); err != nil { return }`
+func (scopedStore *ScopedStore) SetIn(group, key, value string) error {
+	if err := scopedStore.checkQuota("store.ScopedStore.SetIn", group, key); err != nil {
 		return err
 	}
 	return scopedStore.storeInstance.Set(scopedStore.namespacedGroup(group), key, value)
@@ -137,6 +157,11 @@ func (scopedStore *ScopedStore) GetAll(group string) (map[string]string, error) 
 // Usage example: `for entry, err := range scopedStore.All("config") { if err != nil { break }; fmt.Println(entry.Key, entry.Value) }`
 func (scopedStore *ScopedStore) All(group string) iter.Seq2[KeyValue, error] {
 	return scopedStore.storeInstance.All(scopedStore.namespacedGroup(group))
+}
+
+// Usage example: `for entry, err := range scopedStore.AllSeq("config") { if err != nil { break }; fmt.Println(entry.Key, entry.Value) }`
+func (scopedStore *ScopedStore) AllSeq(group string) iter.Seq2[KeyValue, error] {
+	return scopedStore.storeInstance.AllSeq(scopedStore.namespacedGroup(group))
 }
 
 // Usage example: `keyCount, err := scopedStore.Count("config")`
@@ -262,34 +287,4 @@ func (scopedStore *ScopedStore) checkQuota(operation, group, key string) error {
 	}
 
 	return nil
-}
-
-func (scopedStore *ScopedStore) getArguments(arguments []string) (string, string, error) {
-	switch len(arguments) {
-	case 1:
-		return scopedStore.defaultGroup(), arguments[0], nil
-	case 2:
-		return arguments[0], arguments[1], nil
-	default:
-		return "", "", core.E(
-			"store.ScopedStore.Get",
-			core.Sprintf("expected 1 or 2 arguments; got %d", len(arguments)),
-			nil,
-		)
-	}
-}
-
-func (scopedStore *ScopedStore) setArguments(arguments []string) (string, string, string, error) {
-	switch len(arguments) {
-	case 2:
-		return scopedStore.defaultGroup(), arguments[0], arguments[1], nil
-	case 3:
-		return arguments[0], arguments[1], arguments[2], nil
-	default:
-		return "", "", "", core.E(
-			"store.ScopedStore.Set",
-			core.Sprintf("expected 2 or 3 arguments; got %d", len(arguments)),
-			nil,
-		)
-	}
 }

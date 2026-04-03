@@ -134,6 +134,35 @@ func TestScope_ScopedStore_Good_DefaultGroupHelpers(t *testing.T) {
 	assert.Equal(t, "dark", rawValue)
 }
 
+func TestScope_ScopedStore_Good_SetInAndGetFrom(t *testing.T) {
+	storeInstance, _ := New(":memory:")
+	defer storeInstance.Close()
+
+	scopedStore := mustScoped(t, storeInstance, "tenant-a")
+	require.NoError(t, scopedStore.SetIn("config", "colour", "blue"))
+
+	value, err := scopedStore.GetFrom("config", "colour")
+	require.NoError(t, err)
+	assert.Equal(t, "blue", value)
+}
+
+func TestScope_ScopedStore_Good_AllSeq(t *testing.T) {
+	storeInstance, _ := New(":memory:")
+	defer storeInstance.Close()
+
+	scopedStore := mustScoped(t, storeInstance, "tenant-a")
+	require.NoError(t, scopedStore.Set("items", "first", "1"))
+	require.NoError(t, scopedStore.Set("items", "second", "2"))
+
+	var keys []string
+	for entry, err := range scopedStore.AllSeq("items") {
+		require.NoError(t, err)
+		keys = append(keys, entry.Key)
+	}
+
+	assert.ElementsMatch(t, []string{"first", "second"}, keys)
+}
+
 func TestScope_ScopedStore_Good_PrefixedInUnderlyingStore(t *testing.T) {
 	storeInstance, _ := New(":memory:")
 	defer storeInstance.Close()
