@@ -153,8 +153,11 @@ func TestEvents_OnChange_Good_GroupFilteredCallback(t *testing.T) {
 	defer storeInstance.Close()
 
 	var seen []string
-	unregister := storeInstance.OnChange("config", func(key, value string) {
-		seen = append(seen, key+"="+value)
+	unregister := storeInstance.OnChange(func(event Event) {
+		if event.Group != "config" {
+			return
+		}
+		seen = append(seen, event.Key+"="+event.Value)
 	})
 	defer unregister()
 
