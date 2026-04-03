@@ -1340,6 +1340,17 @@ func TestStore_PurgeExpired_Good_BackgroundPurge(t *testing.T) {
 	assert.Equal(t, 1, count, "background purge should have deleted the expired row")
 }
 
+func TestStore_StartBackgroundPurge_Good_DefaultsWhenIntervalUnset(t *testing.T) {
+	storeInstance, err := New(":memory:")
+	require.NoError(t, err)
+	storeInstance.purgeInterval = 0
+
+	require.NotPanics(t, func() {
+		storeInstance.startBackgroundPurge()
+	})
+	require.NoError(t, storeInstance.Close())
+}
+
 // ---------------------------------------------------------------------------
 // Schema migration — reopening an existing database
 // ---------------------------------------------------------------------------

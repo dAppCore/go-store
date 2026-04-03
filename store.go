@@ -656,9 +656,13 @@ func (storeInstance *Store) startBackgroundPurge() {
 	if storeInstance.purgeContext == nil {
 		return
 	}
+	if storeInstance.purgeInterval <= 0 {
+		storeInstance.purgeInterval = 60 * time.Second
+	}
+	purgeInterval := storeInstance.purgeInterval
 
 	storeInstance.purgeWaitGroup.Go(func() {
-		ticker := time.NewTicker(storeInstance.purgeInterval)
+		ticker := time.NewTicker(purgeInterval)
 		defer ticker.Stop()
 		for {
 			select {
