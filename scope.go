@@ -22,7 +22,6 @@ type QuotaConfig struct {
 	MaxGroups int
 }
 
-// ScopedStore prefixes group names with namespace + ":" before delegating to Store.
 // Usage example: `scopedStore := store.NewScoped(storeInstance, "tenant-a"); if scopedStore == nil { return }; if err := scopedStore.Set("config", "colour", "blue"); err != nil { return }`
 type ScopedStore struct {
 	store     *Store
