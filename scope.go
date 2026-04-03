@@ -25,10 +25,10 @@ type QuotaConfig struct {
 // ScopedStore prefixes group names with namespace + ":" before delegating to Store.
 // Usage example: `scopedStore := store.NewScoped(storeInstance, "tenant-a"); if scopedStore == nil { return }; if err := scopedStore.Set("config", "colour", "blue"); err != nil { return }`
 type ScopedStore struct {
-	storeInstance *Store
-	namespace     string
-	MaxKeys       int
-	MaxGroups     int
+	store     *Store
+	namespace string
+	MaxKeys   int
+	MaxGroups int
 }
 
 // NewScoped validates a namespace and prefixes groups with namespace + ":".
@@ -40,7 +40,7 @@ func NewScoped(storeInstance *Store, namespace string) *ScopedStore {
 	if !validNamespace.MatchString(namespace) {
 		return nil
 	}
-	scopedStore := &ScopedStore{storeInstance: storeInstance, namespace: namespace}
+	scopedStore := &ScopedStore{store: storeInstance, namespace: namespace}
 	return scopedStore
 }
 
@@ -103,7 +103,7 @@ func (scopedStore *ScopedStore) Get(arguments ...string) (string, error) {
 
 // Usage example: `colourValue, err := scopedStore.GetFrom("config", "colour")`
 func (scopedStore *ScopedStore) GetFrom(group, key string) (string, error) {
-	return scopedStore.storeInstance.Get(scopedStore.namespacedGroup(group), key)
+	return scopedStore.store.Get(scopedStore.namespacedGroup(group), key)
 }
 
 // Usage example: `if err := scopedStore.Set("colour", "blue"); err != nil { return }`
@@ -128,7 +128,7 @@ func (scopedStore *ScopedStore) SetIn(group, key, value string) error {
 	if err := scopedStore.checkQuota("store.ScopedStore.SetIn", group, key); err != nil {
 		return err
 	}
-	return scopedStore.storeInstance.Set(scopedStore.namespacedGroup(group), key, value)
+	return scopedStore.store.Set(scopedStore.namespacedGroup(group), key, value)
 }
 
 // Usage example: `if err := scopedStore.SetWithTTL("sessions", "token", "abc123", time.Hour); err != nil { return }`
@@ -136,49 +136,49 @@ func (scopedStore *ScopedStore) SetWithTTL(group, key, value string, timeToLive 
 	if err := scopedStore.checkQuota("store.ScopedStore.SetWithTTL", group, key); err != nil {
 		return err
 	}
-	return scopedStore.storeInstance.SetWithTTL(scopedStore.namespacedGroup(group), key, value, timeToLive)
+	return scopedStore.store.SetWithTTL(scopedStore.namespacedGroup(group), key, value, timeToLive)
 }
 
 // Usage example: `if err := scopedStore.Delete("config", "colour"); err != nil { return }`
 func (scopedStore *ScopedStore) Delete(group, key string) error {
-	return scopedStore.storeInstance.Delete(scopedStore.namespacedGroup(group), key)
+	return scopedStore.store.Delete(scopedStore.namespacedGroup(group), key)
 }
 
 // Usage example: `if err := scopedStore.DeleteGroup("cache"); err != nil { return }`
 func (scopedStore *ScopedStore) DeleteGroup(group string) error {
-	return scopedStore.storeInstance.DeleteGroup(scopedStore.namespacedGroup(group))
+	return scopedStore.store.DeleteGroup(scopedStore.namespacedGroup(group))
 }
 
 // Usage example: `colourEntries, err := scopedStore.GetAll("config")`
 func (scopedStore *ScopedStore) GetAll(group string) (map[string]string, error) {
-	return scopedStore.storeInstance.GetAll(scopedStore.namespacedGroup(group))
+	return scopedStore.store.GetAll(scopedStore.namespacedGroup(group))
 }
 
 // Usage example: `for entry, err := range scopedStore.All("config") { if err != nil { break }; fmt.Println(entry.Key, entry.Value) }`
 func (scopedStore *ScopedStore) All(group string) iter.Seq2[KeyValue, error] {
-	return scopedStore.storeInstance.All(scopedStore.namespacedGroup(group))
+	return scopedStore.store.All(scopedStore.namespacedGroup(group))
 }
 
 // Usage example: `for entry, err := range scopedStore.AllSeq("config") { if err != nil { break }; fmt.Println(entry.Key, entry.Value) }`
 func (scopedStore *ScopedStore) AllSeq(group string) iter.Seq2[KeyValue, error] {
-	return scopedStore.storeInstance.AllSeq(scopedStore.namespacedGroup(group))
+	return scopedStore.store.AllSeq(scopedStore.namespacedGroup(group))
 }
 
 // Usage example: `keyCount, err := scopedStore.Count("config")`
 func (scopedStore *ScopedStore) Count(group string) (int, error) {
-	return scopedStore.storeInstance.Count(scopedStore.namespacedGroup(group))
+	return scopedStore.store.Count(scopedStore.namespacedGroup(group))
 }
 
 // Usage example: `keyCount, err := scopedStore.CountAll("config")`
 // Usage example: `keyCount, err := scopedStore.CountAll()`
 func (scopedStore *ScopedStore) CountAll(groupPrefix ...string) (int, error) {
-	return scopedStore.storeInstance.CountAll(scopedStore.namespacedGroup(firstString(groupPrefix)))
+	return scopedStore.store.CountAll(scopedStore.namespacedGroup(firstString(groupPrefix)))
 }
 
 // Usage example: `groupNames, err := scopedStore.Groups("config")`
 // Usage example: `groupNames, err := scopedStore.Groups()`
 func (scopedStore *ScopedStore) Groups(groupPrefix ...string) ([]string, error) {
-	groupNames, err := scopedStore.storeInstance.Groups(scopedStore.namespacedGroup(firstString(groupPrefix)))
+	groupNames, err := scopedStore.store.Groups(scopedStore.namespacedGroup(firstString(groupPrefix)))
 	if err != nil {
 		return nil, err
 	}
@@ -193,7 +193,7 @@ func (scopedStore *ScopedStore) Groups(groupPrefix ...string) ([]string, error) 
 func (scopedStore *ScopedStore) GroupsSeq(groupPrefix ...string) iter.Seq2[string, error] {
 	return func(yield func(string, error) bool) {
 		namespacePrefix := scopedStore.namespacePrefix()
-		for groupName, err := range scopedStore.storeInstance.GroupsSeq(scopedStore.namespacedGroup(firstString(groupPrefix))) {
+		for groupName, err := range scopedStore.store.GroupsSeq(scopedStore.namespacedGroup(firstString(groupPrefix))) {
 			if err != nil {
 				if !yield("", err) {
 					return
@@ -209,22 +209,22 @@ func (scopedStore *ScopedStore) GroupsSeq(groupPrefix ...string) iter.Seq2[strin
 
 // Usage example: `renderedTemplate, err := scopedStore.Render("Hello {{ .name }}", "user")`
 func (scopedStore *ScopedStore) Render(templateSource, group string) (string, error) {
-	return scopedStore.storeInstance.Render(templateSource, scopedStore.namespacedGroup(group))
+	return scopedStore.store.Render(templateSource, scopedStore.namespacedGroup(group))
 }
 
 // Usage example: `parts, err := scopedStore.GetSplit("config", "hosts", ","); if err != nil { return }; for part := range parts { fmt.Println(part) }`
 func (scopedStore *ScopedStore) GetSplit(group, key, separator string) (iter.Seq[string], error) {
-	return scopedStore.storeInstance.GetSplit(scopedStore.namespacedGroup(group), key, separator)
+	return scopedStore.store.GetSplit(scopedStore.namespacedGroup(group), key, separator)
 }
 
 // Usage example: `fields, err := scopedStore.GetFields("config", "flags"); if err != nil { return }; for field := range fields { fmt.Println(field) }`
 func (scopedStore *ScopedStore) GetFields(group, key string) (iter.Seq[string], error) {
-	return scopedStore.storeInstance.GetFields(scopedStore.namespacedGroup(group), key)
+	return scopedStore.store.GetFields(scopedStore.namespacedGroup(group), key)
 }
 
 // Usage example: `removedRows, err := scopedStore.PurgeExpired(); if err != nil { return }; fmt.Println(removedRows)`
 func (scopedStore *ScopedStore) PurgeExpired() (int64, error) {
-	removedRows, err := scopedStore.storeInstance.purgeExpiredMatchingGroupPrefix(scopedStore.namespacePrefix())
+	removedRows, err := scopedStore.store.purgeExpiredMatchingGroupPrefix(scopedStore.namespacePrefix())
 	if err != nil {
 		return 0, core.E("store.ScopedStore.PurgeExpired", "delete expired rows", err)
 	}
@@ -244,7 +244,7 @@ func (scopedStore *ScopedStore) checkQuota(operation, group, key string) error {
 	namespacePrefix := scopedStore.namespacePrefix()
 
 	// Check if this is an upsert (key already exists) — upserts never exceed quota.
-	_, err := scopedStore.storeInstance.Get(namespacedGroup, key)
+	_, err := scopedStore.store.Get(namespacedGroup, key)
 	if err == nil {
 		// Key exists — this is an upsert, no quota check needed.
 		return nil
@@ -256,7 +256,7 @@ func (scopedStore *ScopedStore) checkQuota(operation, group, key string) error {
 
 	// Check MaxKeys quota.
 	if scopedStore.MaxKeys > 0 {
-		keyCount, err := scopedStore.storeInstance.CountAll(namespacePrefix)
+		keyCount, err := scopedStore.store.CountAll(namespacePrefix)
 		if err != nil {
 			return core.E(operation, "quota check", err)
 		}
@@ -267,14 +267,14 @@ func (scopedStore *ScopedStore) checkQuota(operation, group, key string) error {
 
 	// Check MaxGroups quota — only if this would create a new group.
 	if scopedStore.MaxGroups > 0 {
-		existingGroupCount, err := scopedStore.storeInstance.Count(namespacedGroup)
+		existingGroupCount, err := scopedStore.store.Count(namespacedGroup)
 		if err != nil {
 			return core.E(operation, "quota check", err)
 		}
 		if existingGroupCount == 0 {
 			// This group is new — check if adding it would exceed the group limit.
 			knownGroupCount := 0
-			for _, iterationErr := range scopedStore.storeInstance.GroupsSeq(namespacePrefix) {
+			for _, iterationErr := range scopedStore.store.GroupsSeq(namespacePrefix) {
 				if iterationErr != nil {
 					return core.E(operation, "quota check", iterationErr)
 				}
