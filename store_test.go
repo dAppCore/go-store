@@ -121,6 +121,30 @@ func TestStore_JournalConfiguration_Good(t *testing.T) {
 	}, config)
 }
 
+func TestStore_Config_Good(t *testing.T) {
+	storeInstance, err := NewConfigured(StoreConfig{
+		DatabasePath: ":memory:",
+		Journal: JournalConfiguration{
+			EndpointURL:  "http://127.0.0.1:8086",
+			Organisation: "core",
+			BucketName:   "events",
+		},
+		PurgeInterval: 20 * time.Millisecond,
+	})
+	require.NoError(t, err)
+	defer storeInstance.Close()
+
+	assert.Equal(t, StoreConfig{
+		DatabasePath: ":memory:",
+		Journal: JournalConfiguration{
+			EndpointURL:  "http://127.0.0.1:8086",
+			Organisation: "core",
+			BucketName:   "events",
+		},
+		PurgeInterval: 20 * time.Millisecond,
+	}, storeInstance.Config())
+}
+
 func TestStore_NewConfigured_Good(t *testing.T) {
 	storeInstance, err := NewConfigured(StoreConfig{
 		DatabasePath: ":memory:",

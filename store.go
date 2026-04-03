@@ -61,6 +61,7 @@ type JournalConfiguration struct {
 // Usage example: `storeInstance, err := store.New(":memory:")`
 type Store struct {
 	database             *sql.DB
+	databasePath         string
 	purgeContext         context.Context
 	cancelPurge          context.CancelFunc
 	purgeWaitGroup       sync.WaitGroup
@@ -118,6 +119,18 @@ func (storeInstance *Store) JournalConfiguration() JournalConfiguration {
 		EndpointURL:  storeInstance.journalConfiguration.endpointURL,
 		Organisation: storeInstance.journalConfiguration.organisation,
 		BucketName:   storeInstance.journalConfiguration.bucketName,
+	}
+}
+
+// Usage example: `config := storeInstance.Config(); fmt.Println(config.DatabasePath, config.PurgeInterval)`
+func (storeInstance *Store) Config() StoreConfig {
+	if storeInstance == nil {
+		return StoreConfig{}
+	}
+	return StoreConfig{
+		DatabasePath:  storeInstance.databasePath,
+		Journal:       storeInstance.JournalConfiguration(),
+		PurgeInterval: storeInstance.purgeInterval,
 	}
 }
 
@@ -199,6 +212,7 @@ func openStore(operation, databasePath string) (*Store, error) {
 	purgeContext, cancel := context.WithCancel(context.Background())
 	return &Store{
 		database:      sqliteDatabase,
+		databasePath:  databasePath,
 		purgeContext:  purgeContext,
 		cancelPurge:   cancel,
 		purgeInterval: 60 * time.Second,
