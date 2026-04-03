@@ -35,11 +35,11 @@ var defaultWorkspaceStateDirectory = ".core/state"
 // Workspace is a temporary SQLite buffer for a named unit of work.
 // Usage example: `workspace, err := storeInstance.NewWorkspace("scroll-session-2026-03-30"); if err != nil { return }; defer workspace.Discard()`
 type Workspace struct {
-	name          string
-	storeInstance *Store
-	database      *sql.DB
-	databasePath  string
-	filesystem    *core.Fs
+	name         string
+	store        *Store
+	database     *sql.DB
+	databasePath string
+	filesystem   *core.Fs
 
 	closeLock sync.Mutex
 	closed    bool
@@ -68,11 +68,11 @@ func (storeInstance *Store) NewWorkspace(name string) (*Workspace, error) {
 	}
 
 	return &Workspace{
-		name:          name,
-		storeInstance: storeInstance,
-		database:      workspaceDatabase,
-		databasePath:  databasePath,
-		filesystem:    filesystem,
+		name:         name,
+		store:        storeInstance,
+		database:     workspaceDatabase,
+		databasePath: databasePath,
+		filesystem:   filesystem,
 	}, nil
 }
 
@@ -122,11 +122,11 @@ func (storeInstance *Store) RecoverOrphans(stateDirectory string) []*Workspace {
 			continue
 		}
 		workspaces = append(workspaces, &Workspace{
-			name:          name,
-			storeInstance: storeInstance,
-			database:      workspaceDatabase,
-			databasePath:  databasePath,
-			filesystem:    filesystem,
+			name:         name,
+			store:        storeInstance,
+			database:     workspaceDatabase,
+			databasePath: databasePath,
+			filesystem:   filesystem,
 		})
 	}
 	return workspaces
@@ -183,7 +183,7 @@ func (workspace *Workspace) Commit() core.Result {
 	if err != nil {
 		return core.Result{Value: core.E("store.Workspace.Commit", "aggregate workspace", err), OK: false}
 	}
-	if err := workspace.storeInstance.commitWorkspaceAggregate(workspace.name, fields); err != nil {
+	if err := workspace.store.commitWorkspaceAggregate(workspace.name, fields); err != nil {
 		return core.Result{Value: err, OK: false}
 	}
 	if err := workspace.closeAndDelete(); err != nil {
