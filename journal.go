@@ -30,6 +30,10 @@ var (
 		regexp.MustCompile(`(?:_measurement|measurement)\s*==\s*"([^"]+)"`),
 		regexp.MustCompile(`\[\s*"(?:_measurement|measurement)"\s*\]\s*==\s*"([^"]+)"`),
 	}
+	journalEqualityPatterns = []*regexp.Regexp{
+		regexp.MustCompile(`r\.([a-zA-Z0-9_:-]+)\s*==\s*"([^"]+)"`),
+		regexp.MustCompile(`r\[\s*"([a-zA-Z0-9_:-]+)"\s*\]\s*==\s*"([^"]+)"`),
+	}
 )
 
 type journalExecutor interface {
@@ -161,6 +165,22 @@ func (storeInstance *Store) queryJournalFlux(flux string) (string, []any, error)
 		}
 		builder.WriteString(" AND committed_at < ?")
 		arguments = append(arguments, stopTime.UnixMilli())
+	}
+
+	for _, pattern := range journalEqualityPatterns {
+		matches := pattern.FindAllStringSubmatch(flux, -1)
+		for _, match := range matches {
+			if len(match) < 3 {
+				continue
+			}
+			columnName := match[1]
+			filterValue := match[2]
+			if columnName == "_measurement" || columnName == "measurement" || columnName == "_bucket" || columnName == "bucket" {
+				continue
+			}
+			builder.WriteString(" AND (CAST(json_extract(tags_json, '$.\"' || ? || '\"') AS TEXT) = ? OR CAST(json_extract(fields_json, '$.\"' || ? || '\"') AS TEXT) = ?)")
+			arguments = append(arguments, columnName, filterValue, columnName, filterValue)
+		}
 	}
 
 	builder.WriteString(" ORDER BY committed_at")
