@@ -155,9 +155,6 @@ func newStoreFromConfig(operation string, config StoreConfig) (*Store, error) {
 		storeInstance.purgeInterval = config.PurgeInterval
 	}
 
-	// Scan the workspace state directory on startup so orphan discovery stays
-	// part of the store initialisation path without changing recovery semantics.
-	_ = discoverOrphanWorkspacePaths(defaultWorkspaceStateDirectory)
 	storeInstance.startBackgroundPurge()
 	return storeInstance, nil
 }
