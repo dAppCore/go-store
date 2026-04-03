@@ -163,6 +163,9 @@ func (storeInstance *Store) queryJournalFlux(flux string) (string, []any, error)
 }
 
 func (storeInstance *Store) journalBucket() string {
+	if storeInstance.bucket != "" {
+		return storeInstance.bucket
+	}
 	if storeInstance.journal.bucketName == "" {
 		return defaultJournalBucket
 	}
