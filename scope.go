@@ -279,6 +279,43 @@ func (scopedStore *ScopedStore) GetFields(group, key string) (iter.Seq[string], 
 	return storeInstance.GetFields(scopedStore.namespacedGroup(group), key)
 }
 
+// Usage example: `events := scopedStore.Watch("config")`
+func (scopedStore *ScopedStore) Watch(group string) <-chan Event {
+	storeInstance, err := scopedStore.storeInstance("store.Watch")
+	if err != nil {
+		return closedEventChannel()
+	}
+	return storeInstance.Watch(scopedStore.namespacedGroup(group))
+}
+
+// Usage example: `scopedStore.Unwatch("config", events)`
+func (scopedStore *ScopedStore) Unwatch(group string, events <-chan Event) {
+	storeInstance, err := scopedStore.storeInstance("store.Unwatch")
+	if err != nil {
+		return
+	}
+	storeInstance.Unwatch(scopedStore.namespacedGroup(group), events)
+}
+
+// Usage example: `unregister := scopedStore.OnChange(func(event store.Event) { fmt.Println(event.Group, event.Key) })`
+func (scopedStore *ScopedStore) OnChange(callback func(Event)) func() {
+	storeInstance, err := scopedStore.storeInstance("store.OnChange")
+	if err != nil {
+		return func() {}
+	}
+	if callback == nil {
+		return func() {}
+	}
+
+	namespacePrefix := scopedStore.namespacePrefix()
+	return storeInstance.OnChange(func(event Event) {
+		if !core.HasPrefix(event.Group, namespacePrefix) {
+			return
+		}
+		callback(event)
+	})
+}
+
 // Usage example: `removedRows, err := scopedStore.PurgeExpired(); if err != nil { return }; fmt.Println(removedRows)`
 func (scopedStore *ScopedStore) PurgeExpired() (int64, error) {
 	storeInstance, err := scopedStore.storeInstance("store.PurgeExpired")
