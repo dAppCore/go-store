@@ -25,8 +25,11 @@ const createJournalEntriesTableSQL = `CREATE TABLE IF NOT EXISTS journal_entries
 )`
 
 var (
-	journalBucketPattern      = regexp.MustCompile(`bucket:\s*"([^"]+)"`)
-	journalMeasurementPattern = regexp.MustCompile(`(?:_measurement|measurement)\s*==\s*"([^"]+)"`)
+	journalBucketPattern       = regexp.MustCompile(`bucket:\s*"([^"]+)"`)
+	journalMeasurementPatterns = []*regexp.Regexp{
+		regexp.MustCompile(`(?:_measurement|measurement)\s*==\s*"([^"]+)"`),
+		regexp.MustCompile(`\[\s*"(?:_measurement|measurement)"\s*\]\s*==\s*"([^"]+)"`),
+	}
 )
 
 type journalExecutor interface {
@@ -132,7 +135,7 @@ func (storeInstance *Store) queryJournalFlux(flux string) (string, []any, error)
 		builder.WriteString(" AND bucket_name = ?")
 		arguments = append(arguments, bucket)
 	}
-	if measurement := quotedSubmatch(journalMeasurementPattern, flux); measurement != "" {
+	if measurement := firstQuotedSubmatch(journalMeasurementPatterns, flux); measurement != "" {
 		builder.WriteString(" AND measurement = ?")
 		arguments = append(arguments, measurement)
 	}
@@ -301,6 +304,15 @@ func quotedSubmatch(pattern *regexp.Regexp, value string) string {
 		return ""
 	}
 	return match[1]
+}
+
+func firstQuotedSubmatch(patterns []*regexp.Regexp, value string) string {
+	for _, pattern := range patterns {
+		if match := quotedSubmatch(pattern, value); match != "" {
+			return match
+		}
+	}
+	return ""
 }
 
 func regexpSubmatch(pattern *regexp.Regexp, value string, index int) string {
