@@ -72,6 +72,16 @@ func WithJournal(endpointURL, organisation, bucketName string) StoreOption {
 	}
 }
 
+// WithPurgeInterval changes how often the background expiry sweep runs.
+// Usage example: `storeInstance, err := store.New(":memory:", store.WithPurgeInterval(20*time.Millisecond))`
+func WithPurgeInterval(interval time.Duration) StoreOption {
+	return func(storeInstance *Store) {
+		if interval > 0 {
+			storeInstance.purgeInterval = interval
+		}
+	}
+}
+
 // Usage example: `storeInstance, err := store.New(":memory:")`
 // Usage example: `storeInstance, err := store.New("/tmp/go-store.db", store.WithJournal("http://127.0.0.1:8086", "core", "events"))`
 func New(databasePath string, options ...StoreOption) (*Store, error) {

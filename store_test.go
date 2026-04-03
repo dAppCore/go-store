@@ -1263,14 +1263,8 @@ func TestStore_PurgeExpired_Bad_RowsAffectedError(t *testing.T) {
 }
 
 func TestStore_PurgeExpired_Good_BackgroundPurge(t *testing.T) {
-	storeInstance, _ := New(":memory:")
-	// Override purge interval for testing: restart the goroutine with a short interval.
-	storeInstance.cancelPurge()
-	storeInstance.purgeWaitGroup.Wait()
-	storeInstance.purgeInterval = 20 * time.Millisecond
-	purgeContext, cancel := context.WithCancel(context.Background())
-	storeInstance.cancelPurge = cancel
-	storeInstance.startBackgroundPurge(purgeContext)
+	storeInstance, err := New(":memory:", WithPurgeInterval(20*time.Millisecond))
+	require.NoError(t, err)
 	defer storeInstance.Close()
 
 	require.NoError(t, storeInstance.SetWithTTL("g", "ephemeral", "v", 1*time.Millisecond))
@@ -1282,7 +1276,7 @@ func TestStore_PurgeExpired_Good_BackgroundPurge(t *testing.T) {
 	// The expired key should have been removed by the background goroutine.
 	// Use a raw query to check the row is actually gone (not just filtered by Get).
 	var count int
-	err := storeInstance.database.QueryRow("SELECT COUNT(*) FROM entries WHERE group_name = ?", "g").Scan(&count)
+	err = storeInstance.database.QueryRow("SELECT COUNT(*) FROM entries WHERE group_name = ?", "g").Scan(&count)
 	require.NoError(t, err)
 	assert.Equal(t, 1, count, "background purge should have deleted the expired row")
 }
