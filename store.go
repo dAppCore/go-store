@@ -32,7 +32,7 @@ const (
 // Usage example: `storeOptions := []store.StoreOption{store.WithJournal("http://127.0.0.1:8086", "core", "events")}`
 type StoreOption func(*Store)
 
-type journalDestinationConfig struct {
+type journalConfiguration struct {
 	endpointURL  string
 	organisation string
 	bucketName   string
@@ -40,15 +40,13 @@ type journalDestinationConfig struct {
 
 // Usage example: `storeInstance, err := store.New(":memory:")`
 type Store struct {
-	database       *sql.DB
-	cancelPurge    context.CancelFunc
-	purgeWaitGroup sync.WaitGroup
-	purgeInterval  time.Duration // interval between background purge cycles
-	journal        journalDestinationConfig
-	bucket         string
-	org            string
-	closeLock      sync.Mutex
-	closed         bool
+	database             *sql.DB
+	cancelPurge          context.CancelFunc
+	purgeWaitGroup       sync.WaitGroup
+	purgeInterval        time.Duration // interval between background purge cycles
+	journalConfiguration journalConfiguration
+	closeLock            sync.Mutex
+	closed               bool
 
 	// Event dispatch state.
 	watchers                   map[string][]chan Event
@@ -61,13 +59,11 @@ type Store struct {
 // Usage example: `storeInstance, err := store.New("/tmp/go-store.db", store.WithJournal("http://127.0.0.1:8086", "core", "events"))`
 func WithJournal(endpointURL, organisation, bucketName string) StoreOption {
 	return func(storeInstance *Store) {
-		storeInstance.journal = journalDestinationConfig{
+		storeInstance.journalConfiguration = journalConfiguration{
 			endpointURL:  endpointURL,
 			organisation: organisation,
 			bucketName:   bucketName,
 		}
-		storeInstance.bucket = bucketName
-		storeInstance.org = organisation
 	}
 }
 
