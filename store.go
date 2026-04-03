@@ -434,6 +434,41 @@ func (storeInstance *Store) GetAll(group string) (map[string]string, error) {
 	return entriesByKey, nil
 }
 
+// Usage example: `page, err := storeInstance.GetPage("config", 0, 25); if err != nil { return }; for _, entry := range page { fmt.Println(entry.Key, entry.Value) }`
+func (storeInstance *Store) GetPage(group string, offset, limit int) ([]KeyValue, error) {
+	if err := storeInstance.ensureReady("store.GetPage"); err != nil {
+		return nil, err
+	}
+	if offset < 0 {
+		return nil, core.E("store.GetPage", "offset must be zero or positive", nil)
+	}
+	if limit < 0 {
+		return nil, core.E("store.GetPage", "limit must be zero or positive", nil)
+	}
+
+	rows, err := storeInstance.database.Query(
+		"SELECT "+entryKeyColumn+", "+entryValueColumn+" FROM "+entriesTableName+" WHERE "+entryGroupColumn+" = ? AND (expires_at IS NULL OR expires_at > ?) ORDER BY "+entryKeyColumn+" LIMIT ? OFFSET ?",
+		group, time.Now().UnixMilli(), limit, offset,
+	)
+	if err != nil {
+		return nil, core.E("store.GetPage", "query rows", err)
+	}
+	defer rows.Close()
+
+	page := make([]KeyValue, 0, limit)
+	for rows.Next() {
+		var entry KeyValue
+		if err := rows.Scan(&entry.Key, &entry.Value); err != nil {
+			return nil, core.E("store.GetPage", "scan row", err)
+		}
+		page = append(page, entry)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, core.E("store.GetPage", "rows iteration", err)
+	}
+	return page, nil
+}
+
 // Usage example: `for entry, err := range storeInstance.AllSeq("config") { if err != nil { break }; fmt.Println(entry.Key, entry.Value) }`
 func (storeInstance *Store) AllSeq(group string) iter.Seq2[KeyValue, error] {
 	return func(yield func(KeyValue, error) bool) {

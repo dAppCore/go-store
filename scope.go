@@ -190,6 +190,15 @@ func (scopedStore *ScopedStore) GetAll(group string) (map[string]string, error) 
 	return storeInstance.GetAll(scopedStore.namespacedGroup(group))
 }
 
+// Usage example: `page, err := scopedStore.GetPage("config", 0, 25); if err != nil { return }; for _, entry := range page { fmt.Println(entry.Key, entry.Value) }`
+func (scopedStore *ScopedStore) GetPage(group string, offset, limit int) ([]KeyValue, error) {
+	storeInstance, err := scopedStore.storeInstance("store.GetPage")
+	if err != nil {
+		return nil, err
+	}
+	return storeInstance.GetPage(scopedStore.namespacedGroup(group), offset, limit)
+}
+
 // Usage example: `for entry, err := range scopedStore.All("config") { if err != nil { break }; fmt.Println(entry.Key, entry.Value) }`
 func (scopedStore *ScopedStore) All(group string) iter.Seq2[KeyValue, error] {
 	storeInstance, err := scopedStore.storeInstance("store.All")
