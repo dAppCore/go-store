@@ -215,5 +215,4 @@ These tests exercise correct defensive code. They must continue to pass but are 
 These are design notes, not committed work:
 
 - **Indexed prefix keys.** An additional index on `(group_name, entry_key)` prefix would accelerate prefix scans without a full-table scan.
-- **TTL background purge interval as constructor configuration.** Currently only settable by mutating `storeInstance.purgeInterval` directly in tests. A constructor-level `PurgeInterval` field or config entry would make this part of the public API.
 - **Cross-group atomic operations.** Exposing a `Transaction(func(tx *StoreTx) error)` API would allow callers to compose atomic multi-group operations.
