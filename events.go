@@ -55,6 +55,12 @@ type changeCallbackRegistration struct {
 	callback       func(Event)
 }
 
+func closedEventChannel() chan Event {
+	eventChannel := make(chan Event)
+	close(eventChannel)
+	return eventChannel
+}
+
 // Watch("config") can hold 16 pending events before non-blocking sends start
 // dropping new ones.
 const watcherEventBufferCapacity = 16
@@ -62,6 +68,17 @@ const watcherEventBufferCapacity = 16
 // Usage example: `events := storeInstance.Watch("config")`
 // Usage example: `events := storeInstance.Watch("*")`
 func (storeInstance *Store) Watch(group string) <-chan Event {
+	if storeInstance == nil {
+		return closedEventChannel()
+	}
+
+	storeInstance.closeLock.Lock()
+	closed := storeInstance.closed
+	storeInstance.closeLock.Unlock()
+	if closed {
+		return closedEventChannel()
+	}
+
 	eventChannel := make(chan Event, watcherEventBufferCapacity)
 
 	storeInstance.watchersLock.Lock()
@@ -76,7 +93,14 @@ func (storeInstance *Store) Watch(group string) <-chan Event {
 
 // Usage example: `storeInstance.Unwatch("config", events)`
 func (storeInstance *Store) Unwatch(group string, events <-chan Event) {
-	if events == nil {
+	if storeInstance == nil || events == nil {
+		return
+	}
+
+	storeInstance.closeLock.Lock()
+	closed := storeInstance.closed
+	storeInstance.closeLock.Unlock()
+	if closed {
 		return
 	}
 
@@ -117,6 +141,17 @@ func (storeInstance *Store) OnChange(callback func(Event)) func() {
 		return func() {}
 	}
 
+	if storeInstance == nil {
+		return func() {}
+	}
+
+	storeInstance.closeLock.Lock()
+	closed := storeInstance.closed
+	storeInstance.closeLock.Unlock()
+	if closed {
+		return func() {}
+	}
+
 	registrationID := atomic.AddUint64(&storeInstance.nextCallbackRegistrationID, 1)
 	callbackRegistration := changeCallbackRegistration{registrationID: registrationID, callback: callback}
 
@@ -147,6 +182,17 @@ func (storeInstance *Store) OnChange(callback func(Event)) func() {
 // released, so they can register or unregister subscriptions without
 // deadlocking.
 func (storeInstance *Store) notify(event Event) {
+	if storeInstance == nil {
+		return
+	}
+
+	storeInstance.closeLock.Lock()
+	closed := storeInstance.closed
+	storeInstance.closeLock.Unlock()
+	if closed {
+		return
+	}
+
 	storeInstance.watchersLock.RLock()
 	for _, registeredChannel := range storeInstance.watchers["*"] {
 		select {

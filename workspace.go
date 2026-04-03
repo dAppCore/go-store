@@ -44,8 +44,39 @@ type Workspace struct {
 	closed    bool
 }
 
+func (workspace *Workspace) ensureReady(operation string) error {
+	if workspace == nil {
+		return core.E(operation, "workspace is nil", nil)
+	}
+	if workspace.store == nil {
+		return core.E(operation, "workspace store is nil", nil)
+	}
+	if workspace.database == nil {
+		return core.E(operation, "workspace database is nil", nil)
+	}
+	if workspace.filesystem == nil {
+		return core.E(operation, "workspace filesystem is nil", nil)
+	}
+	if err := workspace.store.ensureReady(operation); err != nil {
+		return err
+	}
+
+	workspace.closeLock.Lock()
+	closed := workspace.closed
+	workspace.closeLock.Unlock()
+	if closed {
+		return core.E(operation, "workspace is closed", nil)
+	}
+
+	return nil
+}
+
 // Usage example: `workspace, err := storeInstance.NewWorkspace("scroll-session-2026-03-30")`
 func (storeInstance *Store) NewWorkspace(name string) (*Workspace, error) {
+	if err := storeInstance.ensureReady("store.NewWorkspace"); err != nil {
+		return nil, err
+	}
+
 	validation := core.ValidateName(name)
 	if !validation.OK {
 		return nil, core.E("store.NewWorkspace", "validate workspace name", validation.Value.(error))
@@ -78,6 +109,10 @@ func (storeInstance *Store) NewWorkspace(name string) (*Workspace, error) {
 // decide whether to commit or discard them.
 // Usage example: `orphans := storeInstance.RecoverOrphans(".core/state")`
 func (storeInstance *Store) RecoverOrphans(stateDirectory string) []*Workspace {
+	if storeInstance == nil {
+		return nil
+	}
+
 	if stateDirectory == "" {
 		stateDirectory = defaultWorkspaceStateDirectory
 	}
@@ -131,6 +166,10 @@ func (storeInstance *Store) RecoverOrphans(stateDirectory string) []*Workspace {
 }
 
 func (storeInstance *Store) cleanUpOrphanedWorkspaces(stateDirectory string) {
+	if storeInstance == nil {
+		return
+	}
+
 	for _, orphanWorkspace := range storeInstance.RecoverOrphans(stateDirectory) {
 		_ = orphanWorkspace.Aggregate()
 		orphanWorkspace.Discard()
@@ -139,6 +178,10 @@ func (storeInstance *Store) cleanUpOrphanedWorkspaces(stateDirectory string) {
 
 // Usage example: `err := workspace.Put("like", map[string]any{"user": "@alice", "post": "video_123"})`
 func (workspace *Workspace) Put(kind string, data map[string]any) error {
+	if err := workspace.ensureReady("store.Workspace.Put"); err != nil {
+		return err
+	}
+
 	if kind == "" {
 		return core.E("store.Workspace.Put", "kind is empty", nil)
 	}
@@ -165,6 +208,10 @@ func (workspace *Workspace) Put(kind string, data map[string]any) error {
 
 // Usage example: `summary := workspace.Aggregate()`
 func (workspace *Workspace) Aggregate() map[string]any {
+	if err := workspace.ensureReady("store.Workspace.Aggregate"); err != nil {
+		return map[string]any{}
+	}
+
 	fields, err := workspace.aggregateFields()
 	if err != nil {
 		return map[string]any{}
@@ -176,6 +223,10 @@ func (workspace *Workspace) Aggregate() map[string]any {
 // store summary entry for the workspace.
 // Usage example: `result := workspace.Commit()`
 func (workspace *Workspace) Commit() core.Result {
+	if err := workspace.ensureReady("store.Workspace.Commit"); err != nil {
+		return core.Result{Value: err, OK: false}
+	}
+
 	fields, err := workspace.aggregateFields()
 	if err != nil {
 		return core.Result{Value: core.E("store.Workspace.Commit", "aggregate workspace", err), OK: false}
@@ -191,11 +242,18 @@ func (workspace *Workspace) Commit() core.Result {
 
 // Usage example: `workspace.Discard()`
 func (workspace *Workspace) Discard() {
+	if workspace == nil {
+		return
+	}
 	_ = workspace.closeAndDelete()
 }
 
 // Usage example: `result := workspace.Query("SELECT entry_kind, COUNT(*) AS count FROM workspace_entries GROUP BY entry_kind")`
 func (workspace *Workspace) Query(sqlQuery string) core.Result {
+	if err := workspace.ensureReady("store.Workspace.Query"); err != nil {
+		return core.Result{Value: err, OK: false}
+	}
+
 	rows, err := workspace.database.Query(sqlQuery)
 	if err != nil {
 		return core.Result{Value: core.E("store.Workspace.Query", "query workspace", err), OK: false}
@@ -210,6 +268,10 @@ func (workspace *Workspace) Query(sqlQuery string) core.Result {
 }
 
 func (workspace *Workspace) aggregateFields() (map[string]any, error) {
+	if err := workspace.ensureReady("store.Workspace.aggregateFields"); err != nil {
+		return nil, err
+	}
+
 	rows, err := workspace.database.Query(
 		"SELECT entry_kind, COUNT(*) FROM " + workspaceEntriesTableName + " GROUP BY entry_kind ORDER BY entry_kind",
 	)
@@ -236,6 +298,13 @@ func (workspace *Workspace) aggregateFields() (map[string]any, error) {
 }
 
 func (workspace *Workspace) closeAndDelete() error {
+	if workspace == nil {
+		return nil
+	}
+	if workspace.database == nil || workspace.filesystem == nil {
+		return nil
+	}
+
 	workspace.closeLock.Lock()
 	defer workspace.closeLock.Unlock()
 
@@ -256,6 +325,9 @@ func (workspace *Workspace) closeAndDelete() error {
 }
 
 func (storeInstance *Store) commitWorkspaceAggregate(workspaceName string, fields map[string]any) error {
+	if err := storeInstance.ensureReady("store.Workspace.Commit"); err != nil {
+		return err
+	}
 	if err := ensureJournalSchema(storeInstance.database); err != nil {
 		return core.E("store.Workspace.Commit", "ensure journal schema", err)
 	}

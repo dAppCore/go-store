@@ -29,6 +29,9 @@ type compactArchiveEntry struct {
 
 // Usage example: `result := storeInstance.Compact(store.CompactOptions{Before: time.Now().Add(-30 * 24 * time.Hour), Output: "/tmp/archive", Format: "gzip"})`
 func (storeInstance *Store) Compact(options CompactOptions) core.Result {
+	if err := storeInstance.ensureReady("store.Compact"); err != nil {
+		return core.Result{Value: err, OK: false}
+	}
 	if err := ensureJournalSchema(storeInstance.database); err != nil {
 		return core.Result{Value: core.E("store.Compact", "ensure journal schema", err), OK: false}
 	}
