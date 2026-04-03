@@ -32,8 +32,7 @@ FROM workspace_entries`
 
 var defaultWorkspaceStateDirectory = ".core/state"
 
-// Workspace accumulates mutable work-in-progress entries before they are
-// committed to the durable store journal.
+// Workspace is a temporary SQLite buffer for a named unit of work.
 // Usage example: `workspace, err := storeInstance.NewWorkspace("scroll-session-2026-03-30"); if err != nil { return }; defer workspace.Discard()`
 type Workspace struct {
 	name          string
@@ -46,7 +45,7 @@ type Workspace struct {
 	closed    bool
 }
 
-// NewWorkspace creates a workspace state file under `.core/state/`.
+// NewWorkspace creates a temporary SQLite state file under `.core/state/`.
 // Usage example: `workspace, err := storeInstance.NewWorkspace("scroll-session-2026-03-30")`
 func (storeInstance *Store) NewWorkspace(name string) (*Workspace, error) {
 	validation := core.ValidateName(name)
