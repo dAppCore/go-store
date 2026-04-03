@@ -3,6 +3,7 @@ package store
 import (
 	"iter"
 	"regexp"
+	"sync"
 	"time"
 
 	core "dappco.re/go/core"
@@ -27,6 +28,17 @@ type ScopedStore struct {
 	namespace    string
 	MaxKeys      int
 	MaxGroups    int
+
+	scopedWatchersLock sync.Mutex
+	scopedWatchers     map[uintptr]*scopedWatcherBinding
+}
+
+type scopedWatcherBinding struct {
+	storeInstance    *Store
+	underlyingEvents <-chan Event
+	done             chan struct{}
+	stop             chan struct{}
+	stopOnce         sync.Once
 }
 
 func (scopedStore *ScopedStore) storeInstance(operation string) (*Store, error) {
@@ -285,13 +297,63 @@ func (scopedStore *ScopedStore) Watch(group string) <-chan Event {
 	if err != nil {
 		return closedEventChannel()
 	}
-	return storeInstance.Watch(scopedStore.namespacedGroup(group))
+	if group != "*" {
+		return storeInstance.Watch(scopedStore.namespacedGroup(group))
+	}
+
+	forwardedEvents := make(chan Event, watcherEventBufferCapacity)
+	binding := &scopedWatcherBinding{
+		storeInstance:    storeInstance,
+		underlyingEvents: storeInstance.Watch("*"),
+		done:             make(chan struct{}),
+		stop:             make(chan struct{}),
+	}
+
+	scopedStore.scopedWatchersLock.Lock()
+	if scopedStore.scopedWatchers == nil {
+		scopedStore.scopedWatchers = make(map[uintptr]*scopedWatcherBinding)
+	}
+	scopedStore.scopedWatchers[channelPointer(forwardedEvents)] = binding
+	scopedStore.scopedWatchersLock.Unlock()
+
+	namespacePrefix := scopedStore.namespacePrefix()
+	go func() {
+		defer close(forwardedEvents)
+		defer close(binding.done)
+		defer scopedStore.forgetScopedWatcher(forwardedEvents)
+
+		for {
+			select {
+			case event, ok := <-binding.underlyingEvents:
+				if !ok {
+					return
+				}
+				if !core.HasPrefix(event.Group, namespacePrefix) {
+					continue
+				}
+				select {
+				case forwardedEvents <- event:
+				default:
+				}
+			case <-binding.stop:
+				return
+			case <-storeInstance.purgeContext.Done():
+				return
+			}
+		}
+	}()
+
+	return forwardedEvents
 }
 
 // Usage example: `scopedStore.Unwatch("config", events)`
 func (scopedStore *ScopedStore) Unwatch(group string, events <-chan Event) {
 	storeInstance, err := scopedStore.storeInstance("store.Unwatch")
 	if err != nil {
+		return
+	}
+	if group == "*" {
+		scopedStore.forgetAndStopScopedWatcher(events)
 		return
 	}
 	storeInstance.Unwatch(scopedStore.namespacedGroup(group), events)
@@ -327,6 +389,44 @@ func (scopedStore *ScopedStore) PurgeExpired() (int64, error) {
 		return 0, core.E("store.ScopedStore.PurgeExpired", "delete expired rows", err)
 	}
 	return removedRows, nil
+}
+
+func (scopedStore *ScopedStore) forgetScopedWatcher(events <-chan Event) {
+	if scopedStore == nil || events == nil {
+		return
+	}
+
+	scopedStore.scopedWatchersLock.Lock()
+	defer scopedStore.scopedWatchersLock.Unlock()
+	if scopedStore.scopedWatchers == nil {
+		return
+	}
+	delete(scopedStore.scopedWatchers, channelPointer(events))
+}
+
+func (scopedStore *ScopedStore) forgetAndStopScopedWatcher(events <-chan Event) {
+	if scopedStore == nil || events == nil {
+		return
+	}
+
+	scopedStore.scopedWatchersLock.Lock()
+	binding := scopedStore.scopedWatchers[channelPointer(events)]
+	if binding != nil {
+		delete(scopedStore.scopedWatchers, channelPointer(events))
+	}
+	scopedStore.scopedWatchersLock.Unlock()
+
+	if binding == nil {
+		return
+	}
+
+	binding.stopOnce.Do(func() {
+		close(binding.stop)
+	})
+	if binding.storeInstance != nil {
+		binding.storeInstance.Unwatch("*", binding.underlyingEvents)
+	}
+	<-binding.done
 }
 
 // checkQuota("store.ScopedStore.Set", "config", "colour") returns nil when the

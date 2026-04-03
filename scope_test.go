@@ -485,6 +485,27 @@ func TestScope_ScopedStore_Good_WatchAndUnwatch(t *testing.T) {
 	require.NoError(t, scopedStore.SetIn("config", "theme", "dark"))
 }
 
+func TestScope_ScopedStore_Good_WatchWildcardGroup(t *testing.T) {
+	storeInstance, _ := New(":memory:")
+	defer storeInstance.Close()
+
+	scopedStore := mustScoped(t, storeInstance, "tenant-a")
+	events := scopedStore.Watch("*")
+
+	require.NoError(t, scopedStore.SetIn("config", "theme", "dark"))
+	require.NoError(t, storeInstance.Set("other", "theme", "light"))
+
+	received := drainEvents(events, 1, time.Second)
+	require.Len(t, received, 1)
+	assert.Equal(t, "tenant-a:config", received[0].Group)
+	assert.Equal(t, "theme", received[0].Key)
+	assert.Equal(t, "dark", received[0].Value)
+
+	scopedStore.Unwatch("*", events)
+	_, open := <-events
+	assert.False(t, open, "channel should be closed after wildcard Unwatch")
+}
+
 func TestScope_ScopedStore_Good_OnChange(t *testing.T) {
 	storeInstance, _ := New(":memory:")
 	defer storeInstance.Close()
