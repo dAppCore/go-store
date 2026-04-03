@@ -23,8 +23,11 @@ import (
 )
 
 func main() {
-	// Store the database on disk with "/tmp/go-store.db", or use ":memory:" for ephemeral data.
-	storeInstance, err := store.New("/tmp/go-store.db")
+	// Configure a persistent store with "/tmp/go-store.db", or use ":memory:" for ephemeral data.
+	storeInstance, err := store.NewConfigured(store.StoreConfig{
+		DatabasePath: "/tmp/go-store.db",
+		PurgeInterval: 30 * time.Second,
+	})
 	if err != nil {
 		return
 	}
