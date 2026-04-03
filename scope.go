@@ -109,7 +109,7 @@ func (scopedStore *ScopedStore) Namespace() string {
 
 // Usage example: `colourValue, err := scopedStore.Get("colour")`
 func (scopedStore *ScopedStore) Get(key string) (string, error) {
-	backingStore, err := scopedStore.resolvedStore("store.Get")
+	backingStore, err := scopedStore.resolvedStore("store.ScopedStore.Get")
 	if err != nil {
 		return "", err
 	}
@@ -118,7 +118,7 @@ func (scopedStore *ScopedStore) Get(key string) (string, error) {
 
 // Usage example: `colourValue, err := scopedStore.GetFrom("config", "colour")`
 func (scopedStore *ScopedStore) GetFrom(group, key string) (string, error) {
-	backingStore, err := scopedStore.resolvedStore("store.Get")
+	backingStore, err := scopedStore.resolvedStore("store.ScopedStore.GetFrom")
 	if err != nil {
 		return "", err
 	}
@@ -132,7 +132,7 @@ func (scopedStore *ScopedStore) Set(key, value string) error {
 
 // Usage example: `if err := scopedStore.SetIn("config", "colour", "blue"); err != nil { return }`
 func (scopedStore *ScopedStore) SetIn(group, key, value string) error {
-	backingStore, err := scopedStore.resolvedStore("store.Set")
+	backingStore, err := scopedStore.resolvedStore("store.ScopedStore.SetIn")
 	if err != nil {
 		return err
 	}
@@ -144,7 +144,7 @@ func (scopedStore *ScopedStore) SetIn(group, key, value string) error {
 
 // Usage example: `if err := scopedStore.SetWithTTL("sessions", "token", "abc123", time.Hour); err != nil { return }`
 func (scopedStore *ScopedStore) SetWithTTL(group, key, value string, timeToLive time.Duration) error {
-	backingStore, err := scopedStore.resolvedStore("store.SetWithTTL")
+	backingStore, err := scopedStore.resolvedStore("store.ScopedStore.SetWithTTL")
 	if err != nil {
 		return err
 	}
@@ -156,7 +156,7 @@ func (scopedStore *ScopedStore) SetWithTTL(group, key, value string, timeToLive 
 
 // Usage example: `if err := scopedStore.Delete("config", "colour"); err != nil { return }`
 func (scopedStore *ScopedStore) Delete(group, key string) error {
-	backingStore, err := scopedStore.resolvedStore("store.Delete")
+	backingStore, err := scopedStore.resolvedStore("store.ScopedStore.Delete")
 	if err != nil {
 		return err
 	}
@@ -165,7 +165,7 @@ func (scopedStore *ScopedStore) Delete(group, key string) error {
 
 // Usage example: `if err := scopedStore.DeleteGroup("cache"); err != nil { return }`
 func (scopedStore *ScopedStore) DeleteGroup(group string) error {
-	backingStore, err := scopedStore.resolvedStore("store.DeleteGroup")
+	backingStore, err := scopedStore.resolvedStore("store.ScopedStore.DeleteGroup")
 	if err != nil {
 		return err
 	}
@@ -174,7 +174,7 @@ func (scopedStore *ScopedStore) DeleteGroup(group string) error {
 
 // Usage example: `if err := scopedStore.DeletePrefix("config"); err != nil { return }`
 func (scopedStore *ScopedStore) DeletePrefix(groupPrefix string) error {
-	backingStore, err := scopedStore.resolvedStore("store.DeletePrefix")
+	backingStore, err := scopedStore.resolvedStore("store.ScopedStore.DeletePrefix")
 	if err != nil {
 		return err
 	}
@@ -183,7 +183,7 @@ func (scopedStore *ScopedStore) DeletePrefix(groupPrefix string) error {
 
 // Usage example: `colourEntries, err := scopedStore.GetAll("config")`
 func (scopedStore *ScopedStore) GetAll(group string) (map[string]string, error) {
-	backingStore, err := scopedStore.resolvedStore("store.GetAll")
+	backingStore, err := scopedStore.resolvedStore("store.ScopedStore.GetAll")
 	if err != nil {
 		return nil, err
 	}
@@ -192,7 +192,7 @@ func (scopedStore *ScopedStore) GetAll(group string) (map[string]string, error) 
 
 // Usage example: `page, err := scopedStore.GetPage("config", 0, 25); if err != nil { return }; for _, entry := range page { fmt.Println(entry.Key, entry.Value) }`
 func (scopedStore *ScopedStore) GetPage(group string, offset, limit int) ([]KeyValue, error) {
-	backingStore, err := scopedStore.resolvedStore("store.GetPage")
+	backingStore, err := scopedStore.resolvedStore("store.ScopedStore.GetPage")
 	if err != nil {
 		return nil, err
 	}
@@ -201,7 +201,7 @@ func (scopedStore *ScopedStore) GetPage(group string, offset, limit int) ([]KeyV
 
 // Usage example: `for entry, err := range scopedStore.All("config") { if err != nil { break }; fmt.Println(entry.Key, entry.Value) }`
 func (scopedStore *ScopedStore) All(group string) iter.Seq2[KeyValue, error] {
-	backingStore, err := scopedStore.resolvedStore("store.All")
+	backingStore, err := scopedStore.resolvedStore("store.ScopedStore.All")
 	if err != nil {
 		return func(yield func(KeyValue, error) bool) {
 			yield(KeyValue{}, err)
@@ -212,7 +212,7 @@ func (scopedStore *ScopedStore) All(group string) iter.Seq2[KeyValue, error] {
 
 // Usage example: `for entry, err := range scopedStore.AllSeq("config") { if err != nil { break }; fmt.Println(entry.Key, entry.Value) }`
 func (scopedStore *ScopedStore) AllSeq(group string) iter.Seq2[KeyValue, error] {
-	backingStore, err := scopedStore.resolvedStore("store.All")
+	backingStore, err := scopedStore.resolvedStore("store.ScopedStore.AllSeq")
 	if err != nil {
 		return func(yield func(KeyValue, error) bool) {
 			yield(KeyValue{}, err)
@@ -223,7 +223,7 @@ func (scopedStore *ScopedStore) AllSeq(group string) iter.Seq2[KeyValue, error] 
 
 // Usage example: `keyCount, err := scopedStore.Count("config")`
 func (scopedStore *ScopedStore) Count(group string) (int, error) {
-	backingStore, err := scopedStore.resolvedStore("store.Count")
+	backingStore, err := scopedStore.resolvedStore("store.ScopedStore.Count")
 	if err != nil {
 		return 0, err
 	}
@@ -233,7 +233,7 @@ func (scopedStore *ScopedStore) Count(group string) (int, error) {
 // Usage example: `keyCount, err := scopedStore.CountAll("config")`
 // Usage example: `keyCount, err := scopedStore.CountAll()`
 func (scopedStore *ScopedStore) CountAll(groupPrefix ...string) (int, error) {
-	backingStore, err := scopedStore.resolvedStore("store.CountAll")
+	backingStore, err := scopedStore.resolvedStore("store.ScopedStore.CountAll")
 	if err != nil {
 		return 0, err
 	}
@@ -262,7 +262,7 @@ func (scopedStore *ScopedStore) Groups(groupPrefix ...string) ([]string, error) 
 // Usage example: `for groupName, err := range scopedStore.GroupsSeq() { if err != nil { break }; fmt.Println(groupName) }`
 func (scopedStore *ScopedStore) GroupsSeq(groupPrefix ...string) iter.Seq2[string, error] {
 	return func(yield func(string, error) bool) {
-		backingStore, err := scopedStore.resolvedStore("store.GroupsSeq")
+		backingStore, err := scopedStore.resolvedStore("store.ScopedStore.GroupsSeq")
 		if err != nil {
 			yield("", err)
 			return
@@ -284,7 +284,7 @@ func (scopedStore *ScopedStore) GroupsSeq(groupPrefix ...string) iter.Seq2[strin
 
 // Usage example: `renderedTemplate, err := scopedStore.Render("Hello {{ .name }}", "user")`
 func (scopedStore *ScopedStore) Render(templateSource, group string) (string, error) {
-	backingStore, err := scopedStore.resolvedStore("store.Render")
+	backingStore, err := scopedStore.resolvedStore("store.ScopedStore.Render")
 	if err != nil {
 		return "", err
 	}
@@ -293,7 +293,7 @@ func (scopedStore *ScopedStore) Render(templateSource, group string) (string, er
 
 // Usage example: `parts, err := scopedStore.GetSplit("config", "hosts", ","); if err != nil { return }; for part := range parts { fmt.Println(part) }`
 func (scopedStore *ScopedStore) GetSplit(group, key, separator string) (iter.Seq[string], error) {
-	backingStore, err := scopedStore.resolvedStore("store.GetSplit")
+	backingStore, err := scopedStore.resolvedStore("store.ScopedStore.GetSplit")
 	if err != nil {
 		return nil, err
 	}
@@ -302,7 +302,7 @@ func (scopedStore *ScopedStore) GetSplit(group, key, separator string) (iter.Seq
 
 // Usage example: `fields, err := scopedStore.GetFields("config", "flags"); if err != nil { return }; for field := range fields { fmt.Println(field) }`
 func (scopedStore *ScopedStore) GetFields(group, key string) (iter.Seq[string], error) {
-	backingStore, err := scopedStore.resolvedStore("store.GetFields")
+	backingStore, err := scopedStore.resolvedStore("store.ScopedStore.GetFields")
 	if err != nil {
 		return nil, err
 	}
@@ -398,7 +398,7 @@ func (scopedStore *ScopedStore) OnChange(callback func(Event)) func() {
 
 // Usage example: `removedRows, err := scopedStore.PurgeExpired(); if err != nil { return }; fmt.Println(removedRows)`
 func (scopedStore *ScopedStore) PurgeExpired() (int64, error) {
-	backingStore, err := scopedStore.resolvedStore("store.PurgeExpired")
+	backingStore, err := scopedStore.resolvedStore("store.ScopedStore.PurgeExpired")
 	if err != nil {
 		return 0, err
 	}
