@@ -98,12 +98,6 @@ func (scopedStore *ScopedStore) Get(arguments ...string) (string, error) {
 	return scopedStore.storeInstance.Get(scopedStore.namespacedGroup(group), key)
 }
 
-// GetFrom reads a key from an explicit namespaced group.
-// Usage example: `colourValue, err := scopedStore.GetFrom("config", "colour")`
-func (scopedStore *ScopedStore) GetFrom(group, key string) (string, error) {
-	return scopedStore.Get(group, key)
-}
-
 // Usage example: `if err := scopedStore.Set("colour", "blue"); err != nil { return }`
 // Usage example: `if err := scopedStore.Set("config", "colour", "blue"); err != nil { return }`
 func (scopedStore *ScopedStore) Set(arguments ...string) error {
@@ -115,12 +109,6 @@ func (scopedStore *ScopedStore) Set(arguments ...string) error {
 		return err
 	}
 	return scopedStore.storeInstance.Set(scopedStore.namespacedGroup(group), key, value)
-}
-
-// SetIn writes a key to an explicit namespaced group.
-// Usage example: `if err := scopedStore.SetIn("config", "colour", "blue"); err != nil { return }`
-func (scopedStore *ScopedStore) SetIn(group, key, value string) error {
-	return scopedStore.Set(group, key, value)
 }
 
 // Usage example: `if err := scopedStore.SetWithTTL("sessions", "token", "abc123", time.Hour); err != nil { return }`
@@ -149,11 +137,6 @@ func (scopedStore *ScopedStore) GetAll(group string) (map[string]string, error) 
 // Usage example: `for entry, err := range scopedStore.All("config") { if err != nil { break }; fmt.Println(entry.Key, entry.Value) }`
 func (scopedStore *ScopedStore) All(group string) iter.Seq2[KeyValue, error] {
 	return scopedStore.storeInstance.All(scopedStore.namespacedGroup(group))
-}
-
-// Usage example: `for entry, err := range scopedStore.AllSeq("config") { if err != nil { break }; fmt.Println(entry.Key, entry.Value) }`
-func (scopedStore *ScopedStore) AllSeq(group string) iter.Seq2[KeyValue, error] {
-	return scopedStore.All(group)
 }
 
 // Usage example: `keyCount, err := scopedStore.Count("config")`

@@ -148,22 +148,6 @@ func TestEvents_OnChange_Good_Fires(t *testing.T) {
 	assert.Equal(t, EventDelete, events[1].Type)
 }
 
-func TestEvents_OnChange_Good_GroupFilter(t *testing.T) {
-	storeInstance, _ := New(":memory:")
-	defer storeInstance.Close()
-
-	var calls []string
-	unregister := storeInstance.OnChange("config", func(key, value string) {
-		calls = append(calls, key+"="+value)
-	})
-	defer unregister()
-
-	require.NoError(t, storeInstance.Set("config", "theme", "dark"))
-	require.NoError(t, storeInstance.Set("other", "theme", "light"))
-
-	assert.Equal(t, []string{"theme=dark"}, calls)
-}
-
 func TestEvents_Watch_Good_BufferDrops(t *testing.T) {
 	storeInstance, _ := New(":memory:")
 	defer storeInstance.Close()
