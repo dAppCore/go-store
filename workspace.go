@@ -90,8 +90,8 @@ func (workspace *Workspace) ensureReady(operation string) error {
 }
 
 // Usage example: `workspace, err := storeInstance.NewWorkspace("scroll-session-2026-03-30")`
-// The backing file lives at `.core/state/scroll-session-2026-03-30.duckdb` and
-// is removed when the workspace is committed or discarded.
+// The workspace file lives at `.core/state/scroll-session-2026-03-30.duckdb`
+// and is removed when the workspace is committed or discarded.
 func (storeInstance *Store) NewWorkspace(name string) (*Workspace, error) {
 	if err := storeInstance.ensureReady("store.NewWorkspace"); err != nil {
 		return nil, err
