@@ -5,12 +5,6 @@
 // Usage example:
 //
 //	func main() {
-//		storeInstance, err := store.New(":memory:")
-//		if err != nil {
-//			return
-//		}
-//		defer storeInstance.Close()
-//
 //		configuredStore, err := store.NewConfigured(store.StoreConfig{
 //			DatabasePath: ":memory:",
 //			Journal: store.JournalConfiguration{
@@ -24,6 +18,12 @@
 //			return
 //		}
 //		defer configuredStore.Close()
+//
+//		storeInstance, err := store.New(":memory:")
+//		if err != nil {
+//			return
+//		}
+//		defer storeInstance.Close()
 //
 //		if err := storeInstance.Set("config", "colour", "blue"); err != nil {
 //			return
