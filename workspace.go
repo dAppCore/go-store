@@ -32,6 +32,8 @@ FROM workspace_entries`
 
 var defaultWorkspaceStateDirectory = ".core/state"
 
+// Workspace is a named SQLite buffer for mutable work-in-progress.
+//
 // Usage example: `workspace, err := storeInstance.NewWorkspace("scroll-session-2026-03-30"); if err != nil { return }; defer workspace.Discard()`
 type Workspace struct {
 	name         string
@@ -72,6 +74,7 @@ func (workspace *Workspace) ensureReady(operation string) error {
 }
 
 // Usage example: `workspace, err := storeInstance.NewWorkspace("scroll-session-2026-03-30")`
+// The backing file lives at `.core/state/scroll-session-2026-03-30.duckdb`.
 func (storeInstance *Store) NewWorkspace(name string) (*Workspace, error) {
 	if err := storeInstance.ensureReady("store.NewWorkspace"); err != nil {
 		return nil, err
