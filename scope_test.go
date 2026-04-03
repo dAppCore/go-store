@@ -471,6 +471,41 @@ func TestScope_ScopedStore_Good_PurgeExpired_NamespaceLocal(t *testing.T) {
 	assert.Equal(t, 1, rawEntryCount(t, storeInstance, "tenant-b:session"))
 }
 
+func TestScope_ScopedStore_Good_WatchAndUnwatch(t *testing.T) {
+	storeInstance, _ := New(":memory:")
+	defer storeInstance.Close()
+
+	scopedStore := mustScoped(t, storeInstance, "tenant-a")
+	events := scopedStore.Watch("config")
+	scopedStore.Unwatch("config", events)
+
+	_, open := <-events
+	assert.False(t, open, "channel should be closed after Unwatch")
+
+	require.NoError(t, scopedStore.SetIn("config", "theme", "dark"))
+}
+
+func TestScope_ScopedStore_Good_OnChange(t *testing.T) {
+	storeInstance, _ := New(":memory:")
+	defer storeInstance.Close()
+
+	scopedStore := mustScoped(t, storeInstance, "tenant-a")
+
+	var seen []Event
+	unregister := scopedStore.OnChange(func(event Event) {
+		seen = append(seen, event)
+	})
+	defer unregister()
+
+	require.NoError(t, scopedStore.SetIn("config", "theme", "dark"))
+	require.NoError(t, storeInstance.Set("other", "key", "value"))
+
+	require.Len(t, seen, 1)
+	assert.Equal(t, "tenant-a:config", seen[0].Group)
+	assert.Equal(t, "theme", seen[0].Key)
+	assert.Equal(t, "dark", seen[0].Value)
+}
+
 // ---------------------------------------------------------------------------
 // Quota enforcement — MaxKeys
 // ---------------------------------------------------------------------------
