@@ -45,6 +45,8 @@ type Store struct {
 	purgeWaitGroup sync.WaitGroup
 	purgeInterval  time.Duration // interval between background purge cycles
 	journal        journalDestinationConfig
+	bucket         string
+	org            string
 	closeLock      sync.Mutex
 	closed         bool
 
@@ -64,6 +66,8 @@ func WithJournal(endpointURL, organisation, bucketName string) StoreOption {
 			organisation: organisation,
 			bucketName:   bucketName,
 		}
+		storeInstance.bucket = bucketName
+		storeInstance.org = organisation
 	}
 }
 
