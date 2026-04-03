@@ -382,6 +382,23 @@ func TestStore_All_Good_SortedByKey(t *testing.T) {
 	assert.Equal(t, []string{"alpha", "bravo", "charlie"}, keys)
 }
 
+func TestStore_AllSeq_Good_SortedByKey(t *testing.T) {
+	storeInstance, _ := New(":memory:")
+	defer storeInstance.Close()
+
+	require.NoError(t, storeInstance.Set("g", "charlie", "3"))
+	require.NoError(t, storeInstance.Set("g", "alpha", "1"))
+	require.NoError(t, storeInstance.Set("g", "bravo", "2"))
+
+	var keys []string
+	for entry, err := range storeInstance.AllSeq("g") {
+		require.NoError(t, err)
+		keys = append(keys, entry.Key)
+	}
+
+	assert.Equal(t, []string{"alpha", "bravo", "charlie"}, keys)
+}
+
 func TestStore_All_Bad_ClosedStore(t *testing.T) {
 	storeInstance, _ := New(":memory:")
 	storeInstance.Close()
