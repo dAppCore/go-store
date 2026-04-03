@@ -7,7 +7,6 @@ import (
 	"time"
 )
 
-// EventType identifies the kind of mutation emitted by Store.
 // Usage example: `if event.Type == store.EventSet { return }`
 type EventType int
 
@@ -34,7 +33,6 @@ func (t EventType) String() string {
 	}
 }
 
-// Event describes one mutation delivered to watchers and callbacks.
 // Usage example: `event := store.Event{Type: store.EventSet, Group: "config", Key: "colour", Value: "blue"}`
 // Usage example: `event := store.Event{Type: store.EventDeleteGroup, Group: "config"}`
 type Event struct {
@@ -61,7 +59,6 @@ type changeCallbackRegistration struct {
 // dropping new ones.
 const watcherEventBufferCapacity = 16
 
-// Watch registers a buffered subscription for one group.
 // Usage example: `events := storeInstance.Watch("config")`
 // Usage example: `events := storeInstance.Watch("*")`
 func (storeInstance *Store) Watch(group string) <-chan Event {
@@ -77,7 +74,6 @@ func (storeInstance *Store) Watch(group string) <-chan Event {
 	return eventChannel
 }
 
-// Unwatch removes a watcher for one group and closes its event stream.
 // Usage example: `storeInstance.Unwatch("config", events)`
 func (storeInstance *Store) Unwatch(group string, events <-chan Event) {
 	if events == nil {
@@ -115,7 +111,6 @@ func (storeInstance *Store) Unwatch(group string, events <-chan Event) {
 	storeInstance.watchers[group] = nextRegisteredEvents
 }
 
-// OnChange registers a synchronous mutation callback.
 // Usage example: `unregister := storeInstance.OnChange(func(event store.Event) { fmt.Println(event.Group, event.Key, event.Value) })`
 func (storeInstance *Store) OnChange(callback func(Event)) func() {
 	if callback == nil {
