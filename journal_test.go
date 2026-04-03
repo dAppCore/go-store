@@ -35,6 +35,31 @@ func TestJournal_CommitToJournal_Good_WithQueryJournalSQL(t *testing.T) {
 	assert.Equal(t, "session-b", tags["workspace"])
 }
 
+func TestJournal_QueryJournal_Good_RawSQLWithCTE(t *testing.T) {
+	storeInstance, err := New(":memory:", WithJournal("http://127.0.0.1:8086", "core", "events"))
+	require.NoError(t, err)
+	defer storeInstance.Close()
+
+	require.True(t,
+		storeInstance.CommitToJournal("session-a", map[string]any{"like": 4}, map[string]string{"workspace": "session-a"}).OK,
+	)
+
+	rows := requireResultRows(
+		t,
+		storeInstance.QueryJournal(`
+			WITH journal_rows AS (
+				SELECT bucket_name, measurement, fields_json, tags_json, committed_at, archived_at
+				FROM journal_entries
+			)
+			SELECT bucket_name, measurement, fields_json, tags_json, committed_at, archived_at
+			FROM journal_rows
+			ORDER BY committed_at
+		`),
+	)
+	require.Len(t, rows, 1)
+	assert.Equal(t, "session-a", rows[0]["measurement"])
+}
+
 func TestJournal_QueryJournal_Good_FluxFilters(t *testing.T) {
 	storeInstance, err := New(":memory:", WithJournal("http://127.0.0.1:8086", "core", "events"))
 	require.NoError(t, err)
