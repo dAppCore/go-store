@@ -108,6 +108,19 @@ func TestStore_New_Good_WithJournalOption(t *testing.T) {
 	assert.Equal(t, "http://127.0.0.1:8086", storeInstance.journalConfiguration.endpointURL)
 }
 
+func TestStore_JournalConfiguration_Good(t *testing.T) {
+	storeInstance, err := New(":memory:", WithJournal("http://127.0.0.1:8086", "core", "events"))
+	require.NoError(t, err)
+	defer storeInstance.Close()
+
+	config := storeInstance.JournalConfiguration()
+	assert.Equal(t, JournalConfiguration{
+		EndpointURL:  "http://127.0.0.1:8086",
+		Organisation: "core",
+		BucketName:   "events",
+	}, config)
+}
+
 // ---------------------------------------------------------------------------
 // Set / Get — core CRUD
 // ---------------------------------------------------------------------------

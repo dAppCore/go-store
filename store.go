@@ -38,6 +38,17 @@ type journalConfiguration struct {
 	bucketName   string
 }
 
+// JournalConfiguration is the public snapshot returned by Store.JournalConfiguration().
+// Usage example: `config := storeInstance.JournalConfiguration(); fmt.Println(config.EndpointURL, config.Organisation, config.BucketName)`
+type JournalConfiguration struct {
+	// Usage example: `config := store.JournalConfiguration{EndpointURL: "http://127.0.0.1:8086"}`
+	EndpointURL string
+	// Usage example: `config := store.JournalConfiguration{Organisation: "core"}`
+	Organisation string
+	// Usage example: `config := store.JournalConfiguration{BucketName: "events"}`
+	BucketName string
+}
+
 // Usage example: `storeInstance, err := store.New(":memory:")`
 type Store struct {
 	database             *sql.DB
@@ -64,6 +75,18 @@ func WithJournal(endpointURL, organisation, bucketName string) StoreOption {
 			organisation: organisation,
 			bucketName:   bucketName,
 		}
+	}
+}
+
+// Usage example: `config := storeInstance.JournalConfiguration(); fmt.Println(config.EndpointURL, config.Organisation, config.BucketName)`
+func (storeInstance *Store) JournalConfiguration() JournalConfiguration {
+	if storeInstance == nil {
+		return JournalConfiguration{}
+	}
+	return JournalConfiguration{
+		EndpointURL:  storeInstance.journalConfiguration.endpointURL,
+		Organisation: storeInstance.journalConfiguration.organisation,
+		BucketName:   storeInstance.journalConfiguration.bucketName,
 	}
 }
 
