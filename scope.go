@@ -311,7 +311,7 @@ func (scopedStore *ScopedStore) GetFields(group, key string) (iter.Seq[string], 
 
 // Usage example: `events := scopedStore.Watch("config")`
 func (scopedStore *ScopedStore) Watch(group string) <-chan Event {
-	backingStore, err := scopedStore.resolvedStore("store.Watch")
+	backingStore, err := scopedStore.resolvedStore("store.ScopedStore.Watch")
 	if err != nil {
 		return closedEventChannel()
 	}
@@ -366,7 +366,7 @@ func (scopedStore *ScopedStore) Watch(group string) <-chan Event {
 
 // Usage example: `scopedStore.Unwatch("config", events)`
 func (scopedStore *ScopedStore) Unwatch(group string, events <-chan Event) {
-	backingStore, err := scopedStore.resolvedStore("store.Unwatch")
+	backingStore, err := scopedStore.resolvedStore("store.ScopedStore.Unwatch")
 	if err != nil {
 		return
 	}
@@ -379,7 +379,7 @@ func (scopedStore *ScopedStore) Unwatch(group string, events <-chan Event) {
 
 // Usage example: `unregister := scopedStore.OnChange(func(event store.Event) { fmt.Println(event.Group, event.Key) })`
 func (scopedStore *ScopedStore) OnChange(callback func(Event)) func() {
-	backingStore, err := scopedStore.resolvedStore("store.OnChange")
+	backingStore, err := scopedStore.resolvedStore("store.ScopedStore.OnChange")
 	if err != nil {
 		return func() {}
 	}
