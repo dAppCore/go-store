@@ -70,6 +70,16 @@ func TestEvents_Unwatch_Good_Idempotent(t *testing.T) {
 	storeInstance.Unwatch("g", events)
 }
 
+func TestEvents_Close_Good_ClosesWatcherChannels(t *testing.T) {
+	storeInstance, _ := New(":memory:")
+
+	events := storeInstance.Watch("g")
+	require.NoError(t, storeInstance.Close())
+
+	_, open := <-events
+	assert.False(t, open, "channel should be closed after Close")
+}
+
 func TestEvents_Unwatch_Good_NilChannel(t *testing.T) {
 	storeInstance, _ := New(":memory:")
 	defer storeInstance.Close()

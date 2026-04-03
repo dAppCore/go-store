@@ -226,6 +226,20 @@ func (storeInstance *Store) Close() error {
 		storeInstance.cancelPurge()
 	}
 	storeInstance.purgeWaitGroup.Wait()
+
+	storeInstance.watchersLock.Lock()
+	for groupName, registeredEvents := range storeInstance.watchers {
+		for _, registeredEventChannel := range registeredEvents {
+			close(registeredEventChannel)
+		}
+		delete(storeInstance.watchers, groupName)
+	}
+	storeInstance.watchersLock.Unlock()
+
+	storeInstance.callbacksLock.Lock()
+	storeInstance.callbacks = nil
+	storeInstance.callbacksLock.Unlock()
+
 	if storeInstance.database == nil {
 		return nil
 	}
