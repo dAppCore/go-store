@@ -172,13 +172,13 @@ func (scopedStore *ScopedStore) Count(group string) (int, error) {
 // Usage example: `keyCount, err := scopedStore.CountAll("config")`
 // Usage example: `keyCount, err := scopedStore.CountAll()`
 func (scopedStore *ScopedStore) CountAll(groupPrefix ...string) (int, error) {
-	return scopedStore.store.CountAll(scopedStore.namespacedGroup(firstString(groupPrefix)))
+	return scopedStore.store.CountAll(scopedStore.namespacedGroup(firstOrEmptyString(groupPrefix)))
 }
 
 // Usage example: `groupNames, err := scopedStore.Groups("config")`
 // Usage example: `groupNames, err := scopedStore.Groups()`
 func (scopedStore *ScopedStore) Groups(groupPrefix ...string) ([]string, error) {
-	groupNames, err := scopedStore.store.Groups(scopedStore.namespacedGroup(firstString(groupPrefix)))
+	groupNames, err := scopedStore.store.Groups(scopedStore.namespacedGroup(firstOrEmptyString(groupPrefix)))
 	if err != nil {
 		return nil, err
 	}
@@ -193,7 +193,7 @@ func (scopedStore *ScopedStore) Groups(groupPrefix ...string) ([]string, error) 
 func (scopedStore *ScopedStore) GroupsSeq(groupPrefix ...string) iter.Seq2[string, error] {
 	return func(yield func(string, error) bool) {
 		namespacePrefix := scopedStore.namespacePrefix()
-		for groupName, err := range scopedStore.store.GroupsSeq(scopedStore.namespacedGroup(firstString(groupPrefix))) {
+		for groupName, err := range scopedStore.store.GroupsSeq(scopedStore.namespacedGroup(firstOrEmptyString(groupPrefix))) {
 			if err != nil {
 				if !yield("", err) {
 					return
