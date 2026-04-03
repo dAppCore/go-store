@@ -89,7 +89,7 @@
 //
 //		orphans := configuredStore.RecoverOrphans(".core/state")
 //		for _, orphanWorkspace := range orphans {
-//			fmt.Println(orphanWorkspace.Aggregate())
+//			fmt.Println(orphanWorkspace.Name(), orphanWorkspace.Aggregate())
 //			orphanWorkspace.Discard()
 //		}
 //

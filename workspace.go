@@ -46,6 +46,14 @@ type Workspace struct {
 	closed    bool
 }
 
+// Usage example: `workspaceName := workspace.Name(); fmt.Println(workspaceName)`
+func (workspace *Workspace) Name() string {
+	if workspace == nil {
+		return ""
+	}
+	return workspace.name
+}
+
 func (workspace *Workspace) ensureReady(operation string) error {
 	if workspace == nil {
 		return core.E(operation, "workspace is nil", nil)
