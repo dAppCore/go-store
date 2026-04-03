@@ -50,11 +50,10 @@ type Store struct {
 	journal        journalConfig
 
 	// Event dispatch state.
-	watchers                   []*Watcher
+	watchers                   map[string][]chan Event
 	callbacks                  []changeCallbackRegistration
 	watchersLock               sync.RWMutex // protects watcher registration and dispatch
 	callbacksLock              sync.RWMutex // protects callback registration and dispatch
-	nextWatcherRegistrationID  uint64       // monotonic ID for watcher registrations
 	nextCallbackRegistrationID uint64       // monotonic ID for callback registrations
 }
 
@@ -93,7 +92,12 @@ func New(databasePath string, options ...StoreOption) (*Store, error) {
 	}
 
 	purgeContext, cancel := context.WithCancel(context.Background())
-	storeInstance := &Store{database: sqliteDatabase, cancelPurge: cancel, purgeInterval: 60 * time.Second}
+	storeInstance := &Store{
+		database:      sqliteDatabase,
+		cancelPurge:   cancel,
+		purgeInterval: 60 * time.Second,
+		watchers:      make(map[string][]chan Event),
+	}
 	for _, option := range options {
 		if option != nil {
 			option(storeInstance)

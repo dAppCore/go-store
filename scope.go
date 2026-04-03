@@ -23,7 +23,7 @@ type QuotaConfig struct {
 }
 
 // ScopedStore prefixes group names with namespace + ":" before delegating to Store.
-// Usage example: `scopedStore, err := store.NewScoped(storeInstance, "tenant-a"); if err != nil { return }; if err := scopedStore.Set("config", "colour", "blue"); err != nil { return }`
+// Usage example: `scopedStore := store.NewScoped(storeInstance, "tenant-a"); if scopedStore == nil { return }; if err := scopedStore.Set("config", "colour", "blue"); err != nil { return }`
 type ScopedStore struct {
 	storeInstance *Store
 	namespace     string
@@ -32,24 +32,27 @@ type ScopedStore struct {
 }
 
 // NewScoped validates a namespace and prefixes groups with namespace + ":".
-// Usage example: `scopedStore, err := store.NewScoped(storeInstance, "tenant-a"); if err != nil { return }`
-func NewScoped(storeInstance *Store, namespace string) (*ScopedStore, error) {
+// Usage example: `scopedStore := store.NewScoped(storeInstance, "tenant-a")`
+func NewScoped(storeInstance *Store, namespace string) *ScopedStore {
 	if storeInstance == nil {
-		return nil, core.E("store.NewScoped", "store instance is nil", nil)
+		return nil
 	}
 	if !validNamespace.MatchString(namespace) {
-		return nil, core.E("store.NewScoped", core.Sprintf("namespace %q is invalid; use names like %q or %q", namespace, "tenant-a", "tenant-42"), nil)
+		return nil
 	}
 	scopedStore := &ScopedStore{storeInstance: storeInstance, namespace: namespace}
-	return scopedStore, nil
+	return scopedStore
 }
 
 // NewScopedWithQuota adds per-namespace key and group limits.
 // Usage example: `scopedStore, err := store.NewScopedWithQuota(storeInstance, "tenant-a", store.QuotaConfig{MaxKeys: 100, MaxGroups: 10}); if err != nil { return }`
 func NewScopedWithQuota(storeInstance *Store, namespace string, quota QuotaConfig) (*ScopedStore, error) {
-	scopedStore, err := NewScoped(storeInstance, namespace)
-	if err != nil {
-		return nil, err
+	scopedStore := NewScoped(storeInstance, namespace)
+	if scopedStore == nil {
+		if storeInstance == nil {
+			return nil, core.E("store.NewScopedWithQuota", "store instance is nil", nil)
+		}
+		return nil, core.E("store.NewScopedWithQuota", core.Sprintf("namespace %q is invalid; use names like %q or %q", namespace, "tenant-a", "tenant-42"), nil)
 	}
 	if quota.MaxKeys < 0 || quota.MaxGroups < 0 {
 		return nil, core.E(
@@ -80,7 +83,7 @@ func (scopedStore *ScopedStore) trimNamespacePrefix(groupName string) string {
 }
 
 // Namespace returns the namespace string.
-// Usage example: `scopedStore, err := store.NewScoped(storeInstance, "tenant-a"); if err != nil { return }; namespace := scopedStore.Namespace(); fmt.Println(namespace)`
+// Usage example: `scopedStore := store.NewScoped(storeInstance, "tenant-a"); if scopedStore == nil { return }; namespace := scopedStore.Namespace(); fmt.Println(namespace)`
 func (scopedStore *ScopedStore) Namespace() string {
 	return scopedStore.namespace
 }

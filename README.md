@@ -43,17 +43,17 @@ func main() {
 	fmt.Println(colourValue)
 
 	// Watch "config" mutations and print each event as it arrives.
-	watcher := storeInstance.Watch("config", "*")
-	defer storeInstance.Unwatch(watcher)
+	events := storeInstance.Watch("config")
+	defer storeInstance.Unwatch("config", events)
 	go func() {
-		for event := range watcher.Events {
+		for event := range events {
 			fmt.Println(event.Type, event.Group, event.Key, event.Value)
 		}
 	}()
 
 	// Store tenant-42 preferences under the "tenant-42:" prefix.
-	scopedStore, err := store.NewScoped(storeInstance, "tenant-42")
-	if err != nil {
+	scopedStore := store.NewScoped(storeInstance, "tenant-42")
+	if scopedStore == nil {
 		return
 	}
 	if err := scopedStore.Set("preferences", "locale", "en-GB"); err != nil {
