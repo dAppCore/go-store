@@ -30,6 +30,8 @@ const (
 )
 
 // Usage example: `storeOptions := []store.StoreOption{store.WithJournal("http://127.0.0.1:8086", "core", "events")}`
+// Prefer `store.NewConfigured(store.StoreConfig{...})` when the configuration
+// is already known as a struct literal.
 type StoreOption func(*StoreConfig)
 
 type journalConfiguration struct {
@@ -148,11 +150,11 @@ func WithPurgeInterval(interval time.Duration) StoreOption {
 
 // Usage example: `storeInstance, err := store.NewConfigured(store.StoreConfig{DatabasePath: ":memory:", Journal: store.JournalConfiguration{EndpointURL: "http://127.0.0.1:8086", Organisation: "core", BucketName: "events"}, PurgeInterval: 20 * time.Millisecond})`
 func NewConfigured(config StoreConfig) (*Store, error) {
-	return newStoreFromConfig("store.NewConfigured", config)
+	return openConfiguredStore("store.NewConfigured", config)
 }
 
-func newStoreFromConfig(operation string, config StoreConfig) (*Store, error) {
-	storeInstance, err := openStore(operation, config.DatabasePath)
+func openConfiguredStore(operation string, config StoreConfig) (*Store, error) {
+	storeInstance, err := openSQLiteStore(operation, config.DatabasePath)
 	if err != nil {
 		return nil, err
 	}
@@ -183,10 +185,10 @@ func New(databasePath string, options ...StoreOption) (*Store, error) {
 			option(&config)
 		}
 	}
-	return newStoreFromConfig("store.New", config)
+	return openConfiguredStore("store.New", config)
 }
 
-func openStore(operation, databasePath string) (*Store, error) {
+func openSQLiteStore(operation, databasePath string) (*Store, error) {
 	sqliteDatabase, err := sql.Open("sqlite", databasePath)
 	if err != nil {
 		return nil, core.E(operation, "open database", err)
