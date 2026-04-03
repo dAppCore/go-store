@@ -345,6 +345,48 @@ func (storeInstance *Store) DeleteGroup(group string) error {
 	return nil
 }
 
+// Usage example: `if err := storeInstance.DeletePrefix("tenant-a:"); err != nil { return }`
+func (storeInstance *Store) DeletePrefix(groupPrefix string) error {
+	if err := storeInstance.ensureReady("store.DeletePrefix"); err != nil {
+		return err
+	}
+
+	var rows *sql.Rows
+	var err error
+	if groupPrefix == "" {
+		rows, err = storeInstance.database.Query(
+			"SELECT DISTINCT " + entryGroupColumn + " FROM " + entriesTableName + " ORDER BY " + entryGroupColumn,
+		)
+	} else {
+		rows, err = storeInstance.database.Query(
+			"SELECT DISTINCT "+entryGroupColumn+" FROM "+entriesTableName+" WHERE "+entryGroupColumn+" LIKE ? ESCAPE '^' ORDER BY "+entryGroupColumn,
+			escapeLike(groupPrefix)+"%",
+		)
+	}
+	if err != nil {
+		return core.E("store.DeletePrefix", "list groups", err)
+	}
+	defer rows.Close()
+
+	var groupNames []string
+	for rows.Next() {
+		var groupName string
+		if err := rows.Scan(&groupName); err != nil {
+			return core.E("store.DeletePrefix", "scan group name", err)
+		}
+		groupNames = append(groupNames, groupName)
+	}
+	if err := rows.Err(); err != nil {
+		return core.E("store.DeletePrefix", "iterate groups", err)
+	}
+	for _, groupName := range groupNames {
+		if err := storeInstance.DeleteGroup(groupName); err != nil {
+			return core.E("store.DeletePrefix", "delete group", err)
+		}
+	}
+	return nil
+}
+
 // Usage example: `for entry, err := range storeInstance.All("config") { if err != nil { break }; fmt.Println(entry.Key, entry.Value) }`
 type KeyValue struct {
 	// Usage example: `if entry.Key == "colour" { return }`

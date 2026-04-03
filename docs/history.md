@@ -206,8 +206,6 @@ These tests exercise correct defensive code. They must continue to pass but are 
 
 **No cross-group transactions.** There is no API for atomic multi-group operations. Each method is individually atomic at the SQLite level, but there is no `Begin`/`Commit` exposed to callers.
 
-**No wildcard deletes.** There is no `DeletePrefix` or pattern-based delete. To delete all groups under a namespace, callers must retrieve the group list via `Groups()` and delete each individually.
-
 **No persistence of watcher registrations.** Watchers and callbacks are in-memory only. They are not persisted across `Close`/`New` cycles.
 
 ---
@@ -220,4 +218,3 @@ These are design notes, not committed work:
 - **Indexed prefix keys.** An additional index on `(group_name, entry_key)` prefix would accelerate prefix scans without a full-table scan.
 - **TTL background purge interval as constructor configuration.** Currently only settable by mutating `storeInstance.purgeInterval` directly in tests. A constructor-level `PurgeInterval` field or config entry would make this part of the public API.
 - **Cross-group atomic operations.** Exposing a `Transaction(func(tx *StoreTx) error)` API would allow callers to compose atomic multi-group operations.
-- **`DeletePrefix(prefix string)` method.** Would enable efficient cleanup of an entire namespace without first listing groups.

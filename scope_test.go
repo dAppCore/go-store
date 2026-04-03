@@ -223,6 +223,27 @@ func TestScope_ScopedStore_Good_DeleteGroup(t *testing.T) {
 	assert.Equal(t, 0, count)
 }
 
+func TestScope_ScopedStore_Good_DeletePrefix(t *testing.T) {
+	storeInstance, _ := New(":memory:")
+	defer storeInstance.Close()
+
+	scopedStore := mustScoped(t, storeInstance, "tenant-a")
+	require.NoError(t, scopedStore.SetIn("config", "colour", "blue"))
+	require.NoError(t, scopedStore.SetIn("sessions", "token", "abc123"))
+	require.NoError(t, storeInstance.Set("tenant-b:config", "colour", "green"))
+
+	require.NoError(t, scopedStore.DeletePrefix(""))
+
+	_, err := scopedStore.GetFrom("config", "colour")
+	assert.Error(t, err)
+	_, err = scopedStore.GetFrom("sessions", "token")
+	assert.Error(t, err)
+
+	value, err := storeInstance.Get("tenant-b:config", "colour")
+	require.NoError(t, err)
+	assert.Equal(t, "green", value)
+}
+
 func TestScope_ScopedStore_Good_GetAll(t *testing.T) {
 	storeInstance, _ := New(":memory:")
 	defer storeInstance.Close()
