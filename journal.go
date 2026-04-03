@@ -26,7 +26,6 @@ const createJournalEntriesTableSQL = `CREATE TABLE IF NOT EXISTS journal_entries
 
 var (
 	journalBucketPattern      = regexp.MustCompile(`bucket:\s*"([^"]+)"`)
-	journalRangePattern       = regexp.MustCompile(`range\(\s*start:\s*([^)]+)\)`)
 	journalMeasurementPattern = regexp.MustCompile(`(?:_measurement|measurement)\s*==\s*"([^"]+)"`)
 )
 
@@ -138,17 +137,22 @@ func (storeInstance *Store) queryJournalFlux(flux string) (string, []any, error)
 		arguments = append(arguments, measurement)
 	}
 
-	rangeMatch := quotedSubmatch(journalRangePattern, flux)
-	if rangeMatch == "" {
-		rangeMatch = regexpSubmatch(journalRangePattern, flux, 1)
-	}
-	if rangeMatch != "" {
-		startTime, err := fluxStartTime(core.Trim(rangeMatch))
+	startRange, stopRange := journalRangeBounds(flux)
+	if startRange != "" {
+		startTime, err := fluxTime(core.Trim(startRange))
 		if err != nil {
 			return "", nil, core.E("store.QueryJournal", "parse range", err)
 		}
 		builder.WriteString(" AND committed_at >= ?")
 		arguments = append(arguments, startTime.UnixMilli())
+	}
+	if stopRange != "" {
+		stopTime, err := fluxTime(core.Trim(stopRange))
+		if err != nil {
+			return "", nil, core.E("store.QueryJournal", "parse range", err)
+		}
+		builder.WriteString(" AND committed_at < ?")
+		arguments = append(arguments, stopTime.UnixMilli())
 	}
 
 	builder.WriteString(" ORDER BY committed_at")
@@ -198,10 +202,69 @@ func jsonString(value any, operation, message string) (string, error) {
 	return string(result.Value.([]byte)), nil
 }
 
-func fluxStartTime(value string) (time.Time, error) {
+func journalRangeBounds(flux string) (string, string) {
+	rangeIndex := indexOf(flux, "range(")
+	if rangeIndex < 0 {
+		return "", ""
+	}
+	contentStart := rangeIndex + len("range(")
+	depth := 1
+	contentEnd := -1
+scanRange:
+	for i := contentStart; i < len(flux); i++ {
+		switch flux[i] {
+		case '(':
+			depth++
+		case ')':
+			depth--
+			if depth == 0 {
+				contentEnd = i
+				break scanRange
+			}
+		}
+	}
+	if contentEnd < 0 || contentEnd <= contentStart {
+		return "", ""
+	}
+
+	content := flux[contentStart:contentEnd]
+	startPrefix := "start:"
+	startIndex := indexOf(content, startPrefix)
+	if startIndex < 0 {
+		return "", ""
+	}
+	startIndex += len(startPrefix)
+	start := core.Trim(content[startIndex:])
+	stop := ""
+	if stopIndex := indexOf(content, ", stop:"); stopIndex >= 0 {
+		start = core.Trim(content[startIndex:stopIndex])
+		stop = core.Trim(content[stopIndex+len(", stop:"):])
+	} else if stopIndex := indexOf(content, ",stop:"); stopIndex >= 0 {
+		start = core.Trim(content[startIndex:stopIndex])
+		stop = core.Trim(content[stopIndex+len(",stop:"):])
+	}
+	return start, stop
+}
+
+func indexOf(text, substring string) int {
+	if substring == "" {
+		return 0
+	}
+	if len(substring) > len(text) {
+		return -1
+	}
+	for i := 0; i <= len(text)-len(substring); i++ {
+		if text[i:i+len(substring)] == substring {
+			return i
+		}
+	}
+	return -1
+}
+
+func fluxTime(value string) (time.Time, error) {
 	value = core.Trim(value)
 	if value == "" {
-		return time.Time{}, core.E("store.fluxStartTime", "range value is empty", nil)
+		return time.Time{}, core.E("store.fluxTime", "range value is empty", nil)
 	}
 	value = firstString(core.Split(value, ","))
 	value = core.Trim(value)
