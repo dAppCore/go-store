@@ -121,6 +121,32 @@ func TestStore_JournalConfiguration_Good(t *testing.T) {
 	}, config)
 }
 
+func TestStore_NewConfigured_Good(t *testing.T) {
+	storeInstance, err := NewConfigured(StoreConfig{
+		DatabasePath: ":memory:",
+		Journal: JournalConfiguration{
+			EndpointURL:  "http://127.0.0.1:8086",
+			Organisation: "core",
+			BucketName:   "events",
+		},
+		PurgeInterval: 20 * time.Millisecond,
+	})
+	require.NoError(t, err)
+	defer storeInstance.Close()
+
+	assert.Equal(t, JournalConfiguration{
+		EndpointURL:  "http://127.0.0.1:8086",
+		Organisation: "core",
+		BucketName:   "events",
+	}, storeInstance.JournalConfiguration())
+	assert.Equal(t, 20*time.Millisecond, storeInstance.purgeInterval)
+
+	require.NoError(t, storeInstance.Set("g", "k", "v"))
+	value, err := storeInstance.Get("g", "k")
+	require.NoError(t, err)
+	assert.Equal(t, "v", value)
+}
+
 // ---------------------------------------------------------------------------
 // Set / Get — core CRUD
 // ---------------------------------------------------------------------------
