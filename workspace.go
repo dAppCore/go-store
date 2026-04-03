@@ -169,17 +169,6 @@ func (storeInstance *Store) RecoverOrphans(stateDirectory string) []*Workspace {
 	return orphanWorkspaces
 }
 
-func (storeInstance *Store) discardRecoveredOrphans(stateDirectory string) {
-	if storeInstance == nil {
-		return
-	}
-
-	for _, orphanWorkspace := range storeInstance.RecoverOrphans(stateDirectory) {
-		_ = orphanWorkspace.Aggregate()
-		orphanWorkspace.Discard()
-	}
-}
-
 // Usage example: `err := workspace.Put("like", map[string]any{"user": "@alice", "post": "video_123"})`
 func (workspace *Workspace) Put(kind string, data map[string]any) error {
 	if err := workspace.ensureReady("store.Workspace.Put"); err != nil {
