@@ -394,6 +394,35 @@ func TestStore_GetAll_Good_Empty(t *testing.T) {
 	assert.Empty(t, all)
 }
 
+func TestStore_GetPage_Good(t *testing.T) {
+	storeInstance, _ := New(":memory:")
+	defer storeInstance.Close()
+
+	require.NoError(t, storeInstance.Set("grp", "charlie", "3"))
+	require.NoError(t, storeInstance.Set("grp", "alpha", "1"))
+	require.NoError(t, storeInstance.Set("grp", "bravo", "2"))
+
+	page, err := storeInstance.GetPage("grp", 1, 2)
+	require.NoError(t, err)
+	require.Len(t, page, 2)
+	assert.Equal(t, []KeyValue{{Key: "bravo", Value: "2"}, {Key: "charlie", Value: "3"}}, page)
+}
+
+func TestStore_GetPage_Good_EmptyAndBounds(t *testing.T) {
+	storeInstance, _ := New(":memory:")
+	defer storeInstance.Close()
+
+	page, err := storeInstance.GetPage("grp", 0, 0)
+	require.NoError(t, err)
+	assert.Empty(t, page)
+
+	_, err = storeInstance.GetPage("grp", -1, 1)
+	require.Error(t, err)
+
+	_, err = storeInstance.GetPage("grp", 0, -1)
+	require.Error(t, err)
+}
+
 func TestStore_GetAll_Bad_ClosedStore(t *testing.T) {
 	storeInstance, _ := New(":memory:")
 	storeInstance.Close()

@@ -163,6 +163,21 @@ func TestScope_ScopedStore_Good_AllSeq(t *testing.T) {
 	assert.ElementsMatch(t, []string{"first", "second"}, keys)
 }
 
+func TestScope_ScopedStore_Good_GetPage(t *testing.T) {
+	storeInstance, _ := New(":memory:")
+	defer storeInstance.Close()
+
+	scopedStore := mustScoped(t, storeInstance, "tenant-a")
+	require.NoError(t, scopedStore.SetIn("items", "charlie", "3"))
+	require.NoError(t, scopedStore.SetIn("items", "alpha", "1"))
+	require.NoError(t, scopedStore.SetIn("items", "bravo", "2"))
+
+	page, err := scopedStore.GetPage("items", 0, 2)
+	require.NoError(t, err)
+	require.Len(t, page, 2)
+	assert.Equal(t, []KeyValue{{Key: "alpha", Value: "1"}, {Key: "bravo", Value: "2"}}, page)
+}
+
 func TestScope_ScopedStore_Good_PrefixedInUnderlyingStore(t *testing.T) {
 	storeInstance, _ := New(":memory:")
 	defer storeInstance.Close()
