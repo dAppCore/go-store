@@ -155,8 +155,8 @@ func newStoreFromConfig(operation string, config StoreConfig) (*Store, error) {
 		storeInstance.purgeInterval = config.PurgeInterval
 	}
 
-	// New() performs a non-destructive scan so orphaned workspaces remain
-	// discoverable through RecoverOrphans().
+	// New() performs a non-destructive orphan scan so callers can discover
+	// leftover workspaces via RecoverOrphans().
 	discoverOrphanWorkspacePaths(defaultWorkspaceStateDirectory)
 	storeInstance.startBackgroundPurge()
 	return storeInstance, nil
