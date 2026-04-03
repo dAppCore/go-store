@@ -30,7 +30,7 @@ const (
 )
 
 // Usage example: `storeOptions := []store.StoreOption{store.WithJournal("http://127.0.0.1:8086", "core", "events")}`
-type StoreOption func(*Store)
+type StoreOption func(*StoreConfig)
 
 type journalConfiguration struct {
 	endpointURL  string
@@ -97,11 +97,14 @@ func (storeInstance *Store) ensureReady(operation string) error {
 
 // Usage example: `storeInstance, err := store.New("/tmp/go-store.db", store.WithJournal("http://127.0.0.1:8086", "core", "events"))`
 func WithJournal(endpointURL, organisation, bucketName string) StoreOption {
-	return func(storeInstance *Store) {
-		storeInstance.journalConfiguration = journalConfiguration{
-			endpointURL:  endpointURL,
-			organisation: organisation,
-			bucketName:   bucketName,
+	return func(config *StoreConfig) {
+		if config == nil {
+			return
+		}
+		config.Journal = JournalConfiguration{
+			EndpointURL:  endpointURL,
+			Organisation: organisation,
+			BucketName:   bucketName,
 		}
 	}
 }
@@ -120,9 +123,12 @@ func (storeInstance *Store) JournalConfiguration() JournalConfiguration {
 
 // Usage example: `storeInstance, err := store.New(":memory:", store.WithPurgeInterval(20*time.Millisecond))`
 func WithPurgeInterval(interval time.Duration) StoreOption {
-	return func(storeInstance *Store) {
+	return func(config *StoreConfig) {
+		if config == nil {
+			return
+		}
 		if interval > 0 {
-			storeInstance.purgeInterval = interval
+			config.PurgeInterval = interval
 		}
 	}
 }
@@ -131,7 +137,11 @@ func WithPurgeInterval(interval time.Duration) StoreOption {
 // NewConfigured also scans `.core/state` for leftover `.duckdb` workspace files
 // so orphan recovery can happen before the first explicit recovery call.
 func NewConfigured(config StoreConfig) (*Store, error) {
-	storeInstance, err := openStore("store.NewConfigured", config.DatabasePath)
+	return newStoreFromConfig("store.NewConfigured", config)
+}
+
+func newStoreFromConfig(operation string, config StoreConfig) (*Store, error) {
+	storeInstance, err := openStore(operation, config.DatabasePath)
 	if err != nil {
 		return nil, err
 	}
@@ -156,18 +166,13 @@ func NewConfigured(config StoreConfig) (*Store, error) {
 // New scans `.core/state` for leftover `.duckdb` workspace files before the
 // store starts its background purge loop.
 func New(databasePath string, options ...StoreOption) (*Store, error) {
-	storeInstance, err := openStore("store.New", databasePath)
-	if err != nil {
-		return nil, err
-	}
+	config := StoreConfig{DatabasePath: databasePath}
 	for _, option := range options {
 		if option != nil {
-			option(storeInstance)
+			option(&config)
 		}
 	}
-	_ = discoverOrphanWorkspacePaths(defaultWorkspaceStateDirectory)
-	storeInstance.startBackgroundPurge()
-	return storeInstance, nil
+	return newStoreFromConfig("store.New", config)
 }
 
 func openStore(operation, databasePath string) (*Store, error) {
