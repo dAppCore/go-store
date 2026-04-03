@@ -19,47 +19,41 @@
 //		}
 //		defer configuredStore.Close()
 //
-//		storeInstance, err := store.New(":memory:")
-//		if err != nil {
+//		if err := configuredStore.Set("config", "colour", "blue"); err != nil {
 //			return
 //		}
-//		defer storeInstance.Close()
-//
-//		if err := storeInstance.Set("config", "colour", "blue"); err != nil {
-//			return
-//		}
-//		if err := storeInstance.SetWithTTL("session", "token", "abc123", 5*time.Minute); err != nil {
+//		if err := configuredStore.SetWithTTL("session", "token", "abc123", 5*time.Minute); err != nil {
 //			return
 //		}
 //
-//		colourValue, err := storeInstance.Get("config", "colour")
+//		colourValue, err := configuredStore.Get("config", "colour")
 //		if err != nil {
 //			return
 //		}
 //		fmt.Println(colourValue)
 //
-//		for entry, err := range storeInstance.All("config") {
+//		for entry, err := range configuredStore.All("config") {
 //			if err != nil {
 //				return
 //			}
 //			fmt.Println(entry.Key, entry.Value)
 //		}
 //
-//		events := storeInstance.Watch("config")
-//		defer storeInstance.Unwatch("config", events)
+//		events := configuredStore.Watch("config")
+//		defer configuredStore.Unwatch("config", events)
 //		go func() {
 //			for event := range events {
 //				fmt.Println(event.Type, event.Group, event.Key, event.Value)
 //			}
 //		}()
 //
-//		unregister := storeInstance.OnChange(func(event store.Event) {
+//		unregister := configuredStore.OnChange(func(event store.Event) {
 //			fmt.Println("changed", event.Group, event.Key, event.Value)
 //		})
 //		defer unregister()
 //
 //		scopedStore, err := store.NewScopedWithQuota(
-//			storeInstance,
+//			configuredStore,
 //			"tenant-a",
 //			store.QuotaConfig{MaxKeys: 100, MaxGroups: 10},
 //		)
@@ -70,14 +64,14 @@
 //			return
 //		}
 //
-//		for groupName, err := range storeInstance.GroupsSeq("tenant-a:") {
+//		for groupName, err := range configuredStore.GroupsSeq("tenant-a:") {
 //			if err != nil {
 //				return
 //			}
 //			fmt.Println(groupName)
 //		}
 //
-//		workspace, err := storeInstance.NewWorkspace("scroll-session")
+//		workspace, err := configuredStore.NewWorkspace("scroll-session")
 //		if err != nil {
 //			return
 //		}
@@ -93,18 +87,18 @@
 //			return
 //		}
 //
-//		orphans := storeInstance.RecoverOrphans(".core/state")
+//		orphans := configuredStore.RecoverOrphans(".core/state")
 //		for _, orphanWorkspace := range orphans {
 //			fmt.Println(orphanWorkspace.Aggregate())
 //			orphanWorkspace.Discard()
 //		}
 //
-//		journalResult := storeInstance.QueryJournal(`from(bucket: "events") |> range(start: -24h)`)
+//		journalResult := configuredStore.QueryJournal(`from(bucket: "events") |> range(start: -24h)`)
 //		if !journalResult.OK {
 //			return
 //		}
 //
-//		archiveResult := storeInstance.Compact(store.CompactOptions{
+//		archiveResult := configuredStore.Compact(store.CompactOptions{
 //			Before: time.Now().Add(-30 * 24 * time.Hour),
 //			Output: "/tmp/archive",
 //			Format: "gzip",
