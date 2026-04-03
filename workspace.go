@@ -74,7 +74,8 @@ func (workspace *Workspace) ensureReady(operation string) error {
 }
 
 // Usage example: `workspace, err := storeInstance.NewWorkspace("scroll-session-2026-03-30")`
-// The backing file lives at `.core/state/scroll-session-2026-03-30.duckdb`.
+// The backing file lives at `.core/state/scroll-session-2026-03-30.duckdb` and
+// is removed when the workspace is committed or discarded.
 func (storeInstance *Store) NewWorkspace(name string) (*Workspace, error) {
 	if err := storeInstance.ensureReady("store.NewWorkspace"); err != nil {
 		return nil, err
@@ -130,12 +131,12 @@ func (storeInstance *Store) RecoverOrphans(stateDirectory string) []*Workspace {
 		return nil
 	}
 
-	entries, ok := listResult.Value.([]fs.DirEntry)
+	directoryEntries, ok := listResult.Value.([]fs.DirEntry)
 	if !ok {
 		return nil
 	}
 
-	slices.SortFunc(entries, func(left, right fs.DirEntry) int {
+	slices.SortFunc(directoryEntries, func(left, right fs.DirEntry) int {
 		switch {
 		case left.Name() < right.Name():
 			return -1
@@ -146,8 +147,8 @@ func (storeInstance *Store) RecoverOrphans(stateDirectory string) []*Workspace {
 		}
 	})
 
-	var workspaces []*Workspace
-	for _, dirEntry := range entries {
+	var orphanWorkspaces []*Workspace
+	for _, dirEntry := range directoryEntries {
 		if dirEntry.IsDir() || !core.HasSuffix(dirEntry.Name(), ".duckdb") {
 			continue
 		}
@@ -157,7 +158,7 @@ func (storeInstance *Store) RecoverOrphans(stateDirectory string) []*Workspace {
 		if err != nil {
 			continue
 		}
-		workspaces = append(workspaces, &Workspace{
+		orphanWorkspaces = append(orphanWorkspaces, &Workspace{
 			name:         name,
 			backingStore: storeInstance,
 			database:     workspaceDatabase,
@@ -165,10 +166,10 @@ func (storeInstance *Store) RecoverOrphans(stateDirectory string) []*Workspace {
 			filesystem:   filesystem,
 		})
 	}
-	return workspaces
+	return orphanWorkspaces
 }
 
-func (storeInstance *Store) cleanUpOrphanedWorkspaces(stateDirectory string) {
+func (storeInstance *Store) discardRecoveredOrphans(stateDirectory string) {
 	if storeInstance == nil {
 		return
 	}
@@ -237,7 +238,7 @@ func (workspace *Workspace) Commit() core.Result {
 	if err := workspace.backingStore.commitWorkspaceAggregate(workspace.name, fields); err != nil {
 		return core.Result{Value: err, OK: false}
 	}
-	if err := workspace.closeAndDelete(); err != nil {
+	if err := workspace.closeAndRemoveFiles(); err != nil {
 		return core.Result{Value: err, OK: false}
 	}
 	return core.Result{Value: fields, OK: true}
@@ -248,7 +249,7 @@ func (workspace *Workspace) Discard() {
 	if workspace == nil {
 		return
 	}
-	_ = workspace.closeAndDelete()
+	_ = workspace.closeAndRemoveFiles()
 }
 
 // Usage example: `result := workspace.Query("SELECT entry_kind, COUNT(*) AS count FROM workspace_entries GROUP BY entry_kind")`
@@ -300,7 +301,7 @@ func (workspace *Workspace) aggregateFields() (map[string]any, error) {
 	return fields, nil
 }
 
-func (workspace *Workspace) closeAndDelete() error {
+func (workspace *Workspace) closeAndRemoveFiles() error {
 	if workspace == nil {
 		return nil
 	}
@@ -317,11 +318,11 @@ func (workspace *Workspace) closeAndDelete() error {
 	workspace.closed = true
 
 	if err := workspace.database.Close(); err != nil {
-		return core.E("store.Workspace.closeAndDelete", "close workspace database", err)
+		return core.E("store.Workspace.closeAndRemoveFiles", "close workspace database", err)
 	}
 	for _, path := range []string{workspace.databasePath, workspace.databasePath + "-wal", workspace.databasePath + "-shm"} {
 		if result := workspace.filesystem.Delete(path); !result.OK && workspace.filesystem.Exists(path) {
-			return core.E("store.Workspace.closeAndDelete", "delete workspace file", result.Value.(error))
+			return core.E("store.Workspace.closeAndRemoveFiles", "delete workspace file", result.Value.(error))
 		}
 	}
 	return nil
