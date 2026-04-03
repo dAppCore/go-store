@@ -141,19 +141,19 @@ func (storeInstance *Store) queryJournalRows(query string, arguments ...any) cor
 }
 
 func (storeInstance *Store) queryJournalFlux(flux string) (string, []any, error) {
-	builder := core.NewBuilder()
-	builder.WriteString("SELECT bucket_name, measurement, fields_json, tags_json, committed_at, archived_at FROM ")
-	builder.WriteString(journalEntriesTableName)
-	builder.WriteString(" WHERE archived_at IS NULL")
+	queryBuilder := core.NewBuilder()
+	queryBuilder.WriteString("SELECT bucket_name, measurement, fields_json, tags_json, committed_at, archived_at FROM ")
+	queryBuilder.WriteString(journalEntriesTableName)
+	queryBuilder.WriteString(" WHERE archived_at IS NULL")
 
-	var arguments []any
+	var queryArguments []any
 	if bucket := quotedSubmatch(journalBucketPattern, flux); bucket != "" {
-		builder.WriteString(" AND bucket_name = ?")
-		arguments = append(arguments, bucket)
+		queryBuilder.WriteString(" AND bucket_name = ?")
+		queryArguments = append(queryArguments, bucket)
 	}
 	if measurement := firstQuotedSubmatch(journalMeasurementPatterns, flux); measurement != "" {
-		builder.WriteString(" AND measurement = ?")
-		arguments = append(arguments, measurement)
+		queryBuilder.WriteString(" AND measurement = ?")
+		queryArguments = append(queryArguments, measurement)
 	}
 
 	startRange, stopRange := journalRangeBounds(flux)
@@ -162,16 +162,16 @@ func (storeInstance *Store) queryJournalFlux(flux string) (string, []any, error)
 		if err != nil {
 			return "", nil, core.E("store.QueryJournal", "parse range", err)
 		}
-		builder.WriteString(" AND committed_at >= ?")
-		arguments = append(arguments, startTime.UnixMilli())
+		queryBuilder.WriteString(" AND committed_at >= ?")
+		queryArguments = append(queryArguments, startTime.UnixMilli())
 	}
 	if stopRange != "" {
 		stopTime, err := fluxTime(core.Trim(stopRange))
 		if err != nil {
 			return "", nil, core.E("store.QueryJournal", "parse range", err)
 		}
-		builder.WriteString(" AND committed_at < ?")
-		arguments = append(arguments, stopTime.UnixMilli())
+		queryBuilder.WriteString(" AND committed_at < ?")
+		queryArguments = append(queryArguments, stopTime.UnixMilli())
 	}
 
 	for _, pattern := range journalEqualityPatterns {
@@ -185,13 +185,13 @@ func (storeInstance *Store) queryJournalFlux(flux string) (string, []any, error)
 			if columnName == "_measurement" || columnName == "measurement" || columnName == "_bucket" || columnName == "bucket" {
 				continue
 			}
-			builder.WriteString(" AND (CAST(json_extract(tags_json, '$.\"' || ? || '\"') AS TEXT) = ? OR CAST(json_extract(fields_json, '$.\"' || ? || '\"') AS TEXT) = ?)")
-			arguments = append(arguments, columnName, filterValue, columnName, filterValue)
+			queryBuilder.WriteString(" AND (CAST(json_extract(tags_json, '$.\"' || ? || '\"') AS TEXT) = ? OR CAST(json_extract(fields_json, '$.\"' || ? || '\"') AS TEXT) = ?)")
+			queryArguments = append(queryArguments, columnName, filterValue, columnName, filterValue)
 		}
 	}
 
-	builder.WriteString(" ORDER BY committed_at")
-	return builder.String(), arguments, nil
+	queryBuilder.WriteString(" ORDER BY committed_at")
+	return queryBuilder.String(), queryArguments, nil
 }
 
 func (storeInstance *Store) journalBucket() string {
