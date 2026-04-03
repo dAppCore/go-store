@@ -97,10 +97,10 @@ func main() {
 		return
 	}
 
-	watcher := storeInstance.Watch("group", "*")
-	defer storeInstance.Unwatch(watcher)
+	events := storeInstance.Watch("group")
+	defer storeInstance.Unwatch("group", events)
 	go func() {
-		for event := range watcher.Events {
+		for event := range events {
 			fmt.Println(event.Type, event.Group, event.Key, event.Value)
 		}
 	}()
