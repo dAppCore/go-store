@@ -34,14 +34,14 @@ type ScopedStore struct {
 }
 
 type scopedWatcherBinding struct {
-	storeInstance    *Store
+	backingStore     *Store
 	underlyingEvents <-chan Event
 	done             chan struct{}
 	stop             chan struct{}
 	stopOnce         sync.Once
 }
 
-func (scopedStore *ScopedStore) storeInstance(operation string) (*Store, error) {
+func (scopedStore *ScopedStore) resolvedStore(operation string) (*Store, error) {
 	if scopedStore == nil {
 		return nil, core.E(operation, "scoped store is nil", nil)
 	}
@@ -109,20 +109,20 @@ func (scopedStore *ScopedStore) Namespace() string {
 
 // Usage example: `colourValue, err := scopedStore.Get("colour")`
 func (scopedStore *ScopedStore) Get(key string) (string, error) {
-	storeInstance, err := scopedStore.storeInstance("store.Get")
+	backingStore, err := scopedStore.resolvedStore("store.Get")
 	if err != nil {
 		return "", err
 	}
-	return storeInstance.Get(scopedStore.namespacedGroup(defaultScopedGroupName), key)
+	return backingStore.Get(scopedStore.namespacedGroup(defaultScopedGroupName), key)
 }
 
 // Usage example: `colourValue, err := scopedStore.GetFrom("config", "colour")`
 func (scopedStore *ScopedStore) GetFrom(group, key string) (string, error) {
-	storeInstance, err := scopedStore.storeInstance("store.Get")
+	backingStore, err := scopedStore.resolvedStore("store.Get")
 	if err != nil {
 		return "", err
 	}
-	return storeInstance.Get(scopedStore.namespacedGroup(group), key)
+	return backingStore.Get(scopedStore.namespacedGroup(group), key)
 }
 
 // Usage example: `if err := scopedStore.Set("colour", "blue"); err != nil { return }`
@@ -132,123 +132,123 @@ func (scopedStore *ScopedStore) Set(key, value string) error {
 
 // Usage example: `if err := scopedStore.SetIn("config", "colour", "blue"); err != nil { return }`
 func (scopedStore *ScopedStore) SetIn(group, key, value string) error {
-	storeInstance, err := scopedStore.storeInstance("store.Set")
+	backingStore, err := scopedStore.resolvedStore("store.Set")
 	if err != nil {
 		return err
 	}
 	if err := scopedStore.checkQuota("store.ScopedStore.SetIn", group, key); err != nil {
 		return err
 	}
-	return storeInstance.Set(scopedStore.namespacedGroup(group), key, value)
+	return backingStore.Set(scopedStore.namespacedGroup(group), key, value)
 }
 
 // Usage example: `if err := scopedStore.SetWithTTL("sessions", "token", "abc123", time.Hour); err != nil { return }`
 func (scopedStore *ScopedStore) SetWithTTL(group, key, value string, timeToLive time.Duration) error {
-	storeInstance, err := scopedStore.storeInstance("store.SetWithTTL")
+	backingStore, err := scopedStore.resolvedStore("store.SetWithTTL")
 	if err != nil {
 		return err
 	}
 	if err := scopedStore.checkQuota("store.ScopedStore.SetWithTTL", group, key); err != nil {
 		return err
 	}
-	return storeInstance.SetWithTTL(scopedStore.namespacedGroup(group), key, value, timeToLive)
+	return backingStore.SetWithTTL(scopedStore.namespacedGroup(group), key, value, timeToLive)
 }
 
 // Usage example: `if err := scopedStore.Delete("config", "colour"); err != nil { return }`
 func (scopedStore *ScopedStore) Delete(group, key string) error {
-	storeInstance, err := scopedStore.storeInstance("store.Delete")
+	backingStore, err := scopedStore.resolvedStore("store.Delete")
 	if err != nil {
 		return err
 	}
-	return storeInstance.Delete(scopedStore.namespacedGroup(group), key)
+	return backingStore.Delete(scopedStore.namespacedGroup(group), key)
 }
 
 // Usage example: `if err := scopedStore.DeleteGroup("cache"); err != nil { return }`
 func (scopedStore *ScopedStore) DeleteGroup(group string) error {
-	storeInstance, err := scopedStore.storeInstance("store.DeleteGroup")
+	backingStore, err := scopedStore.resolvedStore("store.DeleteGroup")
 	if err != nil {
 		return err
 	}
-	return storeInstance.DeleteGroup(scopedStore.namespacedGroup(group))
+	return backingStore.DeleteGroup(scopedStore.namespacedGroup(group))
 }
 
 // Usage example: `if err := scopedStore.DeletePrefix("config"); err != nil { return }`
 func (scopedStore *ScopedStore) DeletePrefix(groupPrefix string) error {
-	storeInstance, err := scopedStore.storeInstance("store.DeletePrefix")
+	backingStore, err := scopedStore.resolvedStore("store.DeletePrefix")
 	if err != nil {
 		return err
 	}
-	return storeInstance.DeletePrefix(scopedStore.namespacedGroup(groupPrefix))
+	return backingStore.DeletePrefix(scopedStore.namespacedGroup(groupPrefix))
 }
 
 // Usage example: `colourEntries, err := scopedStore.GetAll("config")`
 func (scopedStore *ScopedStore) GetAll(group string) (map[string]string, error) {
-	storeInstance, err := scopedStore.storeInstance("store.GetAll")
+	backingStore, err := scopedStore.resolvedStore("store.GetAll")
 	if err != nil {
 		return nil, err
 	}
-	return storeInstance.GetAll(scopedStore.namespacedGroup(group))
+	return backingStore.GetAll(scopedStore.namespacedGroup(group))
 }
 
 // Usage example: `page, err := scopedStore.GetPage("config", 0, 25); if err != nil { return }; for _, entry := range page { fmt.Println(entry.Key, entry.Value) }`
 func (scopedStore *ScopedStore) GetPage(group string, offset, limit int) ([]KeyValue, error) {
-	storeInstance, err := scopedStore.storeInstance("store.GetPage")
+	backingStore, err := scopedStore.resolvedStore("store.GetPage")
 	if err != nil {
 		return nil, err
 	}
-	return storeInstance.GetPage(scopedStore.namespacedGroup(group), offset, limit)
+	return backingStore.GetPage(scopedStore.namespacedGroup(group), offset, limit)
 }
 
 // Usage example: `for entry, err := range scopedStore.All("config") { if err != nil { break }; fmt.Println(entry.Key, entry.Value) }`
 func (scopedStore *ScopedStore) All(group string) iter.Seq2[KeyValue, error] {
-	storeInstance, err := scopedStore.storeInstance("store.All")
+	backingStore, err := scopedStore.resolvedStore("store.All")
 	if err != nil {
 		return func(yield func(KeyValue, error) bool) {
 			yield(KeyValue{}, err)
 		}
 	}
-	return storeInstance.All(scopedStore.namespacedGroup(group))
+	return backingStore.All(scopedStore.namespacedGroup(group))
 }
 
 // Usage example: `for entry, err := range scopedStore.AllSeq("config") { if err != nil { break }; fmt.Println(entry.Key, entry.Value) }`
 func (scopedStore *ScopedStore) AllSeq(group string) iter.Seq2[KeyValue, error] {
-	storeInstance, err := scopedStore.storeInstance("store.All")
+	backingStore, err := scopedStore.resolvedStore("store.All")
 	if err != nil {
 		return func(yield func(KeyValue, error) bool) {
 			yield(KeyValue{}, err)
 		}
 	}
-	return storeInstance.AllSeq(scopedStore.namespacedGroup(group))
+	return backingStore.AllSeq(scopedStore.namespacedGroup(group))
 }
 
 // Usage example: `keyCount, err := scopedStore.Count("config")`
 func (scopedStore *ScopedStore) Count(group string) (int, error) {
-	storeInstance, err := scopedStore.storeInstance("store.Count")
+	backingStore, err := scopedStore.resolvedStore("store.Count")
 	if err != nil {
 		return 0, err
 	}
-	return storeInstance.Count(scopedStore.namespacedGroup(group))
+	return backingStore.Count(scopedStore.namespacedGroup(group))
 }
 
 // Usage example: `keyCount, err := scopedStore.CountAll("config")`
 // Usage example: `keyCount, err := scopedStore.CountAll()`
 func (scopedStore *ScopedStore) CountAll(groupPrefix ...string) (int, error) {
-	storeInstance, err := scopedStore.storeInstance("store.CountAll")
+	backingStore, err := scopedStore.resolvedStore("store.CountAll")
 	if err != nil {
 		return 0, err
 	}
-	return storeInstance.CountAll(scopedStore.namespacedGroup(firstOrEmptyString(groupPrefix)))
+	return backingStore.CountAll(scopedStore.namespacedGroup(firstOrEmptyString(groupPrefix)))
 }
 
 // Usage example: `groupNames, err := scopedStore.Groups("config")`
 // Usage example: `groupNames, err := scopedStore.Groups()`
 func (scopedStore *ScopedStore) Groups(groupPrefix ...string) ([]string, error) {
-	storeInstance, err := scopedStore.storeInstance("store.Groups")
+	backingStore, err := scopedStore.resolvedStore("store.Groups")
 	if err != nil {
 		return nil, err
 	}
 
-	groupNames, err := storeInstance.Groups(scopedStore.namespacedGroup(firstOrEmptyString(groupPrefix)))
+	groupNames, err := backingStore.Groups(scopedStore.namespacedGroup(firstOrEmptyString(groupPrefix)))
 	if err != nil {
 		return nil, err
 	}
@@ -262,13 +262,13 @@ func (scopedStore *ScopedStore) Groups(groupPrefix ...string) ([]string, error) 
 // Usage example: `for groupName, err := range scopedStore.GroupsSeq() { if err != nil { break }; fmt.Println(groupName) }`
 func (scopedStore *ScopedStore) GroupsSeq(groupPrefix ...string) iter.Seq2[string, error] {
 	return func(yield func(string, error) bool) {
-		storeInstance, err := scopedStore.storeInstance("store.GroupsSeq")
+		backingStore, err := scopedStore.resolvedStore("store.GroupsSeq")
 		if err != nil {
 			yield("", err)
 			return
 		}
 		namespacePrefix := scopedStore.namespacePrefix()
-		for groupName, err := range storeInstance.GroupsSeq(scopedStore.namespacedGroup(firstOrEmptyString(groupPrefix))) {
+		for groupName, err := range backingStore.GroupsSeq(scopedStore.namespacedGroup(firstOrEmptyString(groupPrefix))) {
 			if err != nil {
 				if !yield("", err) {
 					return
@@ -284,45 +284,45 @@ func (scopedStore *ScopedStore) GroupsSeq(groupPrefix ...string) iter.Seq2[strin
 
 // Usage example: `renderedTemplate, err := scopedStore.Render("Hello {{ .name }}", "user")`
 func (scopedStore *ScopedStore) Render(templateSource, group string) (string, error) {
-	storeInstance, err := scopedStore.storeInstance("store.Render")
+	backingStore, err := scopedStore.resolvedStore("store.Render")
 	if err != nil {
 		return "", err
 	}
-	return storeInstance.Render(templateSource, scopedStore.namespacedGroup(group))
+	return backingStore.Render(templateSource, scopedStore.namespacedGroup(group))
 }
 
 // Usage example: `parts, err := scopedStore.GetSplit("config", "hosts", ","); if err != nil { return }; for part := range parts { fmt.Println(part) }`
 func (scopedStore *ScopedStore) GetSplit(group, key, separator string) (iter.Seq[string], error) {
-	storeInstance, err := scopedStore.storeInstance("store.GetSplit")
+	backingStore, err := scopedStore.resolvedStore("store.GetSplit")
 	if err != nil {
 		return nil, err
 	}
-	return storeInstance.GetSplit(scopedStore.namespacedGroup(group), key, separator)
+	return backingStore.GetSplit(scopedStore.namespacedGroup(group), key, separator)
 }
 
 // Usage example: `fields, err := scopedStore.GetFields("config", "flags"); if err != nil { return }; for field := range fields { fmt.Println(field) }`
 func (scopedStore *ScopedStore) GetFields(group, key string) (iter.Seq[string], error) {
-	storeInstance, err := scopedStore.storeInstance("store.GetFields")
+	backingStore, err := scopedStore.resolvedStore("store.GetFields")
 	if err != nil {
 		return nil, err
 	}
-	return storeInstance.GetFields(scopedStore.namespacedGroup(group), key)
+	return backingStore.GetFields(scopedStore.namespacedGroup(group), key)
 }
 
 // Usage example: `events := scopedStore.Watch("config")`
 func (scopedStore *ScopedStore) Watch(group string) <-chan Event {
-	storeInstance, err := scopedStore.storeInstance("store.Watch")
+	backingStore, err := scopedStore.resolvedStore("store.Watch")
 	if err != nil {
 		return closedEventChannel()
 	}
 	if group != "*" {
-		return storeInstance.Watch(scopedStore.namespacedGroup(group))
+		return backingStore.Watch(scopedStore.namespacedGroup(group))
 	}
 
 	forwardedEvents := make(chan Event, watcherEventBufferCapacity)
 	binding := &scopedWatcherBinding{
-		storeInstance:    storeInstance,
-		underlyingEvents: storeInstance.Watch("*"),
+		backingStore:     backingStore,
+		underlyingEvents: backingStore.Watch("*"),
 		done:             make(chan struct{}),
 		stop:             make(chan struct{}),
 	}
@@ -355,7 +355,7 @@ func (scopedStore *ScopedStore) Watch(group string) <-chan Event {
 				}
 			case <-binding.stop:
 				return
-			case <-storeInstance.purgeContext.Done():
+			case <-backingStore.purgeContext.Done():
 				return
 			}
 		}
@@ -366,7 +366,7 @@ func (scopedStore *ScopedStore) Watch(group string) <-chan Event {
 
 // Usage example: `scopedStore.Unwatch("config", events)`
 func (scopedStore *ScopedStore) Unwatch(group string, events <-chan Event) {
-	storeInstance, err := scopedStore.storeInstance("store.Unwatch")
+	backingStore, err := scopedStore.resolvedStore("store.Unwatch")
 	if err != nil {
 		return
 	}
@@ -374,12 +374,12 @@ func (scopedStore *ScopedStore) Unwatch(group string, events <-chan Event) {
 		scopedStore.forgetAndStopScopedWatcher(events)
 		return
 	}
-	storeInstance.Unwatch(scopedStore.namespacedGroup(group), events)
+	backingStore.Unwatch(scopedStore.namespacedGroup(group), events)
 }
 
 // Usage example: `unregister := scopedStore.OnChange(func(event store.Event) { fmt.Println(event.Group, event.Key) })`
 func (scopedStore *ScopedStore) OnChange(callback func(Event)) func() {
-	storeInstance, err := scopedStore.storeInstance("store.OnChange")
+	backingStore, err := scopedStore.resolvedStore("store.OnChange")
 	if err != nil {
 		return func() {}
 	}
@@ -388,7 +388,7 @@ func (scopedStore *ScopedStore) OnChange(callback func(Event)) func() {
 	}
 
 	namespacePrefix := scopedStore.namespacePrefix()
-	return storeInstance.OnChange(func(event Event) {
+	return backingStore.OnChange(func(event Event) {
 		if !core.HasPrefix(event.Group, namespacePrefix) {
 			return
 		}
@@ -398,11 +398,11 @@ func (scopedStore *ScopedStore) OnChange(callback func(Event)) func() {
 
 // Usage example: `removedRows, err := scopedStore.PurgeExpired(); if err != nil { return }; fmt.Println(removedRows)`
 func (scopedStore *ScopedStore) PurgeExpired() (int64, error) {
-	storeInstance, err := scopedStore.storeInstance("store.PurgeExpired")
+	backingStore, err := scopedStore.resolvedStore("store.PurgeExpired")
 	if err != nil {
 		return 0, err
 	}
-	removedRows, err := storeInstance.purgeExpiredMatchingGroupPrefix(scopedStore.namespacePrefix())
+	removedRows, err := backingStore.purgeExpiredMatchingGroupPrefix(scopedStore.namespacePrefix())
 	if err != nil {
 		return 0, core.E("store.ScopedStore.PurgeExpired", "delete expired rows", err)
 	}
@@ -441,8 +441,8 @@ func (scopedStore *ScopedStore) forgetAndStopScopedWatcher(events <-chan Event) 
 	binding.stopOnce.Do(func() {
 		close(binding.stop)
 	})
-	if binding.storeInstance != nil {
-		binding.storeInstance.Unwatch("*", binding.underlyingEvents)
+	if binding.backingStore != nil {
+		binding.backingStore.Unwatch("*", binding.underlyingEvents)
 	}
 	<-binding.done
 }
