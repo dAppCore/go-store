@@ -32,7 +32,7 @@ FROM workspace_entries`
 
 var defaultWorkspaceStateDirectory = ".core/state"
 
-// Workspace buffers mutable work-in-progress in a temporary SQLite file.
+// Workspace buffers mutable work-in-progress in a temporary database file.
 //
 // Usage example: `workspace, err := storeInstance.NewWorkspace("scroll-session-2026-03-30"); if err != nil { return }; defer workspace.Discard()`
 type Workspace struct {
@@ -52,6 +52,14 @@ func (workspace *Workspace) Name() string {
 		return ""
 	}
 	return workspace.name
+}
+
+// Usage example: `workspacePath := workspace.DatabasePath(); fmt.Println(workspacePath)`
+func (workspace *Workspace) DatabasePath() string {
+	if workspace == nil {
+		return ""
+	}
+	return workspace.databasePath
 }
 
 func (workspace *Workspace) ensureReady(operation string) error {

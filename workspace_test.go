@@ -40,6 +40,20 @@ func TestWorkspace_NewWorkspace_Good_CreatePutAggregateQuery(t *testing.T) {
 	assert.Equal(t, int64(1), rows[1]["entry_count"])
 }
 
+func TestWorkspace_DatabasePath_Good(t *testing.T) {
+	stateDirectory := useWorkspaceStateDirectory(t)
+
+	storeInstance, err := New(":memory:")
+	require.NoError(t, err)
+	defer storeInstance.Close()
+
+	workspace, err := storeInstance.NewWorkspace("scroll-session")
+	require.NoError(t, err)
+	defer workspace.Discard()
+
+	assert.Equal(t, workspaceFilePath(stateDirectory, "scroll-session"), workspace.DatabasePath())
+}
+
 func TestWorkspace_Query_Good_RFCEntriesView(t *testing.T) {
 	useWorkspaceStateDirectory(t)
 
