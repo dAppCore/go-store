@@ -133,6 +133,7 @@ func (storeInstance *Store) RecoverOrphans(stateDirectory string) []*Workspace {
 
 func (storeInstance *Store) cleanUpOrphanedWorkspaces(stateDirectory string) {
 	for _, orphanWorkspace := range storeInstance.RecoverOrphans(stateDirectory) {
+		_ = orphanWorkspace.Aggregate()
 		orphanWorkspace.Discard()
 	}
 }
