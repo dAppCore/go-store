@@ -1,5 +1,6 @@
 // Package store provides SQLite-backed storage for grouped entries, TTL expiry,
-// namespace isolation, quota enforcement, and reactive change notifications.
+// namespace isolation, quota enforcement, reactive change notifications, and
+// workspace journalling.
 //
 // Usage example:
 //
@@ -60,6 +61,36 @@
 //				return
 //			}
 //			fmt.Println(groupName)
+//		}
+//
+//		workspace, err := storeInstance.NewWorkspace("scroll-session")
+//		if err != nil {
+//			return
+//		}
+//		defer workspace.Discard()
+//
+//		if err := workspace.Put("like", map[string]any{"user": "@alice"}); err != nil {
+//			return
+//		}
+//		if err := workspace.Put("profile_match", map[string]any{"user": "@charlie"}); err != nil {
+//			return
+//		}
+//		if result := workspace.Commit(); !result.OK {
+//			return
+//		}
+//
+//		journalResult := storeInstance.QueryJournal(`from(bucket: "events") |> range(start: -24h)`)
+//		if !journalResult.OK {
+//			return
+//		}
+//
+//		archiveResult := storeInstance.Compact(store.CompactOptions{
+//			Before: time.Now().Add(-30 * 24 * time.Hour),
+//			Output: "/tmp/archive",
+//			Format: "gzip",
+//		})
+//		if !archiveResult.OK {
+//			return
 //		}
 //	}
 package store
