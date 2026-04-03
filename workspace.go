@@ -109,8 +109,8 @@ func (storeInstance *Store) NewWorkspace(name string) (*Workspace, error) {
 	}, nil
 }
 
-// RecoverOrphans opens any leftover workspace files so callers can inspect and
-// decide whether to commit or discard them.
+// RecoverOrphans opens leftover workspace files in a state directory so
+// callers can inspect them before calling Discard().
 // Usage example: `orphans := storeInstance.RecoverOrphans(".core/state")`
 func (storeInstance *Store) RecoverOrphans(stateDirectory string) []*Workspace {
 	if storeInstance == nil {

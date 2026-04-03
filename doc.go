@@ -1,6 +1,6 @@
 // Package store provides SQLite-backed storage for grouped entries, TTL expiry,
-// namespace isolation, quota enforcement, reactive change notifications, and
-// workspace journalling.
+// namespace isolation, quota enforcement, reactive change notifications,
+// workspace journalling, and explicit orphan recovery.
 //
 // Usage example:
 //
@@ -91,6 +91,12 @@
 //		}
 //		if result := workspace.Commit(); !result.OK {
 //			return
+//		}
+//
+//		orphans := storeInstance.RecoverOrphans(".core/state")
+//		for _, orphanWorkspace := range orphans {
+//			fmt.Println(orphanWorkspace.Aggregate())
+//			orphanWorkspace.Discard()
 //		}
 //
 //		journalResult := storeInstance.QueryJournal(`from(bucket: "events") |> range(start: -24h)`)
