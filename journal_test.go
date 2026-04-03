@@ -59,6 +59,30 @@ func TestJournal_QueryJournal_Good_FluxFilters(t *testing.T) {
 	assert.Equal(t, float64(2), fields["like"])
 }
 
+func TestJournal_QueryJournal_Good_TagFilter(t *testing.T) {
+	storeInstance, err := New(":memory:", WithJournal("http://127.0.0.1:8086", "core", "events"))
+	require.NoError(t, err)
+	defer storeInstance.Close()
+
+	require.True(t,
+		storeInstance.CommitToJournal("session-a", map[string]any{"like": 1}, map[string]string{"workspace": "session-a"}).OK,
+	)
+	require.True(t,
+		storeInstance.CommitToJournal("session-b", map[string]any{"like": 2}, map[string]string{"workspace": "session-b"}).OK,
+	)
+
+	rows := requireResultRows(
+		t,
+		storeInstance.QueryJournal(`from(bucket: "events") |> range(start: -24h) |> filter(fn: (r) => r.workspace == "session-b")`),
+	)
+	require.Len(t, rows, 1)
+	assert.Equal(t, "session-b", rows[0]["measurement"])
+
+	tags, ok := rows[0]["tags"].(map[string]string)
+	require.True(t, ok, "unexpected tags type: %T", rows[0]["tags"])
+	assert.Equal(t, "session-b", tags["workspace"])
+}
+
 func TestJournal_QueryJournal_Good_AbsoluteRangeWithStop(t *testing.T) {
 	storeInstance, err := New(":memory:", WithJournal("http://127.0.0.1:8086", "core", "events"))
 	require.NoError(t, err)
