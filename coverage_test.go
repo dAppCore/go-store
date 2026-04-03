@@ -284,9 +284,10 @@ func TestCoverage_ScopedStore_Bad_GroupsClosedStore(t *testing.T) {
 	storeInstance, _ := New(":memory:")
 	require.NoError(t, storeInstance.Close())
 
-	scopedStore, err := NewScoped(storeInstance, "tenant-a")
-	require.NoError(t, err)
+	scopedStore := NewScoped(storeInstance, "tenant-a")
+	require.NotNil(t, scopedStore)
 
+	var err error
 	_, err = scopedStore.Groups("")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "store.Groups")

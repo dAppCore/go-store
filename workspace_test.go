@@ -118,8 +118,8 @@ func TestWorkspace_Commit_Good_EmitsSummaryEvent(t *testing.T) {
 	require.NoError(t, err)
 	defer storeInstance.Close()
 
-	watcher := storeInstance.Watch(workspaceSummaryGroup("scroll-session"), "summary")
-	defer storeInstance.Unwatch(watcher)
+	events := storeInstance.Watch(workspaceSummaryGroup("scroll-session"))
+	defer storeInstance.Unwatch(workspaceSummaryGroup("scroll-session"), events)
 
 	workspace, err := storeInstance.NewWorkspace("scroll-session")
 	require.NoError(t, err)
@@ -131,7 +131,7 @@ func TestWorkspace_Commit_Good_EmitsSummaryEvent(t *testing.T) {
 	require.True(t, result.OK, "workspace commit failed: %v", result.Value)
 
 	select {
-	case event := <-watcher.Events:
+	case event := <-events:
 		assert.Equal(t, EventSet, event.Type)
 		assert.Equal(t, workspaceSummaryGroup("scroll-session"), event.Group)
 		assert.Equal(t, "summary", event.Key)

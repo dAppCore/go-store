@@ -1,7 +1,7 @@
 package store
 
 import (
-	"slices"
+	"reflect"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -50,20 +50,6 @@ type Event struct {
 	Timestamp time.Time
 }
 
-// Watcher exposes the read-only event stream returned by Watch.
-// Usage example: `watcher := storeInstance.Watch("config", "*"); defer storeInstance.Unwatch(watcher); for event := range watcher.Events { if event.Type == EventDeleteGroup { return } }`
-type Watcher struct {
-	// Usage example: `for event := range watcher.Events { if event.Key == "colour" { return } }`
-	Events <-chan Event
-
-	// eventsChannel is the internal write channel (same underlying channel as Events).
-	eventsChannel chan Event
-
-	groupPattern   string
-	keyPattern     string
-	registrationID uint64
-}
-
 // changeCallbackRegistration keeps the registration ID so unregister can remove
 // the exact callback later.
 type changeCallbackRegistration struct {
@@ -71,51 +57,62 @@ type changeCallbackRegistration struct {
 	callback       func(Event)
 }
 
-// Watch("config", "*") can hold 16 pending events before non-blocking sends
-// start dropping new ones.
+// Watch("config") can hold 16 pending events before non-blocking sends start
+// dropping new ones.
 const watcherEventBufferCapacity = 16
 
-// Watch registers a buffered subscription for matching mutations.
-// Usage example: `watcher := storeInstance.Watch("*", "*")`
-// Usage example: `watcher := storeInstance.Watch("config")`
-func (storeInstance *Store) Watch(group string, key ...string) *Watcher {
-	keyPattern := "*"
-	if len(key) > 0 && key[0] != "" {
-		keyPattern = key[0]
-	}
+// Watch registers a buffered subscription for one group.
+// Usage example: `events := storeInstance.Watch("config")`
+// Usage example: `events := storeInstance.Watch("*")`
+func (storeInstance *Store) Watch(group string) <-chan Event {
 	eventChannel := make(chan Event, watcherEventBufferCapacity)
-	watcher := &Watcher{
-		Events:         eventChannel,
-		eventsChannel:  eventChannel,
-		groupPattern:   group,
-		keyPattern:     keyPattern,
-		registrationID: atomic.AddUint64(&storeInstance.nextWatcherRegistrationID, 1),
-	}
 
 	storeInstance.watchersLock.Lock()
-	storeInstance.watchers = append(storeInstance.watchers, watcher)
+	if storeInstance.watchers == nil {
+		storeInstance.watchers = make(map[string][]chan Event)
+	}
+	storeInstance.watchers[group] = append(storeInstance.watchers[group], eventChannel)
 	storeInstance.watchersLock.Unlock()
 
-	return watcher
+	return eventChannel
 }
 
-// Unwatch removes a watcher and closes its event stream.
-// Usage example: `storeInstance.Unwatch(watcher)`
-func (storeInstance *Store) Unwatch(watcher *Watcher) {
-	if watcher == nil {
+// Unwatch removes a watcher for one group and closes its event stream.
+// Usage example: `storeInstance.Unwatch("config", events)`
+func (storeInstance *Store) Unwatch(group string, events <-chan Event) {
+	if events == nil {
 		return
 	}
 
 	storeInstance.watchersLock.Lock()
 	defer storeInstance.watchersLock.Unlock()
 
-	storeInstance.watchers = slices.DeleteFunc(storeInstance.watchers, func(existing *Watcher) bool {
-		if existing.registrationID == watcher.registrationID {
-			close(watcher.eventsChannel)
-			return true
+	registeredEvents := storeInstance.watchers[group]
+	if len(registeredEvents) == 0 {
+		return
+	}
+
+	eventsPointer := channelPointer(events)
+	nextRegisteredEvents := registeredEvents[:0]
+	removed := false
+	for _, registeredChannel := range registeredEvents {
+		if channelPointer(registeredChannel) == eventsPointer {
+			if !removed {
+				close(registeredChannel)
+				removed = true
+			}
+			continue
 		}
-		return false
-	})
+		nextRegisteredEvents = append(nextRegisteredEvents, registeredChannel)
+	}
+	if !removed {
+		return
+	}
+	if len(nextRegisteredEvents) == 0 {
+		delete(storeInstance.watchers, group)
+		return
+	}
+	storeInstance.watchers[group] = nextRegisteredEvents
 }
 
 // OnChange registers a synchronous mutation callback.
@@ -140,9 +137,12 @@ func (storeInstance *Store) OnChange(arguments ...any) func() {
 		once.Do(func() {
 			storeInstance.callbacksLock.Lock()
 			defer storeInstance.callbacksLock.Unlock()
-			storeInstance.callbacks = slices.DeleteFunc(storeInstance.callbacks, func(existing changeCallbackRegistration) bool {
-				return existing.registrationID == registrationID
-			})
+			for i := range storeInstance.callbacks {
+				if storeInstance.callbacks[i].registrationID == registrationID {
+					storeInstance.callbacks = append(storeInstance.callbacks[:i], storeInstance.callbacks[i+1:]...)
+					return
+				}
+			}
 		})
 	}
 }
@@ -188,13 +188,15 @@ func onChangeCallback(arguments []any) func(Event) {
 // deadlocking.
 func (storeInstance *Store) notify(event Event) {
 	storeInstance.watchersLock.RLock()
-	for _, watcher := range storeInstance.watchers {
-		if !watcherMatches(watcher, event) {
-			continue
-		}
-		// Non-blocking send: drop the event rather than block the writer.
+	for _, registeredChannel := range storeInstance.watchers["*"] {
 		select {
-		case watcher.eventsChannel <- event:
+		case registeredChannel <- event:
+		default:
+		}
+	}
+	for _, registeredChannel := range storeInstance.watchers[event.Group] {
+		select {
+		case registeredChannel <- event:
 		default:
 		}
 	}
@@ -209,16 +211,9 @@ func (storeInstance *Store) notify(event Event) {
 	}
 }
 
-// watcherMatches reports whether Watch("config", "*") should receive
-// Event{Group: "config", Key: "colour"}.
-func watcherMatches(watcher *Watcher, event Event) bool {
-	if watcher.groupPattern != "*" && watcher.groupPattern != event.Group {
-		return false
+func channelPointer(eventChannel <-chan Event) uintptr {
+	if eventChannel == nil {
+		return 0
 	}
-	if watcher.keyPattern != "*" && watcher.keyPattern != event.Key {
-		// EventDeleteGroup has an empty Key — only wildcard watchers or
-		// group-level watchers (key="*") should receive it.
-		return false
-	}
-	return true
+	return reflect.ValueOf(eventChannel).Pointer()
 }
