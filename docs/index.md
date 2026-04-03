@@ -7,6 +7,8 @@ description: Group-namespaced SQLite key-value store with TTL expiry, namespace 
 
 `go-store` is a group-namespaced key-value store backed by SQLite. It provides persistent or in-memory storage with optional TTL expiry, namespace isolation for multi-tenant use, quota enforcement, and a reactive event system for observing mutations.
 
+For declarative setup, `store.NewConfigured(store.StoreConfig{...})` takes a single config struct instead of functional options.
+
 The package has a single runtime dependency -- a pure-Go SQLite driver (`modernc.org/sqlite`). No CGO is required. It compiles and runs on all platforms that Go supports.
 
 **Module path:** `dappco.re/go/core/store`

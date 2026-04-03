@@ -11,6 +11,20 @@
 //		}
 //		defer storeInstance.Close()
 //
+//		configuredStore, err := store.NewConfigured(store.StoreConfig{
+//			DatabasePath: ":memory:",
+//			Journal: store.JournalConfiguration{
+//				EndpointURL:  "http://127.0.0.1:8086",
+//				Organisation: "core",
+//				BucketName:   "events",
+//			},
+//			PurgeInterval: 20 * time.Millisecond,
+//		})
+//		if err != nil {
+//			return
+//		}
+//		defer configuredStore.Close()
+//
 //		if err := storeInstance.Set("config", "colour", "blue"); err != nil {
 //			return
 //		}
