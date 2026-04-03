@@ -242,10 +242,13 @@ All operations are safe to call from multiple goroutines concurrently. The race 
 ## File Layout
 
 ```
-doc.go           Package comment with concrete usage examples
+doc.go            Package comment with concrete usage examples
 store.go          Core Store type, CRUD, TTL, background purge, iterators, rendering
-events.go         EventType, Event, Watcher, OnChange, notify
+events.go         EventType, Event, Watch, Unwatch, OnChange, notify
 scope.go          ScopedStore, QuotaConfig, namespace-local helper delegation, quota enforcement
+journal.go        Journal persistence, Flux-like querying, JSON row inflation
+workspace.go      Workspace buffers, aggregation, commit flow, orphan recovery
+compact.go        Cold archive generation to JSONL gzip or zstd
 store_test.go     Tests: CRUD, TTL, concurrency, edge cases, persistence
 events_test.go    Tests: Watch, Unwatch, OnChange, event dispatch
 scope_test.go     Tests: namespace isolation, quota enforcement

@@ -18,5 +18,7 @@ Keep the two files aligned.
 - `store.go` contains the core store API and SQLite lifecycle.
 - `events.go` contains mutation events, watchers, and callbacks.
 - `scope.go` contains namespace isolation and quota enforcement.
+- `journal.go` contains journal persistence and query helpers.
+- `workspace.go` contains workspace buffering and orphan recovery.
+- `compact.go` contains cold archive generation.
 - `docs/` contains the package docs, architecture notes, and history.
-

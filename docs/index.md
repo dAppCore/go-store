@@ -107,7 +107,7 @@ func main() {
 
 ## Package Layout
 
-The entire package lives in a single Go package (`package store`) with three implementation files plus `doc.go` for the package comment:
+The entire package lives in a single Go package (`package store`) with the following implementation files plus `doc.go` for the package comment:
 
 | File | Purpose |
 |------|---------|
@@ -115,6 +115,9 @@ The entire package lives in a single Go package (`package store`) with three imp
 | `store.go` | Core `Store` type, CRUD operations (`Get`, `Set`, `SetWithTTL`, `Delete`, `DeleteGroup`), bulk queries (`GetAll`, `All`, `Count`, `CountAll`, `Groups`, `GroupsSeq`), string splitting helpers (`GetSplit`, `GetFields`), template rendering (`Render`), TTL expiry, background purge goroutine |
 | `events.go` | `EventType` constants, `Event` struct, `Watch`/`Unwatch` channel subscriptions, `OnChange` callback registration, internal `notify` dispatch |
 | `scope.go` | `ScopedStore` wrapper for namespace isolation, `QuotaConfig` struct, `NewScoped`/`NewScopedWithQuota` constructors, namespace-local helper delegation, quota enforcement logic |
+| `journal.go` | Journal persistence, Flux-like querying, JSON row inflation, journal schema helpers |
+| `workspace.go` | Workspace buffers, aggregation, commit flow, and orphan recovery |
+| `compact.go` | Cold archive generation to JSONL gzip or zstd |
 
 Tests are organised in corresponding files:
 
