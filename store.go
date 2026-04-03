@@ -33,10 +33,10 @@ const (
 // Usage example: `storeInstance, err := store.New("/tmp/go-store.db", store.WithJournal("http://127.0.0.1:8086", "core", "events"))`
 type StoreOption func(*Store)
 
-type journalConfig struct {
-	url    string
-	org    string
-	bucket string
+type journalDestinationConfig struct {
+	endpointURL  string
+	organisation string
+	bucketName   string
 }
 
 // Store provides SQLite-backed grouped entries with TTL expiry, namespace
@@ -47,7 +47,7 @@ type Store struct {
 	cancelPurge    context.CancelFunc
 	purgeWaitGroup sync.WaitGroup
 	purgeInterval  time.Duration // interval between background purge cycles
-	journal        journalConfig
+	journal        journalDestinationConfig
 	closeLock      sync.Mutex
 	closed         bool
 
@@ -62,9 +62,13 @@ type Store struct {
 // WithJournal records journal connection metadata for workspace commits,
 // journal queries, and archive generation.
 // Usage example: `storeInstance, err := store.New("/tmp/go-store.db", store.WithJournal("http://127.0.0.1:8086", "core", "events"))`
-func WithJournal(url, org, bucket string) StoreOption {
+func WithJournal(endpointURL, organisation, bucketName string) StoreOption {
 	return func(storeInstance *Store) {
-		storeInstance.journal = journalConfig{url: url, org: org, bucket: bucket}
+		storeInstance.journal = journalDestinationConfig{
+			endpointURL:  endpointURL,
+			organisation: organisation,
+			bucketName:   bucketName,
+		}
 	}
 }
 
