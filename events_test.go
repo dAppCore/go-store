@@ -213,7 +213,7 @@ func TestEvents_Watch_Good_ScopedStoreEventGroup(t *testing.T) {
 	events := storeInstance.Watch("tenant-a:config")
 	defer storeInstance.Unwatch("tenant-a:config", events)
 
-	require.NoError(t, scopedStore.Set("config", "theme", "dark"))
+	require.NoError(t, scopedStore.SetIn("config", "theme", "dark"))
 
 	select {
 	case event := <-events:

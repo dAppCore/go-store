@@ -73,7 +73,7 @@ func main() {
     if err != nil {
         return
     }
-    if err := scopedStore.Set("preferences", "locale", "en-GB"); err != nil {
+    if err := scopedStore.SetIn("preferences", "locale", "en-GB"); err != nil {
         return
     }
     // Stored internally as group "tenant-42:preferences", key "locale"
@@ -84,7 +84,7 @@ func main() {
         return
     }
     // A write past the limit returns store.QuotaExceededError.
-    if err := quotaScopedStore.Set("g", "k", "v"); err != nil {
+    if err := quotaScopedStore.SetIn("g", "k", "v"); err != nil {
         return
     }
 

@@ -197,7 +197,7 @@ scopedStore, err := store.NewScoped(storeInstance, "tenant-42")
 if err != nil {
     return
 }
-if err := scopedStore.Set("config", "colour", "blue"); err != nil {
+if err := scopedStore.SetIn("config", "colour", "blue"); err != nil {
     return
 }
 // Stored in underlying store as group="tenant-42:config", key="colour"

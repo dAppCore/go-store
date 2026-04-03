@@ -52,7 +52,7 @@
 //		if err != nil {
 //			return
 //		}
-//		if err := scopedStore.Set("preferences", "locale", "en-GB"); err != nil {
+//		if err := scopedStore.SetIn("preferences", "locale", "en-GB"); err != nil {
 //			return
 //		}
 //
