@@ -32,7 +32,6 @@ FROM workspace_entries`
 
 var defaultWorkspaceStateDirectory = ".core/state"
 
-// Workspace is a temporary SQLite buffer for a named unit of work.
 // Usage example: `workspace, err := storeInstance.NewWorkspace("scroll-session-2026-03-30"); if err != nil { return }; defer workspace.Discard()`
 type Workspace struct {
 	name         string
