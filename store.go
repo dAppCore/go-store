@@ -27,7 +27,7 @@ const (
 	entryValueColumn        = "entry_value"
 )
 
-// Usage example: `storeOptions := []store.StoreOption{store.WithJournal("http://127.0.0.1:8086", "core", "events")}`
+// Usage example: `configuredStore, err := store.NewConfigured(store.StoreConfig{DatabasePath: ":memory:", Journal: store.JournalConfiguration{EndpointURL: "http://127.0.0.1:8086", Organisation: "core", BucketName: "events"}})`
 // Prefer `store.NewConfigured(store.StoreConfig{...})` when the configuration
 // is already known as a struct literal. Use `StoreOption` only when the values
 // need to be assembled incrementally.
@@ -137,7 +137,7 @@ func (storeInstance *Store) ensureReady(operation string) error {
 	return nil
 }
 
-// Usage example: `storeInstance, err := store.New("/tmp/go-store.db", store.WithJournal("http://127.0.0.1:8086", "core", "events"))`
+// Usage example: `storeInstance, err := store.NewConfigured(store.StoreConfig{DatabasePath: "/tmp/go-store.db", Journal: store.JournalConfiguration{EndpointURL: "http://127.0.0.1:8086", Organisation: "core", BucketName: "events"}})`
 func WithJournal(endpointURL, organisation, bucketName string) StoreOption {
 	return func(storeConfig *StoreConfig) {
 		if storeConfig == nil {
