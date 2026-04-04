@@ -1,4 +1,4 @@
-// Package store provides SQLite-backed storage for grouped entries, TTL expiry,
+// Package store provides SQLite-backed key-value storage for grouped entries, TTL expiry,
 // namespace isolation, quota enforcement, reactive change notifications,
 // workspace journalling, and explicit orphan recovery.
 //
