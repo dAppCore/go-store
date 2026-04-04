@@ -475,24 +475,24 @@ func (storeInstance *Store) commitWorkspaceAggregate(workspaceName string, field
 func openWorkspaceDatabase(databasePath string) (*sql.DB, error) {
 	workspaceDatabase, err := sql.Open("sqlite", databasePath)
 	if err != nil {
-		return nil, err
+		return nil, core.E("store.openWorkspaceDatabase", "open workspace database", err)
 	}
 	workspaceDatabase.SetMaxOpenConns(1)
 	if _, err := workspaceDatabase.Exec("PRAGMA journal_mode=WAL"); err != nil {
 		workspaceDatabase.Close()
-		return nil, err
+		return nil, core.E("store.openWorkspaceDatabase", "set WAL journal mode", err)
 	}
 	if _, err := workspaceDatabase.Exec("PRAGMA busy_timeout=5000"); err != nil {
 		workspaceDatabase.Close()
-		return nil, err
+		return nil, core.E("store.openWorkspaceDatabase", "set busy timeout", err)
 	}
 	if _, err := workspaceDatabase.Exec(createWorkspaceEntriesTableSQL); err != nil {
 		workspaceDatabase.Close()
-		return nil, err
+		return nil, core.E("store.openWorkspaceDatabase", "create workspace entries table", err)
 	}
 	if _, err := workspaceDatabase.Exec(createWorkspaceEntriesViewSQL); err != nil {
 		workspaceDatabase.Close()
-		return nil, err
+		return nil, core.E("store.openWorkspaceDatabase", "create workspace entries view", err)
 	}
 	return workspaceDatabase, nil
 }
