@@ -61,8 +61,8 @@ type Event struct {
 ```go
 // New creates a store. Journal is optional — pass WithJournal() to enable.
 //
-//   st, _ := store.New(":memory:")                           // SQLite only
-//   st, _ := store.New("/path/to/db", store.WithJournal(
+//   storeInstance, _ := store.New(":memory:")                           // SQLite only
+//   storeInstance, _ := store.New("/path/to/db", store.WithJournal(
 //       "http://localhost:8086", "core-org", "core-bucket",
 //   ))
 func New(path string, opts ...StoreOption) (*Store, error) { }
@@ -77,20 +77,20 @@ func WithJournal(url, org, bucket string) StoreOption { }
 ## 5. API
 
 ```go
-st, _ := store.New(":memory:")      // or store.New("/path/to/db")
-defer st.Close()
+storeInstance, _ := store.New(":memory:")      // or store.New("/path/to/db")
+defer storeInstance.Close()
 
-st.Set("group", "key", "value")
-st.SetWithTTL("group", "key", "value", 5*time.Minute)
-val, _ := st.Get("group", "key")    // lazy-deletes expired
+storeInstance.Set("group", "key", "value")
+storeInstance.SetWithTTL("group", "key", "value", 5*time.Minute)
+value, _ := storeInstance.Get("group", "key")    // lazy-deletes expired
 
 // Iteration
-for key, val := range st.AllSeq("group") { ... }
-for group := range st.GroupsSeq() { ... }
+for key, value := range storeInstance.AllSeq("group") { ... }
+for group := range storeInstance.GroupsSeq() { ... }
 
 // Events
-ch := st.Watch("group")
-st.OnChange(func(event store.Event) { ... })
+events := storeInstance.Watch("group")
+storeInstance.OnChange(func(event store.Event) { ... })
 ```
 
 ---
@@ -100,9 +100,12 @@ st.OnChange(func(event store.Event) { ... })
 ```go
 // ScopedStore wraps a Store with a namespace prefix and optional quotas.
 //
-//   scoped := store.NewScoped(st, "mynamespace")
-//   scoped.Set("key", "value")           // stored as group "mynamespace:default", key "key"
-//   scoped.SetIn("mygroup", "key", "v")  // stored as group "mynamespace:mygroup", key "key"
+//   scopedStore, _ := store.NewScopedConfigured(storeInstance, store.ScopedStoreConfig{
+//       Namespace: "mynamespace",
+//       Quota:     store.QuotaConfig{MaxKeys: 100, MaxGroups: 10},
+//   })
+//   scopedStore.Set("key", "value")           // stored as group "mynamespace:default", key "key"
+//   scopedStore.SetIn("mygroup", "key", "v")  // stored as group "mynamespace:mygroup", key "key"
 type ScopedStore struct {
     store     *Store
     namespace string  // validated: ^[a-zA-Z0-9-]+$
@@ -110,19 +113,21 @@ type ScopedStore struct {
     MaxGroups int     // 0 = unlimited
 }
 
-func NewScoped(st *Store, namespace string) *ScopedStore { }
+func NewScoped(storeInstance *Store, namespace string) (*ScopedStore, error) { }
+
+func NewScopedConfigured(storeInstance *Store, scopedConfig ScopedStoreConfig) (*ScopedStore, error) { }
 
 // Set stores a value in the default group ("namespace:default")
-func (ss *ScopedStore) Set(key, value string) error { }
+func (scopedStore *ScopedStore) Set(key, value string) error { }
 
 // SetIn stores a value in an explicit group ("namespace:group")
-func (ss *ScopedStore) SetIn(group, key, value string) error { }
+func (scopedStore *ScopedStore) SetIn(group, key, value string) error { }
 
 // Get retrieves a value from the default group
-func (ss *ScopedStore) Get(key string) (string, error) { }
+func (scopedStore *ScopedStore) Get(key string) (string, error) { }
 
 // GetFrom retrieves a value from an explicit group
-func (ss *ScopedStore) GetFrom(group, key string) (string, error) { }
+func (scopedStore *ScopedStore) GetFrom(group, key string) (string, error) { }
 ```
 
 - Namespace regex: `^[a-zA-Z0-9-]+$`
@@ -170,9 +175,9 @@ Journal (SQLite journal table): "this thing completed" — immutable, delta-read
 // Workspace is a named SQLite buffer for mutable work-in-progress.
 // It holds a reference to the parent Store for identity updates and journal writes.
 //
-//   ws, _ := st.NewWorkspace("scroll-session-2026-03-30")
-//   ws.Put("like", map[string]any{"user": "@handle", "post": "video_123"})
-//   ws.Commit()  // atomic → journal + identity summary
+//   workspace, _ := storeInstance.NewWorkspace("scroll-session-2026-03-30")
+//   workspace.Put("like", map[string]any{"user": "@handle", "post": "video_123"})
+//   workspace.Commit()  // atomic → journal + identity summary
 type Workspace struct {
     name  string
     store *Store   // parent store for identity updates + journal config
@@ -181,37 +186,37 @@ type Workspace struct {
 
 // NewWorkspace creates a workspace buffer. The SQLite file is created at .core/state/{name}.duckdb.
 //
-//   ws, _ := st.NewWorkspace("scroll-session-2026-03-30")
+//   workspace, _ := storeInstance.NewWorkspace("scroll-session-2026-03-30")
 func (s *Store) NewWorkspace(name string) (*Workspace, error) { }
 ```
 
 ```go
 // Put accumulates an entry in the workspace buffer. Returns error on write failure.
 //
-//   err := ws.Put("like", map[string]any{"user": "@handle"})
-func (ws *Workspace) Put(kind string, data map[string]any) error { }
+//   err := workspace.Put("like", map[string]any{"user": "@handle"})
+func (workspace *Workspace) Put(kind string, data map[string]any) error { }
 
 // Aggregate returns a summary of the current workspace state
 //
-//   summary := ws.Aggregate()  // {"like": 4000, "profile_match": 12}
-func (ws *Workspace) Aggregate() map[string]any { }
+//   summary := workspace.Aggregate()  // {"like": 4000, "profile_match": 12}
+func (workspace *Workspace) Aggregate() map[string]any { }
 
 // Commit writes the aggregated state to the journal and updates the identity store
 //
-//   result := ws.Commit()
-func (ws *Workspace) Commit() core.Result { }
+//   result := workspace.Commit()
+func (workspace *Workspace) Commit() core.Result { }
 
 // Discard drops the workspace without committing
 //
-//   ws.Discard()
-func (ws *Workspace) Discard() { }
+//   workspace.Discard()
+func (workspace *Workspace) Discard() { }
 
 // Query runs SQL against the buffer for ad-hoc analysis.
 // Returns core.Result where Value is []map[string]any (rows as maps).
 //
-//   result := ws.Query("SELECT kind, COUNT(*) as n FROM entries GROUP BY kind")
+//   result := workspace.Query("SELECT kind, COUNT(*) as n FROM entries GROUP BY kind")
 //   rows := result.Value.([]map[string]any)  // [{"kind": "like", "n": 4000}]
-func (ws *Workspace) Query(sql string) core.Result { }
+func (workspace *Workspace) Query(sql string) core.Result { }
 ```
 
 ### 7.4 Journal
@@ -222,7 +227,7 @@ Commit writes a single point per completed workspace. One point = one unit of wo
 // CommitToJournal writes aggregated state as a single journal entry.
 // Called by Workspace.Commit() internally, but exported for testing.
 //
-//   s.CommitToJournal("scroll-session", fields, tags)
+//   storeInstance.CommitToJournal("scroll-session", fields, tags)
 func (s *Store) CommitToJournal(measurement string, fields map[string]any, tags map[string]string) core.Result { }
 
 // QueryJournal runs a Flux-shaped filter or raw SQL query against the journal table.
@@ -249,7 +254,7 @@ type CompactOptions struct {
 
 // Compact archives journal entries to compressed JSONL
 //
-//   st.Compact(store.CompactOptions{Before: time.Now().Add(-90*24*time.Hour), Output: "/archive/"})
+//   storeInstance.Compact(store.CompactOptions{Before: time.Now().Add(-90*24*time.Hour), Output: "/archive/"})
 func (s *Store) Compact(opts CompactOptions) core.Result { }
 ```
 
@@ -274,10 +279,10 @@ Orphan recovery on `New()`:
 // Each orphan is opened and cached for RecoverOrphans().
 // The caller decides whether to commit or discard orphan data.
 //
-//   orphans := st.RecoverOrphans(".core/state/")
-//   for _, ws := range orphans {
-//       // inspect ws.Aggregate(), decide whether to commit or discard
-//       ws.Discard()
+//   orphanWorkspaces := storeInstance.RecoverOrphans(".core/state/")
+//   for _, workspace := range orphanWorkspaces {
+//       // inspect workspace.Aggregate(), decide whether to commit or discard
+//       workspace.Discard()
 //   }
 func (s *Store) RecoverOrphans(stateDir string) []*Workspace { }
 ```
