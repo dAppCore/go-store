@@ -127,6 +127,32 @@ func TestJournal_QueryJournal_Good_TagFilter(t *testing.T) {
 	assert.Equal(t, "session-b", tags["workspace"])
 }
 
+func TestJournal_QueryJournal_Good_BucketFilter(t *testing.T) {
+	storeInstance, err := New(":memory:")
+	require.NoError(t, err)
+	defer storeInstance.Close()
+
+	require.True(t,
+		storeInstance.CommitToJournal("session-a", map[string]any{"like": 1}, map[string]string{"workspace": "session-a"}).OK,
+	)
+	require.NoError(t, insertJournalEntry(
+		storeInstance.database,
+		"events",
+		"session-b",
+		`{"like":2}`,
+		`{"workspace":"session-b"}`,
+		time.Now().UnixMilli(),
+	))
+
+	rows := requireResultRows(
+		t,
+		storeInstance.QueryJournal(`from(bucket: "events") |> range(start: -24h) |> filter(fn: (r) => r._bucket == "events")`),
+	)
+	require.Len(t, rows, 1)
+	assert.Equal(t, "session-b", rows[0]["measurement"])
+	assert.Equal(t, "events", rows[0]["bucket_name"])
+}
+
 func TestJournal_QueryJournal_Good_AbsoluteRangeWithStop(t *testing.T) {
 	storeInstance, err := New(":memory:", WithJournal("http://127.0.0.1:8086", "core", "events"))
 	require.NoError(t, err)

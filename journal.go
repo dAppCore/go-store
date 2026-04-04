@@ -30,6 +30,10 @@ var (
 		regexp.MustCompile(`(?:_measurement|measurement)\s*==\s*"([^"]+)"`),
 		regexp.MustCompile(`\[\s*"(?:_measurement|measurement)"\s*\]\s*==\s*"([^"]+)"`),
 	}
+	journalBucketEqualityPatterns = []*regexp.Regexp{
+		regexp.MustCompile(`r\.(?:_bucket|bucket|bucket_name)\s*==\s*"([^"]+)"`),
+		regexp.MustCompile(`r\[\s*"(?:_bucket|bucket|bucket_name)"\s*\]\s*==\s*"([^"]+)"`),
+	}
 	journalEqualityPatterns = []*regexp.Regexp{
 		regexp.MustCompile(`r\.([a-zA-Z0-9_:-]+)\s*==\s*"([^"]+)"`),
 		regexp.MustCompile(`r\[\s*"([a-zA-Z0-9_:-]+)"\s*\]\s*==\s*"([^"]+)"`),
@@ -175,6 +179,17 @@ func (storeInstance *Store) queryJournalFlux(flux string) (string, []any, error)
 		queryArguments = append(queryArguments, stopTime.UnixMilli())
 	}
 
+	for _, pattern := range journalBucketEqualityPatterns {
+		bucketMatches := pattern.FindAllStringSubmatch(flux, -1)
+		for _, match := range bucketMatches {
+			if len(match) < 2 {
+				continue
+			}
+			queryBuilder.WriteString(" AND bucket_name = ?")
+			queryArguments = append(queryArguments, match[1])
+		}
+	}
+
 	for _, pattern := range journalEqualityPatterns {
 		matches := pattern.FindAllStringSubmatch(flux, -1)
 		for _, match := range matches {
@@ -183,7 +198,7 @@ func (storeInstance *Store) queryJournalFlux(flux string) (string, []any, error)
 			}
 			columnName := match[1]
 			filterValue := match[2]
-			if columnName == "_measurement" || columnName == "measurement" || columnName == "_bucket" || columnName == "bucket" {
+			if columnName == "_measurement" || columnName == "measurement" || columnName == "_bucket" || columnName == "bucket" || columnName == "bucket_name" {
 				continue
 			}
 			queryBuilder.WriteString(" AND (CAST(json_extract(tags_json, '$.\"' || ? || '\"') AS TEXT) = ? OR CAST(json_extract(fields_json, '$.\"' || ? || '\"') AS TEXT) = ?)")
