@@ -9,6 +9,9 @@ import (
 	core "dappco.re/go/core"
 )
 
+// StoreTransaction stages several Store operations in one SQLite transaction
+// and delays watcher delivery until the commit is durable.
+//
 // Usage example: `err := storeInstance.Transaction(func(transaction *store.StoreTransaction) error { return transaction.Set("config", "colour", "blue") })`
 type StoreTransaction struct {
 	store         *Store

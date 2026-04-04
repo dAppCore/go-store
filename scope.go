@@ -22,6 +22,9 @@ type QuotaConfig struct {
 	MaxGroups int
 }
 
+// ScopedStore keeps one namespace isolated behind helpers such as Set and
+// GetFrom so callers do not repeat the `tenant-a:` prefix manually.
+//
 // Usage example: `scopedStore := store.NewScoped(storeInstance, "tenant-a"); if scopedStore == nil { return }; if err := scopedStore.Set("colour", "blue"); err != nil { return }; if err := scopedStore.SetIn("config", "language", "en-GB"); err != nil { return }`
 type ScopedStore struct {
 	backingStore *Store
@@ -35,6 +38,9 @@ type ScopedStore struct {
 	scopedWatchers     map[uintptr]*scopedWatcherBinding
 }
 
+// ScopedStoreTransaction stages multiple namespace-prefixed writes in one
+// SQLite transaction and only emits events after commit succeeds.
+//
 // Usage example: `err := scopedStore.Transaction(func(transaction *store.ScopedStoreTransaction) error { return transaction.Set("colour", "blue") })`
 type ScopedStoreTransaction struct {
 	scopedStore      *ScopedStore

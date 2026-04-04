@@ -33,7 +33,7 @@ FROM workspace_entries`
 
 var defaultWorkspaceStateDirectory = ".core/state/"
 
-// Workspace buffers mutable work-in-progress in a SQLite file under
+// Workspace keeps mutable work-in-progress in a SQLite file such as
 // `.core/state/scroll-session.duckdb` until Commit or Discard removes it.
 //
 // Usage example: `workspace, err := storeInstance.NewWorkspace("scroll-session-2026-03-30"); if err != nil { return }; defer workspace.Discard(); _ = workspace.Put("like", map[string]any{"user": "@alice"})`
@@ -65,9 +65,8 @@ func (workspace *Workspace) DatabasePath() string {
 	return workspace.databasePath
 }
 
-// Close leaves the SQLite workspace file `.core/state/scroll-session-2026-03-30.duckdb`
-// on disk so a later store instance can recover it as an orphan.
-// Call `Discard()` afterwards if you decide the file should be removed.
+// Close leaves the SQLite workspace file on disk so a later store instance can
+// recover it as an orphan and decide whether to Commit or Discard it.
 //
 // Usage example: `if err := workspace.Close(); err != nil { return }; orphans := storeInstance.RecoverOrphans(".core/state"); _ = orphans`
 func (workspace *Workspace) Close() error {
@@ -101,7 +100,7 @@ func (workspace *Workspace) ensureReady(operation string) error {
 	return nil
 }
 
-// NewWorkspace creates a SQLite workspace file at
+// NewWorkspace opens a SQLite workspace file such as
 // `.core/state/scroll-session-2026-03-30.duckdb` and removes it when the
 // workspace is committed or discarded.
 //
@@ -288,8 +287,8 @@ func (workspace *Workspace) Aggregate() map[string]any {
 	return fields
 }
 
-// Commit writes one journal point for the workspace and upserts the summary
-// row in `workspace:NAME`.
+// Commit writes one journal row for the workspace and upserts the summary row
+// in `workspace:NAME`.
 //
 // Usage example: `result := workspace.Commit(); if !result.OK { return }; fmt.Println(result.Value)`
 func (workspace *Workspace) Commit() core.Result {
@@ -318,8 +317,8 @@ func (workspace *Workspace) Discard() {
 	_ = workspace.closeAndRemoveFiles()
 }
 
-// Query runs SQL against the buffer for ad-hoc analysis and returns rows as
-// `[]map[string]any`.
+// Query runs SQL against the workspace buffer and returns rows as
+// `[]map[string]any` for ad-hoc inspection.
 //
 // Usage example: `result := workspace.Query("SELECT entry_kind, COUNT(*) AS count FROM workspace_entries GROUP BY entry_kind")`
 func (workspace *Workspace) Query(query string) core.Result {

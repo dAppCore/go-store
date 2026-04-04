@@ -11,6 +11,9 @@ import (
 
 var defaultArchiveOutputDirectory = ".core/archive/"
 
+// CompactOptions selects which completed journal rows move into cold archive
+// output and where the compressed file is written.
+//
 // Usage example: `options := store.CompactOptions{Before: time.Now().Add(-90 * 24 * time.Hour), Output: "/tmp/archive", Format: "gzip"}`
 type CompactOptions struct {
 	// Usage example: `options := store.CompactOptions{Before: time.Now().Add(-90 * 24 * time.Hour)}`
