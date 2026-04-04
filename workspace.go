@@ -36,6 +36,8 @@ var defaultWorkspaceStateDirectory = ".core/state/"
 // Workspace keeps mutable work-in-progress in a SQLite file such as
 // `.core/state/scroll-session.duckdb` until Commit() or Discard() removes it.
 //
+// Usage example: `workspace, err := storeInstance.NewWorkspace("scroll-session"); if err != nil { return }; defer workspace.Discard()`
+//
 // Usage example: `workspace, err := storeInstance.NewWorkspace("scroll-session-2026-03-30"); if err != nil { return }; defer workspace.Discard(); _ = workspace.Put("like", map[string]any{"user": "@alice"})`
 type Workspace struct {
 	name            string

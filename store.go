@@ -113,7 +113,7 @@ func (journalConfig JournalConfiguration) isConfigured() bool {
 		journalConfig.BucketName != ""
 }
 
-// Store is the SQLite KV store with TTL expiry, namespace isolation,
+// Store is the SQLite key-value store with TTL expiry, namespace isolation,
 // reactive events, SQLite journal writes, and orphan recovery.
 //
 // Usage example: `storeInstance, err := store.NewConfigured(store.StoreConfig{DatabasePath: ":memory:", Journal: store.JournalConfiguration{EndpointURL: "http://127.0.0.1:8086", Organisation: "core", BucketName: "events"}, PurgeInterval: 30 * time.Second})`

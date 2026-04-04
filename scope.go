@@ -59,6 +59,7 @@ func (scopedConfig ScopedStoreConfig) Validate() error {
 }
 
 // ScopedStore prefixes group names with namespace + ":" before delegating to Store.
+//
 // Usage example: `scopedStore, err := store.NewScoped(storeInstance, "tenant-a"); if err != nil { return }; if err := scopedStore.SetIn("config", "colour", "blue"); err != nil { return }`
 type ScopedStore struct {
 	storeInstance *Store
