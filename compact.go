@@ -4,6 +4,7 @@ import (
 	"compress/gzip"
 	"io"
 	"time"
+	"unicode"
 
 	core "dappco.re/go/core"
 	"github.com/klauspost/compress/zstd"
@@ -34,12 +35,13 @@ func (compactOptions CompactOptions) Normalised() CompactOptions {
 	if compactOptions.Format == "" {
 		compactOptions.Format = "gzip"
 	}
+	compactOptions.Format = lowerText(core.Trim(compactOptions.Format))
 	return compactOptions
 }
 
 // Usage example: `if err := (store.CompactOptions{Before: time.Date(2026, 3, 30, 0, 0, 0, 0, time.UTC), Format: "gzip"}).Validate(); err != nil { return }`
 func (compactOptions CompactOptions) Validate() error {
-	switch compactOptions.Format {
+	switch lowerText(core.Trim(compactOptions.Format)) {
 	case "", "gzip", "zstd":
 		return nil
 	default:
@@ -49,6 +51,14 @@ func (compactOptions CompactOptions) Validate() error {
 			nil,
 		)
 	}
+}
+
+func lowerText(text string) string {
+	builder := core.NewBuilder()
+	for _, r := range text {
+		builder.WriteRune(unicode.ToLower(r))
+	}
+	return builder.String()
 }
 
 type compactArchiveEntry struct {

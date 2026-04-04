@@ -201,6 +201,20 @@ func TestCompact_CompactOptions_Good_Validate(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestCompact_CompactOptions_Good_ValidateNormalisesFormatCase(t *testing.T) {
+	err := (CompactOptions{
+		Before: time.Now().Add(-24 * time.Hour),
+		Format: " GZIP ",
+	}).Validate()
+	require.NoError(t, err)
+
+	options := (CompactOptions{
+		Before: time.Now().Add(-24 * time.Hour),
+		Format: " ZsTd ",
+	}).Normalised()
+	assert.Equal(t, "zstd", options.Format)
+}
+
 func TestCompact_CompactOptions_Bad_ValidateUnsupportedFormat(t *testing.T) {
 	err := (CompactOptions{
 		Before: time.Now().Add(-24 * time.Hour),
