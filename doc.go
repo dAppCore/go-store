@@ -1,25 +1,24 @@
-// Package store provides SQLite-backed key-value storage for grouped entries,
-// TTL expiry, namespace isolation, quota enforcement, reactive change
-// notifications, SQLite journal writes and queries, workspace journalling,
-// cold archive compaction, and orphan recovery.
+// Package store provides SQLite-backed grouped key-value storage with TTL,
+// namespace isolation, quota enforcement, reactive events, journal writes,
+// workspace buffering, cold archive compaction, and orphan recovery.
 //
-// When the configuration is already known, prefer StoreConfig and
-// ScopedStoreConfig literals over option chains so the call site reads as data
-// rather than a sequence of steps.
+// Prefer struct literals when the configuration is already known:
 //
-// Workspace files live under `.core/state/` and can be recovered with
-// `RecoverOrphans(".core/state/")`.
+//	configuredStore, err := store.NewConfigured(store.StoreConfig{
+//		DatabasePath: ":memory:",
+//		Journal: store.JournalConfiguration{
+//			EndpointURL:  "http://127.0.0.1:8086",
+//			Organisation: "core",
+//			BucketName:   "events",
+//		},
+//		PurgeInterval:           20 * time.Millisecond,
+//		WorkspaceStateDirectory: "/tmp/core-state",
+//	})
 //
-// Use `store.NewConfigured(store.StoreConfig{...})` when the database path,
-// journal, purge interval, or workspace state directory are already known.
-// Prefer the struct literal over option chains when the full configuration is
-// already available, because it reads as data rather than a sequence of
-// steps. Use `StoreConfig.Normalised()` when you want the default purge
-// interval and workspace state directory filled in before you pass the config
-// onward. Include `WorkspaceStateDirectory: "/tmp/core-state"` in the struct
-// literal when the path is known; use `store.WithWorkspaceStateDirectory`
-// only when the workspace path is assembled incrementally rather than
-// declared up front.
+// Workspace files live under `.core/state/` by default and can be recovered
+// with `configuredStore.RecoverOrphans(".core/state/")` after a crash.
+// Use `StoreConfig.Normalised()` when you want the default purge interval and
+// workspace state directory filled in before passing the config onward.
 //
 // Usage example:
 //
