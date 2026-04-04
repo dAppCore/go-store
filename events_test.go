@@ -177,6 +177,63 @@ func TestEvents_OnChange_Good_GroupFilteredCallback(t *testing.T) {
 	assert.Equal(t, []string{"theme=dark"}, seen)
 }
 
+func TestEvents_OnChange_Good_ReentrantSubscriptionChanges(t *testing.T) {
+	storeInstance, _ := New(":memory:")
+	defer storeInstance.Close()
+
+	var (
+		seen             []string
+		seenMutex        sync.Mutex
+		nestedEvents     <-chan Event
+		nestedActive     bool
+		nestedStopped    bool
+		unregisterNested = func() {}
+	)
+
+	unregisterPrimary := storeInstance.OnChange(func(event Event) {
+		seenMutex.Lock()
+		seen = append(seen, event.Key)
+		seenMutex.Unlock()
+
+		if !nestedActive {
+			nestedEvents = storeInstance.Watch("config")
+			unregisterNested = storeInstance.OnChange(func(nested Event) {
+				seenMutex.Lock()
+				seen = append(seen, "nested:"+nested.Key)
+				seenMutex.Unlock()
+			})
+			nestedActive = true
+			return
+		}
+
+		if !nestedStopped {
+			storeInstance.Unwatch("config", nestedEvents)
+			unregisterNested()
+			nestedStopped = true
+		}
+	})
+	defer unregisterPrimary()
+
+	require.NoError(t, storeInstance.Set("config", "first", "dark"))
+	require.NoError(t, storeInstance.Set("config", "second", "light"))
+	require.NoError(t, storeInstance.Set("config", "third", "blue"))
+
+	seenMutex.Lock()
+	assert.Equal(t, []string{"first", "second", "nested:second", "third"}, seen)
+	seenMutex.Unlock()
+
+	select {
+	case event, open := <-nestedEvents:
+		require.True(t, open)
+		assert.Equal(t, "second", event.Key)
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for nested watcher event")
+	}
+
+	_, open := <-nestedEvents
+	assert.False(t, open, "nested watcher should be closed after callback-driven unwatch")
+}
+
 func TestEvents_Notify_Good_PopulatesTimestamp(t *testing.T) {
 	storeInstance, _ := New(":memory:")
 	defer storeInstance.Close()
