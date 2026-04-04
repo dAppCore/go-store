@@ -194,14 +194,21 @@ func discoverOrphanWorkspaces(stateDirectory string, backingStore *Store) []*Wor
 	return orphanWorkspaces
 }
 
+func normaliseWorkspaceStateDirectory(stateDirectory string) string {
+	for stateDirectory != "" && core.HasSuffix(stateDirectory, "/") {
+		stateDirectory = core.TrimSuffix(stateDirectory, "/")
+	}
+	return stateDirectory
+}
+
 func workspaceNameFromPath(stateDirectory, databasePath string) string {
 	relativePath := core.TrimPrefix(databasePath, joinPath(stateDirectory, ""))
 	return core.TrimSuffix(relativePath, ".duckdb")
 }
 
-// RecoverOrphans(".core/state") returns orphaned workspaces such as
+// RecoverOrphans(".core/state/") returns orphaned workspaces such as
 // `scroll-session.duckdb` so callers can inspect Aggregate() and then Discard().
-// Usage example: `orphans := storeInstance.RecoverOrphans(".core/state")`
+// Usage example: `orphans := storeInstance.RecoverOrphans(".core/state/")`
 func (storeInstance *Store) RecoverOrphans(stateDirectory string) []*Workspace {
 	if storeInstance == nil {
 		return nil
@@ -210,8 +217,9 @@ func (storeInstance *Store) RecoverOrphans(stateDirectory string) []*Workspace {
 	if stateDirectory == "" {
 		stateDirectory = defaultWorkspaceStateDirectory
 	}
+	stateDirectory = normaliseWorkspaceStateDirectory(stateDirectory)
 
-	if stateDirectory == defaultWorkspaceStateDirectory {
+	if stateDirectory == normaliseWorkspaceStateDirectory(defaultWorkspaceStateDirectory) {
 		storeInstance.orphanWorkspacesLock.Lock()
 		cachedWorkspaces := storeInstance.orphanWorkspaces
 		storeInstance.orphanWorkspaces = nil
