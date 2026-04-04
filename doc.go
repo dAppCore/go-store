@@ -3,6 +3,10 @@
 // notifications, SQLite journal writes and queries, workspace journalling,
 // cold archive compaction, and orphan recovery.
 //
+// When the configuration is already known, prefer StoreConfig and
+// ScopedStoreConfig literals over option chains so the call site reads as data
+// rather than a sequence of steps.
+//
 // Workspace files live under `.core/state/` and can be recovered with
 // `RecoverOrphans(".core/state/")`.
 //
