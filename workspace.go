@@ -3,6 +3,7 @@ package store
 import (
 	"database/sql"
 	"io/fs"
+	"maps"
 	"slices"
 	"sync"
 	"time"
@@ -42,6 +43,7 @@ type Workspace struct {
 	workspaceDatabase *sql.DB
 	databasePath      string
 	filesystem        *core.Fs
+	orphanAggregate   map[string]any
 
 	closeLock sync.Mutex
 	closed    bool
@@ -186,13 +188,15 @@ func discoverOrphanWorkspaces(stateDirectory string, backingStore *Store) []*Wor
 		if err != nil {
 			continue
 		}
-		orphanWorkspaces = append(orphanWorkspaces, &Workspace{
+		orphanWorkspace := &Workspace{
 			name:              workspaceNameFromPath(stateDirectory, databasePath),
 			backingStore:      backingStore,
 			workspaceDatabase: workspaceDatabase,
 			databasePath:      databasePath,
 			filesystem:        filesystem,
-		})
+		}
+		orphanWorkspace.orphanAggregate = orphanWorkspace.captureAggregateSnapshot()
+		orphanWorkspaces = append(orphanWorkspaces, orphanWorkspace)
 	}
 	return orphanWorkspaces
 }
@@ -238,13 +242,15 @@ func (storeInstance *Store) RecoverOrphans(stateDirectory string) []*Workspace {
 		if err != nil {
 			continue
 		}
-		orphanWorkspaces = append(orphanWorkspaces, &Workspace{
+		orphanWorkspace := &Workspace{
 			name:              workspaceNameFromPath(stateDirectory, databasePath),
 			backingStore:      storeInstance,
 			workspaceDatabase: workspaceDatabase,
 			databasePath:      databasePath,
 			filesystem:        filesystem,
-		})
+		}
+		orphanWorkspace.orphanAggregate = orphanWorkspace.captureAggregateSnapshot()
+		orphanWorkspaces = append(orphanWorkspaces, orphanWorkspace)
 	}
 	return orphanWorkspaces
 }
@@ -281,13 +287,16 @@ func (workspace *Workspace) Put(kind string, data map[string]any) error {
 
 // Usage example: `summary := workspace.Aggregate()`
 func (workspace *Workspace) Aggregate() map[string]any {
+	if workspace.shouldUseOrphanAggregate() {
+		return workspace.aggregateFallback()
+	}
 	if err := workspace.ensureReady("store.Workspace.Aggregate"); err != nil {
-		return map[string]any{}
+		return workspace.aggregateFallback()
 	}
 
 	fields, err := workspace.aggregateFields()
 	if err != nil {
-		return map[string]any{}
+		return workspace.aggregateFallback()
 	}
 	return fields
 }
@@ -345,7 +354,39 @@ func (workspace *Workspace) aggregateFields() (map[string]any, error) {
 	if err := workspace.ensureReady("store.Workspace.aggregateFields"); err != nil {
 		return nil, err
 	}
+	return workspace.aggregateFieldsWithoutReadiness()
+}
 
+func (workspace *Workspace) captureAggregateSnapshot() map[string]any {
+	if workspace == nil || workspace.workspaceDatabase == nil {
+		return nil
+	}
+
+	fields, err := workspace.aggregateFieldsWithoutReadiness()
+	if err != nil {
+		return nil
+	}
+	return fields
+}
+
+func (workspace *Workspace) aggregateFallback() map[string]any {
+	if workspace == nil || workspace.orphanAggregate == nil {
+		return map[string]any{}
+	}
+	return maps.Clone(workspace.orphanAggregate)
+}
+
+func (workspace *Workspace) shouldUseOrphanAggregate() bool {
+	if workspace == nil || workspace.orphanAggregate == nil {
+		return false
+	}
+	if workspace.filesystem == nil || workspace.databasePath == "" {
+		return false
+	}
+	return !workspace.filesystem.Exists(workspace.databasePath)
+}
+
+func (workspace *Workspace) aggregateFieldsWithoutReadiness() (map[string]any, error) {
 	rows, err := workspace.workspaceDatabase.Query(
 		"SELECT entry_kind, COUNT(*) FROM " + workspaceEntriesTableName + " GROUP BY entry_kind ORDER BY entry_kind",
 	)

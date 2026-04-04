@@ -231,6 +231,13 @@ func TestWorkspace_New_Good_LeavesOrphanedWorkspacesForRecovery(t *testing.T) {
 	orphanDatabasePath := workspaceFilePath(stateDirectory, "orphan-session")
 	orphanDatabase, err := openWorkspaceDatabase(orphanDatabasePath)
 	require.NoError(t, err)
+	_, err = orphanDatabase.Exec(
+		"INSERT INTO "+workspaceEntriesTableName+" (entry_kind, entry_data, created_at) VALUES (?, ?, ?)",
+		"like",
+		`{"user":"@alice"}`,
+		time.Now().UnixMilli(),
+	)
+	require.NoError(t, err)
 	require.NoError(t, orphanDatabase.Close())
 	assert.True(t, testFilesystem().Exists(orphanDatabasePath))
 
@@ -256,6 +263,13 @@ func TestWorkspace_New_Good_CachesOrphansDuringConstruction(t *testing.T) {
 	orphanDatabasePath := workspaceFilePath(stateDirectory, "orphan-session")
 	orphanDatabase, err := openWorkspaceDatabase(orphanDatabasePath)
 	require.NoError(t, err)
+	_, err = orphanDatabase.Exec(
+		"INSERT INTO "+workspaceEntriesTableName+" (entry_kind, entry_data, created_at) VALUES (?, ?, ?)",
+		"like",
+		`{"user":"@alice"}`,
+		time.Now().UnixMilli(),
+	)
+	require.NoError(t, err)
 	require.NoError(t, orphanDatabase.Close())
 	assert.True(t, testFilesystem().Exists(orphanDatabasePath))
 
@@ -269,7 +283,7 @@ func TestWorkspace_New_Good_CachesOrphansDuringConstruction(t *testing.T) {
 	orphans := storeInstance.RecoverOrphans(stateDirectory)
 	require.Len(t, orphans, 1)
 	assert.Equal(t, "orphan-session", orphans[0].Name())
-	assert.Equal(t, map[string]any{}, orphans[0].Aggregate())
+	assert.Equal(t, map[string]any{"like": 1}, orphans[0].Aggregate())
 	orphans[0].Discard()
 }
 
