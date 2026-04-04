@@ -79,7 +79,7 @@ func (storeTransaction *StoreTransaction) recordEvent(event Event) {
 	storeTransaction.pendingEvents = append(storeTransaction.pendingEvents, event)
 }
 
-// Usage example: `value, err := tx.Get("config", "colour")`
+// Usage example: `value, err := transaction.Get("config", "colour")`
 func (storeTransaction *StoreTransaction) Get(group, key string) (string, error) {
 	if err := storeTransaction.ensureReady("store.Transaction.Get"); err != nil {
 		return "", err
@@ -106,7 +106,7 @@ func (storeTransaction *StoreTransaction) Get(group, key string) (string, error)
 	return value, nil
 }
 
-// Usage example: `if err := tx.Set("config", "colour", "blue"); err != nil { return err }`
+// Usage example: `if err := transaction.Set("config", "colour", "blue"); err != nil { return err }`
 func (storeTransaction *StoreTransaction) Set(group, key, value string) error {
 	if err := storeTransaction.ensureReady("store.Transaction.Set"); err != nil {
 		return err
@@ -124,7 +124,7 @@ func (storeTransaction *StoreTransaction) Set(group, key, value string) error {
 	return nil
 }
 
-// Usage example: `if err := tx.SetWithTTL("session", "token", "abc123", time.Minute); err != nil { return err }`
+// Usage example: `if err := transaction.SetWithTTL("session", "token", "abc123", time.Minute); err != nil { return err }`
 func (storeTransaction *StoreTransaction) SetWithTTL(group, key, value string, timeToLive time.Duration) error {
 	if err := storeTransaction.ensureReady("store.Transaction.SetWithTTL"); err != nil {
 		return err
@@ -143,7 +143,7 @@ func (storeTransaction *StoreTransaction) SetWithTTL(group, key, value string, t
 	return nil
 }
 
-// Usage example: `if err := tx.Delete("config", "colour"); err != nil { return err }`
+// Usage example: `if err := transaction.Delete("config", "colour"); err != nil { return err }`
 func (storeTransaction *StoreTransaction) Delete(group, key string) error {
 	if err := storeTransaction.ensureReady("store.Transaction.Delete"); err != nil {
 		return err
@@ -166,7 +166,7 @@ func (storeTransaction *StoreTransaction) Delete(group, key string) error {
 	return nil
 }
 
-// Usage example: `if err := tx.DeleteGroup("cache"); err != nil { return err }`
+// Usage example: `if err := transaction.DeleteGroup("cache"); err != nil { return err }`
 func (storeTransaction *StoreTransaction) DeleteGroup(group string) error {
 	if err := storeTransaction.ensureReady("store.Transaction.DeleteGroup"); err != nil {
 		return err
@@ -189,7 +189,7 @@ func (storeTransaction *StoreTransaction) DeleteGroup(group string) error {
 	return nil
 }
 
-// Usage example: `if err := tx.DeletePrefix("tenant-a:"); err != nil { return err }`
+// Usage example: `if err := transaction.DeletePrefix("tenant-a:"); err != nil { return err }`
 func (storeTransaction *StoreTransaction) DeletePrefix(groupPrefix string) error {
 	if err := storeTransaction.ensureReady("store.Transaction.DeletePrefix"); err != nil {
 		return err
@@ -231,7 +231,7 @@ func (storeTransaction *StoreTransaction) DeletePrefix(groupPrefix string) error
 	return nil
 }
 
-// Usage example: `keyCount, err := tx.Count("config")`
+// Usage example: `keyCount, err := transaction.Count("config")`
 func (storeTransaction *StoreTransaction) Count(group string) (int, error) {
 	if err := storeTransaction.ensureReady("store.Transaction.Count"); err != nil {
 		return 0, err
@@ -248,7 +248,7 @@ func (storeTransaction *StoreTransaction) Count(group string) (int, error) {
 	return count, nil
 }
 
-// Usage example: `colourEntries, err := tx.GetAll("config")`
+// Usage example: `colourEntries, err := transaction.GetAll("config")`
 func (storeTransaction *StoreTransaction) GetAll(group string) (map[string]string, error) {
 	if err := storeTransaction.ensureReady("store.Transaction.GetAll"); err != nil {
 		return nil, err
@@ -264,7 +264,7 @@ func (storeTransaction *StoreTransaction) GetAll(group string) (map[string]strin
 	return entriesByKey, nil
 }
 
-// Usage example: `page, err := tx.GetPage("config", 0, 25); if err != nil { return }; for _, entry := range page { fmt.Println(entry.Key, entry.Value) }`
+// Usage example: `page, err := transaction.GetPage("config", 0, 25); if err != nil { return }; for _, entry := range page { fmt.Println(entry.Key, entry.Value) }`
 func (storeTransaction *StoreTransaction) GetPage(group string, offset, limit int) ([]KeyValue, error) {
 	if err := storeTransaction.ensureReady("store.Transaction.GetPage"); err != nil {
 		return nil, err
@@ -299,12 +299,12 @@ func (storeTransaction *StoreTransaction) GetPage(group string, offset, limit in
 	return page, nil
 }
 
-// Usage example: `for entry, err := range tx.All("config") { if err != nil { break }; fmt.Println(entry.Key, entry.Value) }`
+// Usage example: `for entry, err := range transaction.All("config") { if err != nil { break }; fmt.Println(entry.Key, entry.Value) }`
 func (storeTransaction *StoreTransaction) All(group string) iter.Seq2[KeyValue, error] {
 	return storeTransaction.AllSeq(group)
 }
 
-// Usage example: `for entry, err := range tx.AllSeq("config") { if err != nil { break }; fmt.Println(entry.Key, entry.Value) }`
+// Usage example: `for entry, err := range transaction.AllSeq("config") { if err != nil { break }; fmt.Println(entry.Key, entry.Value) }`
 func (storeTransaction *StoreTransaction) AllSeq(group string) iter.Seq2[KeyValue, error] {
 	return func(yield func(KeyValue, error) bool) {
 		if err := storeTransaction.ensureReady("store.Transaction.All"); err != nil {
@@ -340,7 +340,7 @@ func (storeTransaction *StoreTransaction) AllSeq(group string) iter.Seq2[KeyValu
 	}
 }
 
-// Usage example: `removedRows, err := tx.CountAll("tenant-a:")`
+// Usage example: `removedRows, err := transaction.CountAll("tenant-a:")`
 func (storeTransaction *StoreTransaction) CountAll(groupPrefix string) (int, error) {
 	if err := storeTransaction.ensureReady("store.Transaction.CountAll"); err != nil {
 		return 0, err
@@ -365,8 +365,8 @@ func (storeTransaction *StoreTransaction) CountAll(groupPrefix string) (int, err
 	return count, nil
 }
 
-// Usage example: `groupNames, err := tx.Groups("tenant-a:")`
-// Usage example: `groupNames, err := tx.Groups()`
+// Usage example: `groupNames, err := transaction.Groups("tenant-a:")`
+// Usage example: `groupNames, err := transaction.Groups()`
 func (storeTransaction *StoreTransaction) Groups(groupPrefix ...string) ([]string, error) {
 	if err := storeTransaction.ensureReady("store.Transaction.Groups"); err != nil {
 		return nil, err
@@ -382,8 +382,8 @@ func (storeTransaction *StoreTransaction) Groups(groupPrefix ...string) ([]strin
 	return groupNames, nil
 }
 
-// Usage example: `for groupName, err := range tx.GroupsSeq("tenant-a:") { if err != nil { break }; fmt.Println(groupName) }`
-// Usage example: `for groupName, err := range tx.GroupsSeq() { if err != nil { break }; fmt.Println(groupName) }`
+// Usage example: `for groupName, err := range transaction.GroupsSeq("tenant-a:") { if err != nil { break }; fmt.Println(groupName) }`
+// Usage example: `for groupName, err := range transaction.GroupsSeq() { if err != nil { break }; fmt.Println(groupName) }`
 func (storeTransaction *StoreTransaction) GroupsSeq(groupPrefix ...string) iter.Seq2[string, error] {
 	actualGroupPrefix := firstOrEmptyString(groupPrefix)
 	return func(yield func(string, error) bool) {
@@ -430,7 +430,7 @@ func (storeTransaction *StoreTransaction) GroupsSeq(groupPrefix ...string) iter.
 	}
 }
 
-// Usage example: `renderedTemplate, err := tx.Render("Hello {{ .name }}", "user")`
+// Usage example: `renderedTemplate, err := transaction.Render("Hello {{ .name }}", "user")`
 func (storeTransaction *StoreTransaction) Render(templateSource, group string) (string, error) {
 	if err := storeTransaction.ensureReady("store.Transaction.Render"); err != nil {
 		return "", err
@@ -455,7 +455,7 @@ func (storeTransaction *StoreTransaction) Render(templateSource, group string) (
 	return builder.String(), nil
 }
 
-// Usage example: `parts, err := tx.GetSplit("config", "hosts", ","); if err != nil { return }; for part := range parts { fmt.Println(part) }`
+// Usage example: `parts, err := transaction.GetSplit("config", "hosts", ","); if err != nil { return }; for part := range parts { fmt.Println(part) }`
 func (storeTransaction *StoreTransaction) GetSplit(group, key, separator string) (iter.Seq[string], error) {
 	if err := storeTransaction.ensureReady("store.Transaction.GetSplit"); err != nil {
 		return nil, err
@@ -468,7 +468,7 @@ func (storeTransaction *StoreTransaction) GetSplit(group, key, separator string)
 	return splitValueSeq(value, separator), nil
 }
 
-// Usage example: `fields, err := tx.GetFields("config", "flags"); if err != nil { return }; for field := range fields { fmt.Println(field) }`
+// Usage example: `fields, err := transaction.GetFields("config", "flags"); if err != nil { return }; for field := range fields { fmt.Println(field) }`
 func (storeTransaction *StoreTransaction) GetFields(group, key string) (iter.Seq[string], error) {
 	if err := storeTransaction.ensureReady("store.Transaction.GetFields"); err != nil {
 		return nil, err
