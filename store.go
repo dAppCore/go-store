@@ -44,22 +44,22 @@ type StoreConfig struct {
 }
 
 // Usage example: `if err := (store.StoreConfig{DatabasePath: ":memory:", PurgeInterval: 30 * time.Second}).Validate(); err != nil { return }`
-func (config StoreConfig) Validate() error {
-	if config.DatabasePath == "" {
+func (storeConfig StoreConfig) Validate() error {
+	if storeConfig.DatabasePath == "" {
 		return core.E(
 			"store.StoreConfig.Validate",
 			"database path is empty",
 			nil,
 		)
 	}
-	if config.Journal != (JournalConfiguration{}) && !config.Journal.isConfigured() {
+	if storeConfig.Journal != (JournalConfiguration{}) && !storeConfig.Journal.isConfigured() {
 		return core.E(
 			"store.StoreConfig.Validate",
 			"journal configuration must include endpoint URL, organisation, and bucket name",
 			nil,
 		)
 	}
-	if config.PurgeInterval < 0 {
+	if storeConfig.PurgeInterval < 0 {
 		return core.E("store.StoreConfig.Validate", "purge interval must be zero or positive", nil)
 	}
 	return nil
@@ -139,11 +139,11 @@ func (storeInstance *Store) ensureReady(operation string) error {
 
 // Usage example: `storeInstance, err := store.New("/tmp/go-store.db", store.WithJournal("http://127.0.0.1:8086", "core", "events"))`
 func WithJournal(endpointURL, organisation, bucketName string) StoreOption {
-	return func(config *StoreConfig) {
-		if config == nil {
+	return func(storeConfig *StoreConfig) {
+		if storeConfig == nil {
 			return
 		}
-		config.Journal = JournalConfiguration{
+		storeConfig.Journal = JournalConfiguration{
 			EndpointURL:  endpointURL,
 			Organisation: organisation,
 			BucketName:   bucketName,
@@ -205,40 +205,40 @@ func (storeInstance *Store) IsClosed() bool {
 
 // Usage example: `storeInstance, err := store.New(":memory:", store.WithPurgeInterval(20*time.Millisecond))`
 func WithPurgeInterval(interval time.Duration) StoreOption {
-	return func(config *StoreConfig) {
-		if config == nil {
+	return func(storeConfig *StoreConfig) {
+		if storeConfig == nil {
 			return
 		}
 		if interval > 0 {
-			config.PurgeInterval = interval
+			storeConfig.PurgeInterval = interval
 		}
 	}
 }
 
 // Usage example: `storeInstance, err := store.NewConfigured(store.StoreConfig{DatabasePath: ":memory:", Journal: store.JournalConfiguration{EndpointURL: "http://127.0.0.1:8086", Organisation: "core", BucketName: "events"}, PurgeInterval: 20 * time.Millisecond})`
-func NewConfigured(config StoreConfig) (*Store, error) {
-	return openConfiguredStore("store.NewConfigured", config)
+func NewConfigured(storeConfig StoreConfig) (*Store, error) {
+	return openConfiguredStore("store.NewConfigured", storeConfig)
 }
 
-func openConfiguredStore(operation string, config StoreConfig) (*Store, error) {
-	if err := config.Validate(); err != nil {
+func openConfiguredStore(operation string, storeConfig StoreConfig) (*Store, error) {
+	if err := storeConfig.Validate(); err != nil {
 		return nil, core.E(operation, "validate config", err)
 	}
 
-	storeInstance, err := openSQLiteStore(operation, config.DatabasePath)
+	storeInstance, err := openSQLiteStore(operation, storeConfig.DatabasePath)
 	if err != nil {
 		return nil, err
 	}
 
-	if config.Journal != (JournalConfiguration{}) {
+	if storeConfig.Journal != (JournalConfiguration{}) {
 		storeInstance.journalConfiguration = journalConfiguration{
-			endpointURL:  config.Journal.EndpointURL,
-			organisation: config.Journal.Organisation,
-			bucketName:   config.Journal.BucketName,
+			endpointURL:  storeConfig.Journal.EndpointURL,
+			organisation: storeConfig.Journal.Organisation,
+			bucketName:   storeConfig.Journal.BucketName,
 		}
 	}
-	if config.PurgeInterval > 0 {
-		storeInstance.purgeInterval = config.PurgeInterval
+	if storeConfig.PurgeInterval > 0 {
+		storeInstance.purgeInterval = storeConfig.PurgeInterval
 	}
 
 	// New() performs a non-destructive orphan scan so callers can discover
@@ -250,13 +250,13 @@ func openConfiguredStore(operation string, config StoreConfig) (*Store, error) {
 
 // Usage example: `storeInstance, err := store.New("/tmp/go-store.db", store.WithJournal("http://127.0.0.1:8086", "core", "events"))`
 func New(databasePath string, options ...StoreOption) (*Store, error) {
-	config := StoreConfig{DatabasePath: databasePath}
+	storeConfig := StoreConfig{DatabasePath: databasePath}
 	for _, option := range options {
 		if option != nil {
-			option(&config)
+			option(&storeConfig)
 		}
 	}
-	return openConfiguredStore("store.New", config)
+	return openConfiguredStore("store.New", storeConfig)
 }
 
 func openSQLiteStore(operation, databasePath string) (*Store, error) {

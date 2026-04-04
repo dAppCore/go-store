@@ -50,18 +50,18 @@ type ScopedStoreConfig struct {
 }
 
 // Usage example: `if err := (store.ScopedStoreConfig{Namespace: "tenant-a", Quota: store.QuotaConfig{MaxKeys: 100, MaxGroups: 10}}).Validate(); err != nil { return }`
-func (config ScopedStoreConfig) Validate() error {
-	if !validNamespace.MatchString(config.Namespace) {
+func (scopedConfig ScopedStoreConfig) Validate() error {
+	if !validNamespace.MatchString(scopedConfig.Namespace) {
 		return core.E(
 			"store.ScopedStoreConfig.Validate",
-			core.Sprintf("namespace %q is invalid; use names like %q or %q", config.Namespace, "tenant-a", "tenant-42"),
+			core.Sprintf("namespace %q is invalid; use names like %q or %q", scopedConfig.Namespace, "tenant-a", "tenant-42"),
 			nil,
 		)
 	}
-	if config.Quota.MaxKeys < 0 || config.Quota.MaxGroups < 0 {
+	if scopedConfig.Quota.MaxKeys < 0 || scopedConfig.Quota.MaxGroups < 0 {
 		return core.E(
 			"store.ScopedStoreConfig.Validate",
-			core.Sprintf("quota values must be zero or positive; got MaxKeys=%d MaxGroups=%d", config.Quota.MaxKeys, config.Quota.MaxGroups),
+			core.Sprintf("quota values must be zero or positive; got MaxKeys=%d MaxGroups=%d", scopedConfig.Quota.MaxKeys, scopedConfig.Quota.MaxGroups),
 			nil,
 		)
 	}
@@ -102,16 +102,16 @@ func NewScoped(storeInstance *Store, namespace string) *ScopedStore {
 }
 
 // Usage example: `scopedStore, err := store.NewScopedConfigured(storeInstance, store.ScopedStoreConfig{Namespace: "tenant-a", Quota: store.QuotaConfig{MaxKeys: 100, MaxGroups: 10}}); if err != nil { return }`
-func NewScopedConfigured(storeInstance *Store, config ScopedStoreConfig) (*ScopedStore, error) {
+func NewScopedConfigured(storeInstance *Store, scopedConfig ScopedStoreConfig) (*ScopedStore, error) {
 	if storeInstance == nil {
 		return nil, core.E("store.NewScopedConfigured", "store instance is nil", nil)
 	}
-	if err := config.Validate(); err != nil {
+	if err := scopedConfig.Validate(); err != nil {
 		return nil, core.E("store.NewScopedConfigured", "validate config", err)
 	}
-	scopedStore := NewScoped(storeInstance, config.Namespace)
-	scopedStore.MaxKeys = config.Quota.MaxKeys
-	scopedStore.MaxGroups = config.Quota.MaxGroups
+	scopedStore := NewScoped(storeInstance, scopedConfig.Namespace)
+	scopedStore.MaxKeys = scopedConfig.Quota.MaxKeys
+	scopedStore.MaxGroups = scopedConfig.Quota.MaxGroups
 	return scopedStore, nil
 }
 
