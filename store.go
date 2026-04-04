@@ -127,6 +127,14 @@ func (storeInstance *Store) JournalConfiguration() JournalConfiguration {
 	}
 }
 
+// Usage example: `if storeInstance.JournalConfigured() { fmt.Println("journal is enabled") }`
+func (storeInstance *Store) JournalConfigured() bool {
+	if storeInstance == nil {
+		return false
+	}
+	return storeInstance.journalConfiguration != (journalConfiguration{})
+}
+
 // Usage example: `config := storeInstance.Config(); fmt.Println(config.DatabasePath, config.PurgeInterval)`
 func (storeInstance *Store) Config() StoreConfig {
 	if storeInstance == nil {

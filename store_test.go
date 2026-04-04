@@ -121,6 +121,21 @@ func TestStore_JournalConfiguration_Good(t *testing.T) {
 	}, config)
 }
 
+func TestStore_JournalConfigured_Good(t *testing.T) {
+	storeInstance, err := New(":memory:", WithJournal("http://127.0.0.1:8086", "core", "events"))
+	require.NoError(t, err)
+	defer storeInstance.Close()
+
+	assert.True(t, storeInstance.JournalConfigured())
+	assert.False(t, (*Store)(nil).JournalConfigured())
+
+	unconfiguredStore, err := New(":memory:")
+	require.NoError(t, err)
+	defer unconfiguredStore.Close()
+
+	assert.False(t, unconfiguredStore.JournalConfigured())
+}
+
 func TestStore_Config_Good(t *testing.T) {
 	storeInstance, err := NewConfigured(StoreConfig{
 		DatabasePath: ":memory:",
