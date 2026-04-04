@@ -209,6 +209,8 @@ Namespace strings must match `^[a-zA-Z0-9-]+$`. Invalid namespaces are rejected 
 
 `ScopedStore` exposes the same read helpers as `Store` for `Get`, `Set`, `SetWithTTL`, `Delete`, `DeleteGroup`, `DeletePrefix`, `GetAll`, `All`, `Count`, `CountAll`, `Groups`, `GroupsSeq`, `GetSplit`, `GetFields`, `Render`, and `PurgeExpired`. Methods that return group names strip the namespace prefix before returning results. The `Namespace()` method returns the namespace string.
 
+`ScopedStore.Transaction` exposes the same transaction helpers through `ScopedStoreTransaction`, so callers can work inside a namespace without manually prefixing group names during a multi-step write.
+
 ### Quota Enforcement
 
 `NewScopedWithQuota(store, namespace, QuotaConfig)` adds per-namespace limits. For example, `store.QuotaConfig{MaxKeys: 100, MaxGroups: 10}` caps a namespace at 100 keys and 10 groups:

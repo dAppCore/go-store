@@ -587,6 +587,56 @@ func TestScope_ScopedStore_Good_OnChange(t *testing.T) {
 	assert.Equal(t, "dark", seen[0].Value)
 }
 
+func TestScope_ScopedStoreTransaction_Good_PrefixesAndReadsPendingWrites(t *testing.T) {
+	storeInstance, _ := New(":memory:")
+	defer storeInstance.Close()
+
+	scopedStore := mustScoped(t, storeInstance, "tenant-a")
+	events := storeInstance.Watch("*")
+	defer storeInstance.Unwatch("*", events)
+
+	err := scopedStore.Transaction(func(transaction *ScopedStoreTransaction) error {
+		require.NoError(t, transaction.Set("theme", "dark"))
+		require.NoError(t, transaction.SetIn("config", "colour", "blue"))
+
+		value, err := transaction.Get("theme")
+		require.NoError(t, err)
+		assert.Equal(t, "dark", value)
+
+		entriesByKey, err := transaction.GetAll("config")
+		require.NoError(t, err)
+		assert.Equal(t, map[string]string{"colour": "blue"}, entriesByKey)
+
+		count, err := transaction.CountAll("")
+		require.NoError(t, err)
+		assert.Equal(t, 2, count)
+
+		groupNames, err := transaction.Groups()
+		require.NoError(t, err)
+		assert.Equal(t, []string{"config", "default"}, groupNames)
+
+		renderedTemplate, err := transaction.Render("{{ .theme }} / {{ .colour }}", "default")
+		require.NoError(t, err)
+		assert.Equal(t, "dark / <no value>", renderedTemplate)
+
+		return nil
+	})
+	require.NoError(t, err)
+
+	value, err := storeInstance.Get("tenant-a:default", "theme")
+	require.NoError(t, err)
+	assert.Equal(t, "dark", value)
+
+	value, err = storeInstance.Get("tenant-a:config", "colour")
+	require.NoError(t, err)
+	assert.Equal(t, "blue", value)
+
+	received := drainEvents(events, 2, time.Second)
+	require.Len(t, received, 2)
+	assert.Equal(t, "tenant-a:default", received[0].Group)
+	assert.Equal(t, "tenant-a:config", received[1].Group)
+}
+
 // ---------------------------------------------------------------------------
 // Quota enforcement — MaxKeys
 // ---------------------------------------------------------------------------
