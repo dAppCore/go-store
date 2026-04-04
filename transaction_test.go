@@ -127,6 +127,25 @@ func TestTransaction_Transaction_Good_ReadHelpersSeePendingWrites(t *testing.T) 
 	require.NoError(t, err)
 }
 
+func TestTransaction_Transaction_Good_PurgeExpired(t *testing.T) {
+	storeInstance, _ := New(":memory:")
+	defer storeInstance.Close()
+
+	require.NoError(t, storeInstance.SetWithTTL("alpha", "ephemeral", "gone", 1*time.Millisecond))
+	time.Sleep(5 * time.Millisecond)
+
+	err := storeInstance.Transaction(func(transaction *StoreTransaction) error {
+		removedRows, err := transaction.PurgeExpired()
+		require.NoError(t, err)
+		assert.Equal(t, int64(1), removedRows)
+		return nil
+	})
+	require.NoError(t, err)
+
+	_, err = storeInstance.Get("alpha", "ephemeral")
+	assert.ErrorIs(t, err, NotFoundError)
+}
+
 func TestTransaction_ScopedStoreTransaction_Good_GetPage(t *testing.T) {
 	storeInstance, _ := New(":memory:")
 	defer storeInstance.Close()
@@ -192,6 +211,28 @@ func TestTransaction_ScopedStoreTransaction_Good_CommitsNamespacedWrites(t *test
 	localeValue, err := storeInstance.Get("tenant-a:preferences", "locale")
 	require.NoError(t, err)
 	assert.Equal(t, "en-GB", localeValue)
+}
+
+func TestTransaction_ScopedStoreTransaction_Good_PurgeExpired(t *testing.T) {
+	storeInstance, _ := New(":memory:")
+	defer storeInstance.Close()
+
+	scopedStore, err := NewScoped(storeInstance, "tenant-a")
+	require.NoError(t, err)
+
+	require.NoError(t, scopedStore.SetWithTTL("session", "token", "abc123", 1*time.Millisecond))
+	time.Sleep(5 * time.Millisecond)
+
+	err = scopedStore.Transaction(func(transaction *ScopedStoreTransaction) error {
+		removedRows, err := transaction.PurgeExpired()
+		require.NoError(t, err)
+		assert.Equal(t, int64(1), removedRows)
+		return nil
+	})
+	require.NoError(t, err)
+
+	_, err = scopedStore.GetFrom("session", "token")
+	assert.ErrorIs(t, err, NotFoundError)
 }
 
 func TestTransaction_ScopedStoreTransaction_Good_QuotaUsesPendingWrites(t *testing.T) {

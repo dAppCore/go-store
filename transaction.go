@@ -481,3 +481,16 @@ func (storeTransaction *StoreTransaction) GetFields(group, key string) (iter.Seq
 	}
 	return fieldsValueSeq(value), nil
 }
+
+// Usage example: `removedRows, err := transaction.PurgeExpired(); if err != nil { return err }; fmt.Println(removedRows)`
+func (storeTransaction *StoreTransaction) PurgeExpired() (int64, error) {
+	if err := storeTransaction.ensureReady("store.Transaction.PurgeExpired"); err != nil {
+		return 0, err
+	}
+
+	removedRows, err := purgeExpiredMatchingGroupPrefix(storeTransaction.sqliteTransaction, "")
+	if err != nil {
+		return 0, core.E("store.Transaction.PurgeExpired", "delete expired rows", err)
+	}
+	return removedRows, nil
+}

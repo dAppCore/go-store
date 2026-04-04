@@ -817,7 +817,7 @@ func (storeInstance *Store) PurgeExpired() (int64, error) {
 		return 0, err
 	}
 
-	removedRows, err := storeInstance.purgeExpiredMatchingGroupPrefix("")
+	removedRows, err := purgeExpiredMatchingGroupPrefix(storeInstance.sqliteDatabase, "")
 	if err != nil {
 		return 0, core.E("store.PurgeExpired", "delete expired rows", err)
 	}
@@ -896,23 +896,19 @@ func fieldsValueSeq(value string) iter.Seq[string] {
 // purgeExpiredMatchingGroupPrefix deletes expired rows globally when
 // groupPrefix is empty, otherwise only rows whose group starts with the given
 // prefix.
-func (storeInstance *Store) purgeExpiredMatchingGroupPrefix(groupPrefix string) (int64, error) {
-	if err := storeInstance.ensureReady("store.purgeExpiredMatchingGroupPrefix"); err != nil {
-		return 0, err
-	}
-
+func purgeExpiredMatchingGroupPrefix(database schemaDatabase, groupPrefix string) (int64, error) {
 	var (
 		deleteResult sql.Result
 		err          error
 	)
 	now := time.Now().UnixMilli()
 	if groupPrefix == "" {
-		deleteResult, err = storeInstance.sqliteDatabase.Exec(
+		deleteResult, err = database.Exec(
 			"DELETE FROM "+entriesTableName+" WHERE expires_at IS NOT NULL AND expires_at <= ?",
 			now,
 		)
 	} else {
-		deleteResult, err = storeInstance.sqliteDatabase.Exec(
+		deleteResult, err = database.Exec(
 			"DELETE FROM "+entriesTableName+" WHERE expires_at IS NOT NULL AND expires_at <= ? AND "+entryGroupColumn+" LIKE ? ESCAPE '^'",
 			now, escapeLike(groupPrefix)+"%",
 		)

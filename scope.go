@@ -265,7 +265,14 @@ func (scopedStore *ScopedStore) GetFields(group, key string) (iter.Seq[string], 
 
 // Usage example: `removedRows, err := scopedStore.PurgeExpired(); if err != nil { return }; fmt.Println(removedRows)`
 func (scopedStore *ScopedStore) PurgeExpired() (int64, error) {
-	removedRows, err := scopedStore.storeInstance.purgeExpiredMatchingGroupPrefix(scopedStore.namespacePrefix())
+	if scopedStore == nil {
+		return 0, core.E("store.ScopedStore.PurgeExpired", "scoped store is nil", nil)
+	}
+	if err := scopedStore.storeInstance.ensureReady("store.ScopedStore.PurgeExpired"); err != nil {
+		return 0, err
+	}
+
+	removedRows, err := purgeExpiredMatchingGroupPrefix(scopedStore.storeInstance.sqliteDatabase, scopedStore.namespacePrefix())
 	if err != nil {
 		return 0, core.E("store.ScopedStore.PurgeExpired", "delete expired rows", err)
 	}
@@ -507,6 +514,19 @@ func (scopedStoreTransaction *ScopedStoreTransaction) GetFields(group, key strin
 		return nil, err
 	}
 	return scopedStoreTransaction.storeTransaction.GetFields(scopedStoreTransaction.scopedStore.namespacedGroup(group), key)
+}
+
+// Usage example: `removedRows, err := scopedStoreTransaction.PurgeExpired(); if err != nil { return err }; fmt.Println(removedRows)`
+func (scopedStoreTransaction *ScopedStoreTransaction) PurgeExpired() (int64, error) {
+	if err := scopedStoreTransaction.ensureReady("store.ScopedStoreTransaction.PurgeExpired"); err != nil {
+		return 0, err
+	}
+
+	removedRows, err := purgeExpiredMatchingGroupPrefix(scopedStoreTransaction.storeTransaction.sqliteTransaction, scopedStoreTransaction.scopedStore.namespacePrefix())
+	if err != nil {
+		return 0, core.E("store.ScopedStoreTransaction.PurgeExpired", "delete expired rows", err)
+	}
+	return removedRows, nil
 }
 
 func (scopedStoreTransaction *ScopedStoreTransaction) checkQuota(operation, group, key string) error {
