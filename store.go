@@ -341,6 +341,9 @@ func (storeInstance *Store) Close() error {
 	if err := storeInstance.sqliteDatabase.Close(); err != nil {
 		return core.E("store.Close", "database close", err)
 	}
+	if orphanCleanupErr != nil {
+		return core.E("store.Close", "close orphan workspaces", orphanCleanupErr)
+	}
 	return orphanCleanupErr
 }
 
