@@ -15,6 +15,8 @@ var defaultArchiveOutputDirectory = ".core/archive/"
 // compressed JSONL file.
 //
 // Usage example: `options := store.CompactOptions{Before: time.Now().Add(-90 * 24 * time.Hour), Output: "/tmp/archive", Format: "gzip"}`
+// The default output directory is `.core/archive/`; the default format is
+// `gzip`, and `zstd` is also supported.
 type CompactOptions struct {
 	// Usage example: `options := store.CompactOptions{Before: time.Now().Add(-90 * 24 * time.Hour)}`
 	Before time.Time
