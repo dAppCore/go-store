@@ -65,8 +65,8 @@ func (workspace *Workspace) DatabasePath() string {
 	return workspace.databasePath
 }
 
-// Close leaves the SQLite workspace file on disk so a later store instance can
-// recover it as an orphan and decide whether to Commit or Discard it.
+// Close keeps the workspace file on disk so `RecoverOrphans(".core/state/")`
+// can reopen it later.
 //
 // Usage example: `if err := workspace.Close(); err != nil { return }; orphans := storeInstance.RecoverOrphans(".core/state"); _ = orphans`
 func (workspace *Workspace) Close() error {
@@ -287,8 +287,8 @@ func (workspace *Workspace) Aggregate() map[string]any {
 	return fields
 }
 
-// Commit writes one journal row for the workspace through the shared journal
-// writer and upserts the summary row in `workspace:NAME`.
+// Commit writes one completed workspace row to the journal and upserts the
+// summary entry in `workspace:NAME`.
 //
 // Usage example: `result := workspace.Commit(); if !result.OK { return }; fmt.Println(result.Value)`
 func (workspace *Workspace) Commit() core.Result {
