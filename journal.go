@@ -89,8 +89,8 @@ func (storeInstance *Store) CommitToJournal(measurement string, fields map[strin
 		Value: map[string]any{
 			"bucket":       storeInstance.journalBucket(),
 			"measurement":  measurement,
-			"fields":       fields,
-			"tags":         tags,
+			"fields":       cloneAnyMap(fields),
+			"tags":         cloneStringMap(tags),
 			"committed_at": committedAt,
 		},
 		OK: true,
@@ -428,4 +428,26 @@ func normaliseRowValue(value any) any {
 	default:
 		return typedValue
 	}
+}
+
+func cloneAnyMap(input map[string]any) map[string]any {
+	if input == nil {
+		return map[string]any{}
+	}
+	cloned := make(map[string]any, len(input))
+	for key, value := range input {
+		cloned[key] = value
+	}
+	return cloned
+}
+
+func cloneStringMap(input map[string]string) map[string]string {
+	if input == nil {
+		return map[string]string{}
+	}
+	cloned := make(map[string]string, len(input))
+	for key, value := range input {
+		cloned[key] = value
+	}
+	return cloned
 }

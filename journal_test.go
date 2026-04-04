@@ -35,6 +35,32 @@ func TestJournal_CommitToJournal_Good_WithQueryJournalSQL(t *testing.T) {
 	assert.Equal(t, "session-b", tags["workspace"])
 }
 
+func TestJournal_CommitToJournal_Good_ResultCopiesInputMaps(t *testing.T) {
+	storeInstance, err := New(":memory:", WithJournal("http://127.0.0.1:8086", "core", "events"))
+	require.NoError(t, err)
+	defer storeInstance.Close()
+
+	fields := map[string]any{"like": 4}
+	tags := map[string]string{"workspace": "session-a"}
+
+	result := storeInstance.CommitToJournal("session-a", fields, tags)
+	require.True(t, result.OK, "journal commit failed: %v", result.Value)
+
+	fields["like"] = 99
+	tags["workspace"] = "session-b"
+
+	value, ok := result.Value.(map[string]any)
+	require.True(t, ok, "unexpected result type: %T", result.Value)
+
+	resultFields, ok := value["fields"].(map[string]any)
+	require.True(t, ok, "unexpected fields type: %T", value["fields"])
+	assert.Equal(t, 4, resultFields["like"])
+
+	resultTags, ok := value["tags"].(map[string]string)
+	require.True(t, ok, "unexpected tags type: %T", value["tags"])
+	assert.Equal(t, "session-a", resultTags["workspace"])
+}
+
 func TestJournal_QueryJournal_Good_RawSQLWithCTE(t *testing.T) {
 	storeInstance, err := New(":memory:", WithJournal("http://127.0.0.1:8086", "core", "events"))
 	require.NoError(t, err)
