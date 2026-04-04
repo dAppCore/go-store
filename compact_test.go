@@ -126,3 +126,60 @@ func TestCompact_Compact_Good_NoRows(t *testing.T) {
 	require.True(t, result.OK, "compact failed: %v", result.Value)
 	assert.Equal(t, "", result.Value)
 }
+
+func TestCompact_Compact_Good_DeterministicOrderingForSameTimestamp(t *testing.T) {
+	outputDirectory := useArchiveOutputDirectory(t)
+
+	storeInstance, err := New(":memory:", WithJournal("http://127.0.0.1:8086", "core", "events"))
+	require.NoError(t, err)
+	defer storeInstance.Close()
+	require.NoError(t, ensureJournalSchema(storeInstance.sqliteDatabase))
+
+	committedAt := time.Now().Add(-48 * time.Hour).UnixMilli()
+	require.NoError(t, insertJournalEntry(
+		storeInstance.sqliteDatabase,
+		"events",
+		"session-b",
+		`{"like":2}`,
+		`{"workspace":"session-b"}`,
+		committedAt,
+	))
+	require.NoError(t, insertJournalEntry(
+		storeInstance.sqliteDatabase,
+		"events",
+		"session-a",
+		`{"like":1}`,
+		`{"workspace":"session-a"}`,
+		committedAt,
+	))
+
+	result := storeInstance.Compact(CompactOptions{
+		Before: time.Now().Add(-24 * time.Hour),
+		Output: outputDirectory,
+		Format: "gzip",
+	})
+	require.True(t, result.OK, "compact failed: %v", result.Value)
+
+	archivePath, ok := result.Value.(string)
+	require.True(t, ok, "unexpected archive path type: %T", result.Value)
+
+	archiveData := requireCoreReadBytes(t, archivePath)
+	reader, err := gzip.NewReader(bytes.NewReader(archiveData))
+	require.NoError(t, err)
+	defer reader.Close()
+
+	decompressedData, err := io.ReadAll(reader)
+	require.NoError(t, err)
+	lines := core.Split(core.Trim(string(decompressedData)), "\n")
+	require.Len(t, lines, 2)
+
+	firstArchivedRow := make(map[string]any)
+	unmarshalResult := core.JSONUnmarshalString(lines[0], &firstArchivedRow)
+	require.True(t, unmarshalResult.OK, "archive line unmarshal failed: %v", unmarshalResult.Value)
+	assert.Equal(t, "session-b", firstArchivedRow["measurement"])
+
+	secondArchivedRow := make(map[string]any)
+	unmarshalResult = core.JSONUnmarshalString(lines[1], &secondArchivedRow)
+	require.True(t, unmarshalResult.OK, "archive line unmarshal failed: %v", unmarshalResult.Value)
+	assert.Equal(t, "session-a", secondArchivedRow["measurement"])
+}
