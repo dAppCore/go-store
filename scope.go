@@ -22,10 +22,9 @@ type QuotaConfig struct {
 	MaxGroups int
 }
 
+// Usage example: `scopedStore := store.NewScoped(storeInstance, "tenant-a"); if scopedStore == nil { return }; if err := scopedStore.Set("colour", "blue"); err != nil { return }; if err := scopedStore.SetIn("config", "language", "en-GB"); err != nil { return }`
 // ScopedStore keeps one namespace isolated behind helpers such as Set and
 // GetFrom so callers do not repeat the `tenant-a:` prefix manually.
-//
-// Usage example: `scopedStore := store.NewScoped(storeInstance, "tenant-a"); if scopedStore == nil { return }; if err := scopedStore.Set("colour", "blue"); err != nil { return }; if err := scopedStore.SetIn("config", "language", "en-GB"); err != nil { return }`
 type ScopedStore struct {
 	backingStore *Store
 	namespace    string
