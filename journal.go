@@ -58,7 +58,7 @@ func (storeInstance *Store) CommitToJournal(measurement string, fields map[strin
 	if tags == nil {
 		tags = map[string]string{}
 	}
-	if err := ensureJournalSchema(storeInstance.database); err != nil {
+	if err := ensureJournalSchema(storeInstance.sqliteDatabase); err != nil {
 		return core.Result{Value: core.E("store.CommitToJournal", "ensure journal schema", err), OK: false}
 	}
 
@@ -73,7 +73,7 @@ func (storeInstance *Store) CommitToJournal(measurement string, fields map[strin
 
 	committedAt := time.Now().UnixMilli()
 	if err := insertJournalEntry(
-		storeInstance.database,
+		storeInstance.sqliteDatabase,
 		storeInstance.journalBucket(),
 		measurement,
 		fieldsJSON,
@@ -102,7 +102,7 @@ func (storeInstance *Store) QueryJournal(flux string) core.Result {
 	if err := storeInstance.ensureReady("store.QueryJournal"); err != nil {
 		return core.Result{Value: err, OK: false}
 	}
-	if err := ensureJournalSchema(storeInstance.database); err != nil {
+	if err := ensureJournalSchema(storeInstance.sqliteDatabase); err != nil {
 		return core.Result{Value: core.E("store.QueryJournal", "ensure journal schema", err), OK: false}
 	}
 
@@ -132,7 +132,7 @@ func isRawSQLJournalQuery(query string) bool {
 }
 
 func (storeInstance *Store) queryJournalRows(query string, arguments ...any) core.Result {
-	rows, err := storeInstance.database.Query(query, arguments...)
+	rows, err := storeInstance.sqliteDatabase.Query(query, arguments...)
 	if err != nil {
 		return core.Result{Value: core.E("store.QueryJournal", "query rows", err), OK: false}
 	}

@@ -588,8 +588,8 @@ func TestScope_Quota_Bad_QuotaCheckQueryError(t *testing.T) {
 	defer database.Close()
 
 	storeInstance := &Store{
-		database:    database,
-		cancelPurge: func() {},
+		sqliteDatabase: database,
+		cancelPurge:    func() {},
 	}
 
 	scopedStore, err := NewScopedWithQuota(storeInstance, "tenant-a", QuotaConfig{MaxKeys: 1})
@@ -895,7 +895,7 @@ func rawEntryCount(tb testing.TB, storeInstance *Store, group string) int {
 	tb.Helper()
 
 	var count int
-	err := storeInstance.database.QueryRow(
+	err := storeInstance.sqliteDatabase.QueryRow(
 		"SELECT COUNT(*) FROM "+entriesTableName+" WHERE "+entryGroupColumn+" = ?",
 		group,
 	).Scan(&count)

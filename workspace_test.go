@@ -213,7 +213,7 @@ func TestWorkspace_RecoverOrphans_Good(t *testing.T) {
 	workspace, err := storeInstance.NewWorkspace("orphan-session")
 	require.NoError(t, err)
 	require.NoError(t, workspace.Put("like", map[string]any{"user": "@alice"}))
-	require.NoError(t, workspace.database.Close())
+	require.NoError(t, workspace.workspaceDatabase.Close())
 
 	orphans := storeInstance.RecoverOrphans(stateDirectory)
 	require.Len(t, orphans, 1)

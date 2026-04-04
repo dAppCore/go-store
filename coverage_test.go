@@ -54,20 +54,20 @@ func TestCoverage_GetAll_Bad_ScanError(t *testing.T) {
 	require.NoError(t, storeInstance.Set("g", "good", "value"))
 
 	// Restructure the table to allow NULLs, then insert a NULL-key row.
-	_, err = storeInstance.database.Exec("ALTER TABLE entries RENAME TO entries_backup")
+	_, err = storeInstance.sqliteDatabase.Exec("ALTER TABLE entries RENAME TO entries_backup")
 	require.NoError(t, err)
-	_, err = storeInstance.database.Exec(`CREATE TABLE entries (
+	_, err = storeInstance.sqliteDatabase.Exec(`CREATE TABLE entries (
 		group_name  TEXT,
 		entry_key   TEXT,
 		entry_value TEXT,
 		expires_at  INTEGER
 	)`)
 	require.NoError(t, err)
-	_, err = storeInstance.database.Exec("INSERT INTO entries SELECT * FROM entries_backup")
+	_, err = storeInstance.sqliteDatabase.Exec("INSERT INTO entries SELECT * FROM entries_backup")
 	require.NoError(t, err)
-	_, err = storeInstance.database.Exec("INSERT INTO entries (group_name, entry_key, entry_value) VALUES ('g', NULL, 'null-key-val')")
+	_, err = storeInstance.sqliteDatabase.Exec("INSERT INTO entries (group_name, entry_key, entry_value) VALUES ('g', NULL, 'null-key-val')")
 	require.NoError(t, err)
-	_, err = storeInstance.database.Exec("DROP TABLE entries_backup")
+	_, err = storeInstance.sqliteDatabase.Exec("DROP TABLE entries_backup")
 	require.NoError(t, err)
 
 	_, err = storeInstance.GetAll("g")
@@ -146,20 +146,20 @@ func TestCoverage_Render_Bad_ScanError(t *testing.T) {
 
 	require.NoError(t, storeInstance.Set("g", "good", "value"))
 
-	_, err = storeInstance.database.Exec("ALTER TABLE entries RENAME TO entries_backup")
+	_, err = storeInstance.sqliteDatabase.Exec("ALTER TABLE entries RENAME TO entries_backup")
 	require.NoError(t, err)
-	_, err = storeInstance.database.Exec(`CREATE TABLE entries (
+	_, err = storeInstance.sqliteDatabase.Exec(`CREATE TABLE entries (
 		group_name  TEXT,
 		entry_key   TEXT,
 		entry_value TEXT,
 		expires_at  INTEGER
 	)`)
 	require.NoError(t, err)
-	_, err = storeInstance.database.Exec("INSERT INTO entries SELECT * FROM entries_backup")
+	_, err = storeInstance.sqliteDatabase.Exec("INSERT INTO entries SELECT * FROM entries_backup")
 	require.NoError(t, err)
-	_, err = storeInstance.database.Exec("INSERT INTO entries (group_name, entry_key, entry_value) VALUES ('g', NULL, 'null-key-val')")
+	_, err = storeInstance.sqliteDatabase.Exec("INSERT INTO entries (group_name, entry_key, entry_value) VALUES ('g', NULL, 'null-key-val')")
 	require.NoError(t, err)
-	_, err = storeInstance.database.Exec("DROP TABLE entries_backup")
+	_, err = storeInstance.sqliteDatabase.Exec("DROP TABLE entries_backup")
 	require.NoError(t, err)
 
 	_, err = storeInstance.Render("{{ .good }}", "g")
@@ -231,20 +231,20 @@ func TestCoverage_GroupsSeq_Bad_ScanError(t *testing.T) {
 	require.NoError(t, err)
 	defer storeInstance.Close()
 
-	_, err = storeInstance.database.Exec("ALTER TABLE entries RENAME TO entries_backup")
+	_, err = storeInstance.sqliteDatabase.Exec("ALTER TABLE entries RENAME TO entries_backup")
 	require.NoError(t, err)
-	_, err = storeInstance.database.Exec(`CREATE TABLE entries (
+	_, err = storeInstance.sqliteDatabase.Exec(`CREATE TABLE entries (
 		group_name  TEXT,
 		entry_key   TEXT,
 		entry_value TEXT,
 		expires_at  INTEGER
 	)`)
 	require.NoError(t, err)
-	_, err = storeInstance.database.Exec("INSERT INTO entries SELECT * FROM entries_backup")
+	_, err = storeInstance.sqliteDatabase.Exec("INSERT INTO entries SELECT * FROM entries_backup")
 	require.NoError(t, err)
-	_, err = storeInstance.database.Exec("INSERT INTO entries (group_name, entry_key, entry_value) VALUES (NULL, 'k', 'v')")
+	_, err = storeInstance.sqliteDatabase.Exec("INSERT INTO entries (group_name, entry_key, entry_value) VALUES (NULL, 'k', 'v')")
 	require.NoError(t, err)
-	_, err = storeInstance.database.Exec("DROP TABLE entries_backup")
+	_, err = storeInstance.sqliteDatabase.Exec("DROP TABLE entries_backup")
 	require.NoError(t, err)
 
 	for groupName, iterationErr := range storeInstance.GroupsSeq("") {
@@ -265,8 +265,8 @@ func TestCoverage_GroupsSeq_Bad_RowsError(t *testing.T) {
 	defer database.Close()
 
 	storeInstance := &Store{
-		database:    database,
-		cancelPurge: func() {},
+		sqliteDatabase: database,
+		cancelPurge:    func() {},
 	}
 
 	for groupName, iterationErr := range storeInstance.GroupsSeq("") {
@@ -305,8 +305,8 @@ func TestCoverage_ScopedStore_Bad_GroupsSeqRowsError(t *testing.T) {
 
 	scopedStore := &ScopedStore{
 		backingStore: &Store{
-			database:    database,
-			cancelPurge: func() {},
+			sqliteDatabase: database,
+			cancelPurge:    func() {},
 		},
 		namespace: "tenant-a",
 	}

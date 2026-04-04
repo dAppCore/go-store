@@ -23,7 +23,7 @@ func (storeInstance *Store) Transaction(operation func(*StoreTransaction) error)
 		return core.E("store.Transaction", "operation is nil", nil)
 	}
 
-	transaction, err := storeInstance.database.Begin()
+	transaction, err := storeInstance.sqliteDatabase.Begin()
 	if err != nil {
 		return core.E("store.Transaction", "begin transaction", err)
 	}
