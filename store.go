@@ -27,10 +27,11 @@ const (
 	entryValueColumn        = "entry_value"
 )
 
-// Usage example: `configuredStore, err := store.NewConfigured(store.StoreConfig{DatabasePath: ":memory:", Journal: store.JournalConfiguration{EndpointURL: "http://127.0.0.1:8086", Organisation: "core", BucketName: "events"}})`
+// Usage example: `storeInstance, err := store.New("/tmp/go-store.db", store.WithJournal("http://127.0.0.1:8086", "core", "events"), store.WithPurgeInterval(30*time.Second))`
 // Prefer `store.NewConfigured(store.StoreConfig{...})` when the configuration
-// is already known as a struct literal. Use `StoreOption` only when the values
-// need to be assembled incrementally.
+// is already known as a struct literal. Use `StoreOption` only when values
+// need to be assembled incrementally, such as when a caller receives them from
+// different sources.
 type StoreOption func(*StoreConfig)
 
 // Usage example: `config := store.StoreConfig{DatabasePath: ":memory:", PurgeInterval: 30 * time.Second}`
