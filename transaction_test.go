@@ -177,7 +177,10 @@ func TestTransaction_ScopedStoreTransaction_Good_CommitsNamespacedWrites(t *test
 	storeInstance, _ := New(":memory:")
 	defer storeInstance.Close()
 
-	scopedStore, err := NewScopedWithQuota(storeInstance, "tenant-a", QuotaConfig{MaxKeys: 4, MaxGroups: 2})
+	scopedStore, err := NewScopedConfigured(storeInstance, ScopedStoreConfig{
+		Namespace: "tenant-a",
+		Quota:     QuotaConfig{MaxKeys: 4, MaxGroups: 2},
+	})
 	require.NoError(t, err)
 
 	err = scopedStore.Transaction(func(transaction *ScopedStoreTransaction) error {
@@ -239,7 +242,10 @@ func TestTransaction_ScopedStoreTransaction_Good_QuotaUsesPendingWrites(t *testi
 	storeInstance, _ := New(":memory:")
 	defer storeInstance.Close()
 
-	scopedStore, err := NewScopedWithQuota(storeInstance, "tenant-a", QuotaConfig{MaxKeys: 2, MaxGroups: 2})
+	scopedStore, err := NewScopedConfigured(storeInstance, ScopedStoreConfig{
+		Namespace: "tenant-a",
+		Quota:     QuotaConfig{MaxKeys: 2, MaxGroups: 2},
+	})
 	require.NoError(t, err)
 
 	err = scopedStore.Transaction(func(transaction *ScopedStoreTransaction) error {

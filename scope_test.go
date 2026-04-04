@@ -61,44 +61,59 @@ func TestScope_NewScoped_Bad_InvalidChars(t *testing.T) {
 	}
 }
 
-func TestScope_NewScopedWithQuota_Bad_InvalidNamespace(t *testing.T) {
+func TestScope_NewScopedConfigured_Bad_InvalidNamespaceFromQuotaConfig(t *testing.T) {
 	storeInstance, _ := New(":memory:")
 	defer storeInstance.Close()
 
-	_, err := NewScopedWithQuota(storeInstance, "tenant_a", QuotaConfig{MaxKeys: 1})
+	_, err := NewScopedConfigured(storeInstance, ScopedStoreConfig{
+		Namespace: "tenant_a",
+		Quota:     QuotaConfig{MaxKeys: 1},
+	})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "store.NewScoped")
 }
 
-func TestScope_NewScopedWithQuota_Bad_NilStore(t *testing.T) {
-	_, err := NewScopedWithQuota(nil, "tenant-a", QuotaConfig{MaxKeys: 1})
+func TestScope_NewScopedConfigured_Bad_NilStoreFromQuotaConfig(t *testing.T) {
+	_, err := NewScopedConfigured(nil, ScopedStoreConfig{
+		Namespace: "tenant-a",
+		Quota:     QuotaConfig{MaxKeys: 1},
+	})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "store instance is nil")
 }
 
-func TestScope_NewScopedWithQuota_Bad_NegativeMaxKeys(t *testing.T) {
+func TestScope_NewScopedConfigured_Bad_NegativeMaxKeys(t *testing.T) {
 	storeInstance, _ := New(":memory:")
 	defer storeInstance.Close()
 
-	_, err := NewScopedWithQuota(storeInstance, "tenant-a", QuotaConfig{MaxKeys: -1})
+	_, err := NewScopedConfigured(storeInstance, ScopedStoreConfig{
+		Namespace: "tenant-a",
+		Quota:     QuotaConfig{MaxKeys: -1},
+	})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "zero or positive")
 }
 
-func TestScope_NewScopedWithQuota_Bad_NegativeMaxGroups(t *testing.T) {
+func TestScope_NewScopedConfigured_Bad_NegativeMaxGroups(t *testing.T) {
 	storeInstance, _ := New(":memory:")
 	defer storeInstance.Close()
 
-	_, err := NewScopedWithQuota(storeInstance, "tenant-a", QuotaConfig{MaxGroups: -1})
+	_, err := NewScopedConfigured(storeInstance, ScopedStoreConfig{
+		Namespace: "tenant-a",
+		Quota:     QuotaConfig{MaxGroups: -1},
+	})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "zero or positive")
 }
 
-func TestScope_NewScopedWithQuota_Good_InlineQuotaFields(t *testing.T) {
+func TestScope_NewScopedConfigured_Good_InlineQuotaFields(t *testing.T) {
 	storeInstance, _ := New(":memory:")
 	defer storeInstance.Close()
 
-	scopedStore, err := NewScopedWithQuota(storeInstance, "tenant-a", QuotaConfig{MaxKeys: 4, MaxGroups: 2})
+	scopedStore, err := NewScopedConfigured(storeInstance, ScopedStoreConfig{
+		Namespace: "tenant-a",
+		Quota:     QuotaConfig{MaxKeys: 4, MaxGroups: 2},
+	})
 	require.NoError(t, err)
 
 	assert.Equal(t, 4, scopedStore.MaxKeys)
@@ -570,7 +585,10 @@ func TestScope_Quota_Good_MaxKeys(t *testing.T) {
 	storeInstance, _ := New(":memory:")
 	defer storeInstance.Close()
 
-	scopedStore, err := NewScopedWithQuota(storeInstance, "tenant-a", QuotaConfig{MaxKeys: 5})
+	scopedStore, err := NewScopedConfigured(storeInstance, ScopedStoreConfig{
+		Namespace: "tenant-a",
+		Quota:     QuotaConfig{MaxKeys: 5},
+	})
 	require.NoError(t, err)
 
 	// Insert 5 keys across different groups — should be fine.
@@ -593,7 +611,10 @@ func TestScope_Quota_Bad_QuotaCheckQueryError(t *testing.T) {
 		cancelPurge:    func() {},
 	}
 
-	scopedStore, err := NewScopedWithQuota(storeInstance, "tenant-a", QuotaConfig{MaxKeys: 1})
+	scopedStore, err := NewScopedConfigured(storeInstance, ScopedStoreConfig{
+		Namespace: "tenant-a",
+		Quota:     QuotaConfig{MaxKeys: 1},
+	})
 	require.NoError(t, err)
 
 	err = scopedStore.SetIn("config", "theme", "dark")
@@ -605,7 +626,10 @@ func TestScope_Quota_Good_MaxKeys_AcrossGroups(t *testing.T) {
 	storeInstance, _ := New(":memory:")
 	defer storeInstance.Close()
 
-	scopedStore, _ := NewScopedWithQuota(storeInstance, "tenant-a", QuotaConfig{MaxKeys: 3})
+	scopedStore, _ := NewScopedConfigured(storeInstance, ScopedStoreConfig{
+		Namespace: "tenant-a",
+		Quota:     QuotaConfig{MaxKeys: 3},
+	})
 
 	require.NoError(t, scopedStore.SetIn("g1", "a", "1"))
 	require.NoError(t, scopedStore.SetIn("g2", "b", "2"))
@@ -620,7 +644,10 @@ func TestScope_Quota_Good_UpsertDoesNotCount(t *testing.T) {
 	storeInstance, _ := New(":memory:")
 	defer storeInstance.Close()
 
-	scopedStore, _ := NewScopedWithQuota(storeInstance, "tenant-a", QuotaConfig{MaxKeys: 3})
+	scopedStore, _ := NewScopedConfigured(storeInstance, ScopedStoreConfig{
+		Namespace: "tenant-a",
+		Quota:     QuotaConfig{MaxKeys: 3},
+	})
 
 	require.NoError(t, scopedStore.SetIn("g", "a", "1"))
 	require.NoError(t, scopedStore.SetIn("g", "b", "2"))
@@ -638,7 +665,10 @@ func TestScope_Quota_Good_ExpiredUpsertDoesNotEmitDeleteEvent(t *testing.T) {
 	storeInstance, _ := New(":memory:")
 	defer storeInstance.Close()
 
-	scopedStore, _ := NewScopedWithQuota(storeInstance, "tenant-a", QuotaConfig{MaxKeys: 1})
+	scopedStore, _ := NewScopedConfigured(storeInstance, ScopedStoreConfig{
+		Namespace: "tenant-a",
+		Quota:     QuotaConfig{MaxKeys: 1},
+	})
 
 	events := storeInstance.Watch("tenant-a:g")
 	defer storeInstance.Unwatch("tenant-a:g", events)
@@ -674,7 +704,10 @@ func TestScope_Quota_Good_DeleteAndReInsert(t *testing.T) {
 	storeInstance, _ := New(":memory:")
 	defer storeInstance.Close()
 
-	scopedStore, _ := NewScopedWithQuota(storeInstance, "tenant-a", QuotaConfig{MaxKeys: 3})
+	scopedStore, _ := NewScopedConfigured(storeInstance, ScopedStoreConfig{
+		Namespace: "tenant-a",
+		Quota:     QuotaConfig{MaxKeys: 3},
+	})
 
 	require.NoError(t, scopedStore.SetIn("g", "a", "1"))
 	require.NoError(t, scopedStore.SetIn("g", "b", "2"))
@@ -689,7 +722,10 @@ func TestScope_Quota_Good_ZeroMeansUnlimited(t *testing.T) {
 	storeInstance, _ := New(":memory:")
 	defer storeInstance.Close()
 
-	scopedStore, _ := NewScopedWithQuota(storeInstance, "tenant-a", QuotaConfig{MaxKeys: 0, MaxGroups: 0})
+	scopedStore, _ := NewScopedConfigured(storeInstance, ScopedStoreConfig{
+		Namespace: "tenant-a",
+		Quota:     QuotaConfig{MaxKeys: 0, MaxGroups: 0},
+	})
 
 	// Should be able to insert many keys and groups without error.
 	for i := range 100 {
@@ -701,7 +737,10 @@ func TestScope_Quota_Good_ExpiredKeysExcluded(t *testing.T) {
 	storeInstance, _ := New(":memory:")
 	defer storeInstance.Close()
 
-	scopedStore, _ := NewScopedWithQuota(storeInstance, "tenant-a", QuotaConfig{MaxKeys: 3})
+	scopedStore, _ := NewScopedConfigured(storeInstance, ScopedStoreConfig{
+		Namespace: "tenant-a",
+		Quota:     QuotaConfig{MaxKeys: 3},
+	})
 
 	// Insert 3 keys, 2 with short TTL.
 	require.NoError(t, scopedStore.SetWithTTL("g", "temp1", "v", 1*time.Millisecond))
@@ -723,7 +762,10 @@ func TestScope_Quota_Good_SetWithTTL_Enforced(t *testing.T) {
 	storeInstance, _ := New(":memory:")
 	defer storeInstance.Close()
 
-	scopedStore, _ := NewScopedWithQuota(storeInstance, "tenant-a", QuotaConfig{MaxKeys: 2})
+	scopedStore, _ := NewScopedConfigured(storeInstance, ScopedStoreConfig{
+		Namespace: "tenant-a",
+		Quota:     QuotaConfig{MaxKeys: 2},
+	})
 
 	require.NoError(t, scopedStore.SetWithTTL("g", "a", "1", time.Hour))
 	require.NoError(t, scopedStore.SetWithTTL("g", "b", "2", time.Hour))
@@ -740,7 +782,10 @@ func TestScope_Quota_Good_MaxGroups(t *testing.T) {
 	storeInstance, _ := New(":memory:")
 	defer storeInstance.Close()
 
-	scopedStore, _ := NewScopedWithQuota(storeInstance, "tenant-a", QuotaConfig{MaxGroups: 3})
+	scopedStore, _ := NewScopedConfigured(storeInstance, ScopedStoreConfig{
+		Namespace: "tenant-a",
+		Quota:     QuotaConfig{MaxGroups: 3},
+	})
 
 	require.NoError(t, scopedStore.SetIn("g1", "k", "v"))
 	require.NoError(t, scopedStore.SetIn("g2", "k", "v"))
@@ -756,7 +801,10 @@ func TestScope_Quota_Good_MaxGroups_ExistingGroupOK(t *testing.T) {
 	storeInstance, _ := New(":memory:")
 	defer storeInstance.Close()
 
-	scopedStore, _ := NewScopedWithQuota(storeInstance, "tenant-a", QuotaConfig{MaxGroups: 2})
+	scopedStore, _ := NewScopedConfigured(storeInstance, ScopedStoreConfig{
+		Namespace: "tenant-a",
+		Quota:     QuotaConfig{MaxGroups: 2},
+	})
 
 	require.NoError(t, scopedStore.SetIn("g1", "a", "1"))
 	require.NoError(t, scopedStore.SetIn("g2", "b", "2"))
@@ -770,7 +818,10 @@ func TestScope_Quota_Good_MaxGroups_DeleteAndRecreate(t *testing.T) {
 	storeInstance, _ := New(":memory:")
 	defer storeInstance.Close()
 
-	scopedStore, _ := NewScopedWithQuota(storeInstance, "tenant-a", QuotaConfig{MaxGroups: 2})
+	scopedStore, _ := NewScopedConfigured(storeInstance, ScopedStoreConfig{
+		Namespace: "tenant-a",
+		Quota:     QuotaConfig{MaxGroups: 2},
+	})
 
 	require.NoError(t, scopedStore.SetIn("g1", "k", "v"))
 	require.NoError(t, scopedStore.SetIn("g2", "k", "v"))
@@ -784,7 +835,10 @@ func TestScope_Quota_Good_MaxGroups_ZeroUnlimited(t *testing.T) {
 	storeInstance, _ := New(":memory:")
 	defer storeInstance.Close()
 
-	scopedStore, _ := NewScopedWithQuota(storeInstance, "tenant-a", QuotaConfig{MaxGroups: 0})
+	scopedStore, _ := NewScopedConfigured(storeInstance, ScopedStoreConfig{
+		Namespace: "tenant-a",
+		Quota:     QuotaConfig{MaxGroups: 0},
+	})
 
 	for i := range 50 {
 		require.NoError(t, scopedStore.SetIn(keyName(i), "k", "v"))
@@ -795,7 +849,10 @@ func TestScope_Quota_Good_MaxGroups_ExpiredGroupExcluded(t *testing.T) {
 	storeInstance, _ := New(":memory:")
 	defer storeInstance.Close()
 
-	scopedStore, _ := NewScopedWithQuota(storeInstance, "tenant-a", QuotaConfig{MaxGroups: 2})
+	scopedStore, _ := NewScopedConfigured(storeInstance, ScopedStoreConfig{
+		Namespace: "tenant-a",
+		Quota:     QuotaConfig{MaxGroups: 2},
+	})
 
 	// Create 2 groups, one with only TTL keys.
 	require.NoError(t, scopedStore.SetWithTTL("g1", "k", "v", 1*time.Millisecond))
@@ -811,7 +868,10 @@ func TestScope_Quota_Good_BothLimits(t *testing.T) {
 	storeInstance, _ := New(":memory:")
 	defer storeInstance.Close()
 
-	scopedStore, _ := NewScopedWithQuota(storeInstance, "tenant-a", QuotaConfig{MaxKeys: 10, MaxGroups: 2})
+	scopedStore, _ := NewScopedConfigured(storeInstance, ScopedStoreConfig{
+		Namespace: "tenant-a",
+		Quota:     QuotaConfig{MaxKeys: 10, MaxGroups: 2},
+	})
 
 	require.NoError(t, scopedStore.SetIn("g1", "a", "1"))
 	require.NoError(t, scopedStore.SetIn("g2", "b", "2"))
@@ -828,8 +888,14 @@ func TestScope_Quota_Good_DoesNotAffectOtherNamespaces(t *testing.T) {
 	storeInstance, _ := New(":memory:")
 	defer storeInstance.Close()
 
-	alphaStore, _ := NewScopedWithQuota(storeInstance, "tenant-a", QuotaConfig{MaxKeys: 2})
-	betaStore, _ := NewScopedWithQuota(storeInstance, "tenant-b", QuotaConfig{MaxKeys: 2})
+	alphaStore, _ := NewScopedConfigured(storeInstance, ScopedStoreConfig{
+		Namespace: "tenant-a",
+		Quota:     QuotaConfig{MaxKeys: 2},
+	})
+	betaStore, _ := NewScopedConfigured(storeInstance, ScopedStoreConfig{
+		Namespace: "tenant-b",
+		Quota:     QuotaConfig{MaxKeys: 2},
+	})
 
 	require.NoError(t, alphaStore.SetIn("g", "a1", "v"))
 	require.NoError(t, alphaStore.SetIn("g", "a2", "v"))
