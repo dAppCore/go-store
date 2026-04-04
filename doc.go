@@ -1,7 +1,7 @@
 // Package store provides SQLite-backed key-value storage for grouped entries,
 // TTL expiry, namespace isolation, quota enforcement, reactive change
-// notifications, SQLite journal writes, workspace journalling, and orphan
-// recovery.
+// notifications, SQLite journal writes and queries, workspace journalling,
+// cold archive compaction, and orphan recovery.
 //
 // Workspace files live under `.core/state/` and can be recovered with
 // `RecoverOrphans(".core/state/")`.
