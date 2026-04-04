@@ -13,8 +13,11 @@ var defaultArchiveOutputDirectory = ".core/archive/"
 
 // Usage example: `options := store.CompactOptions{Before: time.Now().Add(-90 * 24 * time.Hour), Output: "/tmp/archive", Format: "gzip"}`
 type CompactOptions struct {
+	// Usage example: `options := store.CompactOptions{Before: time.Now().Add(-90 * 24 * time.Hour)}`
 	Before time.Time
+	// Usage example: `options := store.CompactOptions{Output: "/tmp/archive"}`
 	Output string
+	// Usage example: `options := store.CompactOptions{Format: "zstd"}`
 	Format string
 }
 

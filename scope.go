@@ -26,8 +26,10 @@ type QuotaConfig struct {
 type ScopedStore struct {
 	backingStore *Store
 	namespace    string
-	MaxKeys      int
-	MaxGroups    int
+	// Usage example: `scopedStore.MaxKeys = 100`
+	MaxKeys int
+	// Usage example: `scopedStore.MaxGroups = 10`
+	MaxGroups int
 
 	scopedWatchersLock sync.Mutex
 	scopedWatchers     map[uintptr]*scopedWatcherBinding
