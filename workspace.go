@@ -287,8 +287,8 @@ func (workspace *Workspace) Aggregate() map[string]any {
 	return fields
 }
 
-// Commit writes one journal row for the workspace and upserts the summary row
-// in `workspace:NAME`.
+// Commit writes one journal row for the workspace through the shared journal
+// writer and upserts the summary row in `workspace:NAME`.
 //
 // Usage example: `result := workspace.Commit(); if !result.OK { return }; fmt.Println(result.Value)`
 func (workspace *Workspace) Commit() core.Result {

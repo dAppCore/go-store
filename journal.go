@@ -45,6 +45,8 @@ type journalExecutor interface {
 }
 
 // Usage example: `result := storeInstance.CommitToJournal("scroll-session", map[string]any{"like": 4}, map[string]string{"workspace": "scroll-session"})`
+// Workspace.Commit uses this same journal write path before it updates the
+// summary row in `workspace:NAME`.
 func (storeInstance *Store) CommitToJournal(measurement string, fields map[string]any, tags map[string]string) core.Result {
 	if err := storeInstance.ensureReady("store.CommitToJournal"); err != nil {
 		return core.Result{Value: err, OK: false}
