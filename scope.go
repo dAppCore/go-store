@@ -132,7 +132,7 @@ func (scopedStore *ScopedStore) Namespace() string {
 }
 
 // Usage example: `colourValue, err := scopedStore.Get("colour")`
-// Usage example: `colourValue, err := scopedStore.Get("config", "colour")`
+// Usage example: `colourValue, err := scopedStore.GetFrom("config", "colour")`
 func (scopedStore *ScopedStore) Get(arguments ...string) (string, error) {
 	group, key, err := scopedStore.getArguments(arguments)
 	if err != nil {
@@ -148,7 +148,7 @@ func (scopedStore *ScopedStore) GetFrom(group, key string) (string, error) {
 }
 
 // Usage example: `if err := scopedStore.Set("colour", "blue"); err != nil { return }`
-// Usage example: `if err := scopedStore.Set("config", "colour", "blue"); err != nil { return }`
+// Usage example: `if err := scopedStore.SetIn("config", "colour", "blue"); err != nil { return }`
 func (scopedStore *ScopedStore) Set(arguments ...string) error {
 	group, key, value, err := scopedStore.setArguments(arguments)
 	if err != nil {
@@ -315,7 +315,7 @@ func (scopedStoreTransaction *ScopedStoreTransaction) ensureReady(operation stri
 }
 
 // Usage example: `colourValue, err := scopedStoreTransaction.Get("colour")`
-// Usage example: `colourValue, err := scopedStoreTransaction.Get("config", "colour")`
+// Usage example: `colourValue, err := scopedStoreTransaction.GetFrom("config", "colour")`
 func (scopedStoreTransaction *ScopedStoreTransaction) Get(arguments ...string) (string, error) {
 	if err := scopedStoreTransaction.ensureReady("store.ScopedStoreTransaction.Get"); err != nil {
 		return "", err
@@ -334,7 +334,7 @@ func (scopedStoreTransaction *ScopedStoreTransaction) GetFrom(group, key string)
 }
 
 // Usage example: `if err := scopedStoreTransaction.Set("theme", "dark"); err != nil { return err }`
-// Usage example: `if err := scopedStoreTransaction.Set("config", "colour", "blue"); err != nil { return err }`
+// Usage example: `if err := scopedStoreTransaction.SetIn("config", "colour", "blue"); err != nil { return err }`
 func (scopedStoreTransaction *ScopedStoreTransaction) Set(arguments ...string) error {
 	if err := scopedStoreTransaction.ensureReady("store.ScopedStoreTransaction.Set"); err != nil {
 		return err
