@@ -497,6 +497,9 @@ func (scopedTransaction *ScopedStoreTransaction) SetIn(group, key, value string)
 	if err != nil {
 		return err
 	}
+	if err := scopedTransaction.checkQuota("store.ScopedStoreTransaction.SetIn", group, key); err != nil {
+		return err
+	}
 	return storeTransaction.Set(scopedTransaction.scopedStore.namespacedGroup(group), key, value)
 }
 
@@ -504,6 +507,9 @@ func (scopedTransaction *ScopedStoreTransaction) SetIn(group, key, value string)
 func (scopedTransaction *ScopedStoreTransaction) SetWithTTL(group, key, value string, timeToLive time.Duration) error {
 	storeTransaction, err := scopedTransaction.resolvedTransaction("store.ScopedStoreTransaction.SetWithTTL")
 	if err != nil {
+		return err
+	}
+	if err := scopedTransaction.checkQuota("store.ScopedStoreTransaction.SetWithTTL", group, key); err != nil {
 		return err
 	}
 	return storeTransaction.SetWithTTL(scopedTransaction.scopedStore.namespacedGroup(group), key, value, timeToLive)
@@ -667,6 +673,66 @@ func (scopedTransaction *ScopedStoreTransaction) GetFields(group, key string) (i
 		return nil, err
 	}
 	return storeTransaction.GetFields(scopedTransaction.scopedStore.namespacedGroup(group), key)
+}
+
+// checkQuota("store.ScopedStoreTransaction.SetIn", "config", "colour") uses
+// the transaction's own read state so staged writes inside the same
+// transaction count towards the namespace limits.
+func (scopedTransaction *ScopedStoreTransaction) checkQuota(operation, group, key string) error {
+	if scopedTransaction == nil {
+		return core.E(operation, "scoped transaction is nil", nil)
+	}
+	if scopedTransaction.scopedStore == nil {
+		return core.E(operation, "scoped store is nil", nil)
+	}
+	if scopedTransaction.scopedStore.MaxKeys == 0 && scopedTransaction.scopedStore.MaxGroups == 0 {
+		return nil
+	}
+
+	storeTransaction, err := scopedTransaction.resolvedTransaction(operation)
+	if err != nil {
+		return err
+	}
+
+	namespacedGroup := scopedTransaction.scopedStore.namespacedGroup(group)
+	namespacePrefix := scopedTransaction.scopedStore.namespacePrefix()
+
+	// Upserts never consume quota.
+	_, err = storeTransaction.Get(namespacedGroup, key)
+	if err == nil {
+		return nil
+	}
+	if !core.Is(err, NotFoundError) {
+		return core.E(operation, "quota check", err)
+	}
+
+	if scopedTransaction.scopedStore.MaxKeys > 0 {
+		keyCount, err := storeTransaction.CountAll(namespacePrefix)
+		if err != nil {
+			return core.E(operation, "quota check", err)
+		}
+		if keyCount >= scopedTransaction.scopedStore.MaxKeys {
+			return core.E(operation, core.Sprintf("key limit (%d)", scopedTransaction.scopedStore.MaxKeys), QuotaExceededError)
+		}
+	}
+
+	if scopedTransaction.scopedStore.MaxGroups > 0 {
+		existingGroupCount, err := storeTransaction.Count(namespacedGroup)
+		if err != nil {
+			return core.E(operation, "quota check", err)
+		}
+		if existingGroupCount == 0 {
+			groupNames, err := storeTransaction.Groups(namespacePrefix)
+			if err != nil {
+				return core.E(operation, "quota check", err)
+			}
+			if len(groupNames) >= scopedTransaction.scopedStore.MaxGroups {
+				return core.E(operation, core.Sprintf("group limit (%d)", scopedTransaction.scopedStore.MaxGroups), QuotaExceededError)
+			}
+		}
+	}
+
+	return nil
 }
 
 func (scopedStore *ScopedStore) forgetScopedWatcher(events <-chan Event) {
