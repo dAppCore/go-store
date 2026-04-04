@@ -8,6 +8,7 @@ Keep the two files aligned.
 - Prefer descriptive names over abbreviations.
 - Public comments should show real usage with concrete values.
 - Keep examples in UK English.
+- Prefer `StoreConfig` and `ScopedStoreConfig` literals over option chains when the configuration is already known.
 - Do not add compatibility aliases; the primary API names are the contract.
 - Preserve the single-connection SQLite design.
 - Verify with `go test ./...`, `go test -race ./...`, and `go vet ./...` before committing.
