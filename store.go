@@ -29,7 +29,8 @@ const (
 
 // Usage example: `storeOptions := []store.StoreOption{store.WithJournal("http://127.0.0.1:8086", "core", "events")}`
 // Prefer `store.NewConfigured(store.StoreConfig{...})` when the configuration
-// is already known as a struct literal.
+// is already known as a struct literal. Use `StoreOption` only when the values
+// need to be assembled incrementally.
 type StoreOption func(*StoreConfig)
 
 // Usage example: `config := store.StoreConfig{DatabasePath: ":memory:", PurgeInterval: 30 * time.Second}`
@@ -43,6 +44,7 @@ type StoreConfig struct {
 }
 
 // Usage example: `config := storeInstance.JournalConfiguration(); fmt.Println(config.EndpointURL, config.Organisation, config.BucketName)`
+// The values are copied into the store and used as journal metadata.
 type JournalConfiguration struct {
 	// Usage example: `config := store.JournalConfiguration{EndpointURL: "http://127.0.0.1:8086"}`
 	EndpointURL string

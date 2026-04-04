@@ -67,6 +67,7 @@ func (workspace *Workspace) DatabasePath() string {
 
 // Close leaves the SQLite workspace file `.core/state/scroll-session-2026-03-30.duckdb`
 // on disk so a later store instance can recover it as an orphan.
+// Call `Discard()` afterwards if you decide the file should be removed.
 //
 // Usage example: `if err := workspace.Close(); err != nil { return }; orphans := storeInstance.RecoverOrphans(".core/state"); _ = orphans`
 func (workspace *Workspace) Close() error {
@@ -417,15 +418,16 @@ func (workspace *Workspace) closeAndCleanup(removeFiles bool) error {
 	}
 
 	workspace.closeLock.Lock()
-	defer workspace.closeLock.Unlock()
-
-	if workspace.closed {
-		return nil
+	alreadyClosed := workspace.closed
+	if !alreadyClosed {
+		workspace.closed = true
 	}
-	workspace.closed = true
+	workspace.closeLock.Unlock()
 
-	if err := workspace.workspaceDatabase.Close(); err != nil {
-		return core.E("store.Workspace.closeAndRemoveFiles", "close workspace database", err)
+	if !alreadyClosed {
+		if err := workspace.workspaceDatabase.Close(); err != nil {
+			return core.E("store.Workspace.closeAndRemoveFiles", "close workspace database", err)
+		}
 	}
 	if !removeFiles {
 		return nil
