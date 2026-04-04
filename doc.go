@@ -5,8 +5,9 @@
 // Workspace files are created under `.core/state/` and can be recovered with
 // `RecoverOrphans(".core/state")`.
 //
-// Prefer `store.NewConfigured(store.StoreConfig{...})` when constructing a
-// store from an agent-written configuration literal.
+// Use `store.NewConfigured(store.StoreConfig{...})` when the database path,
+// journal, and purge interval are already known.
+// Keep `store.New(..., store.WithJournal(...))` for incremental assembly.
 //
 // Usage example:
 //
