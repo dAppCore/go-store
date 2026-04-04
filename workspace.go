@@ -38,12 +38,12 @@ var defaultWorkspaceStateDirectory = ".core/state/"
 //
 // Usage example: `workspace, err := storeInstance.NewWorkspace("scroll-session-2026-03-30"); if err != nil { return }; defer workspace.Discard(); _ = workspace.Put("like", map[string]any{"user": "@alice"})`
 type Workspace struct {
-	name              string
-	backingStore      *Store
-	workspaceDatabase *sql.DB
-	databasePath      string
-	filesystem        *core.Fs
-	orphanAggregate   map[string]any
+	name            string
+	backingStore    *Store
+	sqliteDatabase  *sql.DB
+	databasePath    string
+	filesystem      *core.Fs
+	orphanAggregate map[string]any
 
 	closeLock sync.Mutex
 	closed    bool
@@ -80,7 +80,7 @@ func (workspace *Workspace) ensureReady(operation string) error {
 	if workspace.backingStore == nil {
 		return core.E(operation, "workspace store is nil", nil)
 	}
-	if workspace.workspaceDatabase == nil {
+	if workspace.sqliteDatabase == nil {
 		return core.E(operation, "workspace database is nil", nil)
 	}
 	if workspace.filesystem == nil {
@@ -124,17 +124,17 @@ func (storeInstance *Store) NewWorkspace(name string) (*Workspace, error) {
 		return nil, core.E("store.NewWorkspace", "ensure state directory", result.Value.(error))
 	}
 
-	workspaceDatabase, err := openWorkspaceDatabase(databasePath)
+	sqliteDatabase, err := openWorkspaceDatabase(databasePath)
 	if err != nil {
 		return nil, core.E("store.NewWorkspace", "open workspace database", err)
 	}
 
 	return &Workspace{
-		name:              name,
-		backingStore:      storeInstance,
-		workspaceDatabase: workspaceDatabase,
-		databasePath:      databasePath,
-		filesystem:        filesystem,
+		name:           name,
+		backingStore:   storeInstance,
+		sqliteDatabase: sqliteDatabase,
+		databasePath:   databasePath,
+		filesystem:     filesystem,
 	}, nil
 }
 
@@ -188,16 +188,16 @@ func loadRecoveredWorkspaces(stateDirectory string, backingStore *Store) []*Work
 	filesystem := (&core.Fs{}).NewUnrestricted()
 	orphanWorkspaces := make([]*Workspace, 0)
 	for _, databasePath := range discoverOrphanWorkspacePaths(stateDirectory) {
-		workspaceDatabase, err := openWorkspaceDatabase(databasePath)
+		sqliteDatabase, err := openWorkspaceDatabase(databasePath)
 		if err != nil {
 			continue
 		}
 		orphanWorkspace := &Workspace{
-			name:              workspaceNameFromPath(stateDirectory, databasePath),
-			backingStore:      backingStore,
-			workspaceDatabase: workspaceDatabase,
-			databasePath:      databasePath,
-			filesystem:        filesystem,
+			name:           workspaceNameFromPath(stateDirectory, databasePath),
+			backingStore:   backingStore,
+			sqliteDatabase: sqliteDatabase,
+			databasePath:   databasePath,
+			filesystem:     filesystem,
 		}
 		orphanWorkspace.orphanAggregate = orphanWorkspace.captureAggregateSnapshot()
 		orphanWorkspaces = append(orphanWorkspaces, orphanWorkspace)
@@ -259,7 +259,7 @@ func (workspace *Workspace) Put(kind string, data map[string]any) error {
 		return err
 	}
 
-	_, err = workspace.workspaceDatabase.Exec(
+	_, err = workspace.sqliteDatabase.Exec(
 		"INSERT INTO "+workspaceEntriesTableName+" (entry_kind, entry_data, created_at) VALUES (?, ?, ?)",
 		kind,
 		dataJSON,
@@ -271,7 +271,7 @@ func (workspace *Workspace) Put(kind string, data map[string]any) error {
 	return nil
 }
 
-// Usage example: `summary := workspace.Aggregate()`
+// Usage example: `summary := workspace.Aggregate(); fmt.Println(summary["like"])`
 func (workspace *Workspace) Aggregate() map[string]any {
 	if workspace.shouldUseOrphanAggregate() {
 		return workspace.aggregateFallback()
@@ -326,7 +326,7 @@ func (workspace *Workspace) Query(query string) core.Result {
 		return core.Result{Value: err, OK: false}
 	}
 
-	rows, err := workspace.workspaceDatabase.Query(query)
+	rows, err := workspace.sqliteDatabase.Query(query)
 	if err != nil {
 		return core.Result{Value: core.E("store.Workspace.Query", "query workspace", err), OK: false}
 	}
@@ -347,7 +347,7 @@ func (workspace *Workspace) aggregateFields() (map[string]any, error) {
 }
 
 func (workspace *Workspace) captureAggregateSnapshot() map[string]any {
-	if workspace == nil || workspace.workspaceDatabase == nil {
+	if workspace == nil || workspace.sqliteDatabase == nil {
 		return nil
 	}
 
@@ -376,7 +376,7 @@ func (workspace *Workspace) shouldUseOrphanAggregate() bool {
 }
 
 func (workspace *Workspace) aggregateFieldsWithoutReadiness() (map[string]any, error) {
-	rows, err := workspace.workspaceDatabase.Query(
+	rows, err := workspace.sqliteDatabase.Query(
 		"SELECT entry_kind, COUNT(*) FROM " + workspaceEntriesTableName + " GROUP BY entry_kind ORDER BY entry_kind",
 	)
 	if err != nil {
@@ -415,7 +415,7 @@ func (workspace *Workspace) closeAndCleanup(removeFiles bool) error {
 	if workspace == nil {
 		return nil
 	}
-	if workspace.workspaceDatabase == nil || workspace.filesystem == nil {
+	if workspace.sqliteDatabase == nil || workspace.filesystem == nil {
 		return nil
 	}
 
@@ -427,7 +427,7 @@ func (workspace *Workspace) closeAndCleanup(removeFiles bool) error {
 	workspace.closeLock.Unlock()
 
 	if !alreadyClosed {
-		if err := workspace.workspaceDatabase.Close(); err != nil {
+		if err := workspace.sqliteDatabase.Close(); err != nil {
 			return core.E("store.Workspace.closeAndCleanup", "close workspace database", err)
 		}
 	}
@@ -507,28 +507,28 @@ func (storeInstance *Store) commitWorkspaceAggregate(workspaceName string, field
 }
 
 func openWorkspaceDatabase(databasePath string) (*sql.DB, error) {
-	workspaceDatabase, err := sql.Open("sqlite", databasePath)
+	sqliteDatabase, err := sql.Open("sqlite", databasePath)
 	if err != nil {
 		return nil, core.E("store.openWorkspaceDatabase", "open workspace database", err)
 	}
-	workspaceDatabase.SetMaxOpenConns(1)
-	if _, err := workspaceDatabase.Exec("PRAGMA journal_mode=WAL"); err != nil {
-		workspaceDatabase.Close()
+	sqliteDatabase.SetMaxOpenConns(1)
+	if _, err := sqliteDatabase.Exec("PRAGMA journal_mode=WAL"); err != nil {
+		sqliteDatabase.Close()
 		return nil, core.E("store.openWorkspaceDatabase", "set WAL journal mode", err)
 	}
-	if _, err := workspaceDatabase.Exec("PRAGMA busy_timeout=5000"); err != nil {
-		workspaceDatabase.Close()
+	if _, err := sqliteDatabase.Exec("PRAGMA busy_timeout=5000"); err != nil {
+		sqliteDatabase.Close()
 		return nil, core.E("store.openWorkspaceDatabase", "set busy timeout", err)
 	}
-	if _, err := workspaceDatabase.Exec(createWorkspaceEntriesTableSQL); err != nil {
-		workspaceDatabase.Close()
+	if _, err := sqliteDatabase.Exec(createWorkspaceEntriesTableSQL); err != nil {
+		sqliteDatabase.Close()
 		return nil, core.E("store.openWorkspaceDatabase", "create workspace entries table", err)
 	}
-	if _, err := workspaceDatabase.Exec(createWorkspaceEntriesViewSQL); err != nil {
-		workspaceDatabase.Close()
+	if _, err := sqliteDatabase.Exec(createWorkspaceEntriesViewSQL); err != nil {
+		sqliteDatabase.Close()
 		return nil, core.E("store.openWorkspaceDatabase", "create workspace entries view", err)
 	}
-	return workspaceDatabase, nil
+	return sqliteDatabase, nil
 }
 
 func workspaceSummaryGroup(workspaceName string) string {
