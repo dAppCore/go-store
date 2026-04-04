@@ -231,7 +231,7 @@ func (storeInstance *Store) RecoverOrphans(stateDirectory string) []*Workspace {
 
 	if stateDirectory == normaliseWorkspaceStateDirectory(defaultWorkspaceStateDirectory) {
 		storeInstance.orphanWorkspacesLock.Lock()
-		cachedWorkspaces := storeInstance.orphanWorkspaces
+		cachedWorkspaces := slices.Clone(storeInstance.orphanWorkspaces)
 		storeInstance.orphanWorkspaces = nil
 		storeInstance.orphanWorkspacesLock.Unlock()
 		if len(cachedWorkspaces) > 0 {
