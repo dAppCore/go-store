@@ -71,8 +71,8 @@ type ScopedStore struct {
 	// Usage example: `scopedStore.MaxGroups = 10`
 	MaxGroups int
 
-	watcherLock    sync.Mutex
-	watcherBridges map[uintptr]scopedWatcherBridge
+	watcherBridgeLock sync.Mutex
+	watcherBridges    map[uintptr]scopedWatcherBridge
 }
 
 type scopedWatcherBridge struct {
@@ -321,7 +321,7 @@ func (scopedStore *ScopedStore) Watch(group string) <-chan Event {
 	done := make(chan struct{})
 	localEventsPointer := channelPointer(localEvents)
 
-	scopedStore.watcherLock.Lock()
+	scopedStore.watcherBridgeLock.Lock()
 	if scopedStore.watcherBridges == nil {
 		scopedStore.watcherBridges = make(map[uintptr]scopedWatcherBridge)
 	}
@@ -330,7 +330,7 @@ func (scopedStore *ScopedStore) Watch(group string) <-chan Event {
 		sourceEvents: sourceEvents,
 		done:         done,
 	}
-	scopedStore.watcherLock.Unlock()
+	scopedStore.watcherBridgeLock.Unlock()
 
 	go func() {
 		defer close(localEvents)
@@ -368,12 +368,12 @@ func (scopedStore *ScopedStore) Unwatch(group string, events <-chan Event) {
 		return
 	}
 
-	scopedStore.watcherLock.Lock()
+	scopedStore.watcherBridgeLock.Lock()
 	watcherBridge, ok := scopedStore.watcherBridges[channelPointer(events)]
 	if ok {
 		delete(scopedStore.watcherBridges, channelPointer(events))
 	}
-	scopedStore.watcherLock.Unlock()
+	scopedStore.watcherBridgeLock.Unlock()
 
 	if !ok {
 		return
@@ -388,9 +388,9 @@ func (scopedStore *ScopedStore) removeWatcherBridge(pointer uintptr) {
 		return
 	}
 
-	scopedStore.watcherLock.Lock()
+	scopedStore.watcherBridgeLock.Lock()
 	delete(scopedStore.watcherBridges, pointer)
-	scopedStore.watcherLock.Unlock()
+	scopedStore.watcherBridgeLock.Unlock()
 }
 
 func (scopedStore *ScopedStore) localiseWatchedEvent(event Event) (Event, bool) {

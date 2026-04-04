@@ -40,15 +40,15 @@ var defaultWorkspaceStateDirectory = ".core/state/"
 //
 // Usage example: `workspace, err := storeInstance.NewWorkspace("scroll-session-2026-03-30"); if err != nil { return }; defer workspace.Discard(); _ = workspace.Put("like", map[string]any{"user": "@alice"})`
 type Workspace struct {
-	name            string
-	store           *Store
-	sqliteDatabase  *sql.DB
-	databasePath    string
-	filesystem      *core.Fs
-	orphanAggregate map[string]any
+	name                  string
+	store                 *Store
+	sqliteDatabase        *sql.DB
+	databasePath          string
+	filesystem            *core.Fs
+	cachedOrphanAggregate map[string]any
 
-	closeLock sync.Mutex
-	closed    bool
+	lifecycleLock sync.Mutex
+	isClosed      bool
 }
 
 // Usage example: `workspaceName := workspace.Name(); fmt.Println(workspaceName)`
@@ -93,9 +93,9 @@ func (workspace *Workspace) ensureReady(operation string) error {
 		return err
 	}
 
-	workspace.closeLock.Lock()
-	closed := workspace.closed
-	workspace.closeLock.Unlock()
+	workspace.lifecycleLock.Lock()
+	closed := workspace.isClosed
+	workspace.lifecycleLock.Unlock()
 	if closed {
 		return core.E(operation, "workspace is closed", nil)
 	}
@@ -203,7 +203,7 @@ func loadRecoveredWorkspaces(stateDirectory string, store *Store) []*Workspace {
 			databasePath:   databasePath,
 			filesystem:     filesystem,
 		}
-		orphanWorkspace.orphanAggregate = orphanWorkspace.captureAggregateSnapshot()
+		orphanWorkspace.cachedOrphanAggregate = orphanWorkspace.captureAggregateSnapshot()
 		orphanWorkspaces = append(orphanWorkspaces, orphanWorkspace)
 	}
 	return orphanWorkspaces
@@ -234,10 +234,10 @@ func (storeInstance *Store) RecoverOrphans(stateDirectory string) []*Workspace {
 	stateDirectory = normaliseWorkspaceStateDirectory(stateDirectory)
 
 	if stateDirectory == storeInstance.workspaceStateDirectoryPath() {
-		storeInstance.orphanWorkspacesLock.Lock()
-		cachedWorkspaces := slices.Clone(storeInstance.orphanWorkspaces)
-		storeInstance.orphanWorkspaces = nil
-		storeInstance.orphanWorkspacesLock.Unlock()
+		storeInstance.orphanWorkspaceLock.Lock()
+		cachedWorkspaces := slices.Clone(storeInstance.cachedOrphanWorkspaces)
+		storeInstance.cachedOrphanWorkspaces = nil
+		storeInstance.orphanWorkspaceLock.Unlock()
 		if len(cachedWorkspaces) > 0 {
 			return cachedWorkspaces
 		}
@@ -363,14 +363,14 @@ func (workspace *Workspace) captureAggregateSnapshot() map[string]any {
 }
 
 func (workspace *Workspace) aggregateFallback() map[string]any {
-	if workspace == nil || workspace.orphanAggregate == nil {
+	if workspace == nil || workspace.cachedOrphanAggregate == nil {
 		return map[string]any{}
 	}
-	return maps.Clone(workspace.orphanAggregate)
+	return maps.Clone(workspace.cachedOrphanAggregate)
 }
 
 func (workspace *Workspace) shouldUseOrphanAggregate() bool {
-	if workspace == nil || workspace.orphanAggregate == nil {
+	if workspace == nil || workspace.cachedOrphanAggregate == nil {
 		return false
 	}
 	if workspace.filesystem == nil || workspace.databasePath == "" {
@@ -423,12 +423,12 @@ func (workspace *Workspace) closeAndCleanup(removeFiles bool) error {
 		return nil
 	}
 
-	workspace.closeLock.Lock()
-	alreadyClosed := workspace.closed
+	workspace.lifecycleLock.Lock()
+	alreadyClosed := workspace.isClosed
 	if !alreadyClosed {
-		workspace.closed = true
+		workspace.isClosed = true
 	}
-	workspace.closeLock.Unlock()
+	workspace.lifecycleLock.Unlock()
 
 	if !alreadyClosed {
 		if err := workspace.sqliteDatabase.Close(); err != nil {

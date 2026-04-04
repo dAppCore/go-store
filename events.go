@@ -72,20 +72,20 @@ func (storeInstance *Store) Watch(group string) <-chan Event {
 		return closedEventChannel()
 	}
 
-	storeInstance.closeLock.Lock()
-	closed := storeInstance.closed
-	storeInstance.closeLock.Unlock()
+	storeInstance.lifecycleLock.Lock()
+	closed := storeInstance.isClosed
+	storeInstance.lifecycleLock.Unlock()
 	if closed {
 		return closedEventChannel()
 	}
 
 	eventChannel := make(chan Event, watcherEventBufferCapacity)
 
-	storeInstance.watchersLock.Lock()
-	defer storeInstance.watchersLock.Unlock()
-	storeInstance.closeLock.Lock()
-	closed = storeInstance.closed
-	storeInstance.closeLock.Unlock()
+	storeInstance.watcherLock.Lock()
+	defer storeInstance.watcherLock.Unlock()
+	storeInstance.lifecycleLock.Lock()
+	closed = storeInstance.isClosed
+	storeInstance.lifecycleLock.Unlock()
 	if closed {
 		return closedEventChannel()
 	}
@@ -103,15 +103,15 @@ func (storeInstance *Store) Unwatch(group string, events <-chan Event) {
 		return
 	}
 
-	storeInstance.closeLock.Lock()
-	closed := storeInstance.closed
-	storeInstance.closeLock.Unlock()
+	storeInstance.lifecycleLock.Lock()
+	closed := storeInstance.isClosed
+	storeInstance.lifecycleLock.Unlock()
 	if closed {
 		return
 	}
 
-	storeInstance.watchersLock.Lock()
-	defer storeInstance.watchersLock.Unlock()
+	storeInstance.watcherLock.Lock()
+	defer storeInstance.watcherLock.Unlock()
 
 	registeredEvents := storeInstance.watchers[group]
 	if len(registeredEvents) == 0 {
@@ -151,21 +151,21 @@ func (storeInstance *Store) OnChange(callback func(Event)) func() {
 		return func() {}
 	}
 
-	storeInstance.closeLock.Lock()
-	closed := storeInstance.closed
-	storeInstance.closeLock.Unlock()
+	storeInstance.lifecycleLock.Lock()
+	closed := storeInstance.isClosed
+	storeInstance.lifecycleLock.Unlock()
 	if closed {
 		return func() {}
 	}
 
-	registrationID := atomic.AddUint64(&storeInstance.nextCallbackRegistrationID, 1)
+	registrationID := atomic.AddUint64(&storeInstance.nextCallbackID, 1)
 	callbackRegistration := changeCallbackRegistration{registrationID: registrationID, callback: callback}
 
-	storeInstance.callbacksLock.Lock()
-	defer storeInstance.callbacksLock.Unlock()
-	storeInstance.closeLock.Lock()
-	closed = storeInstance.closed
-	storeInstance.closeLock.Unlock()
+	storeInstance.callbackLock.Lock()
+	defer storeInstance.callbackLock.Unlock()
+	storeInstance.lifecycleLock.Lock()
+	closed = storeInstance.isClosed
+	storeInstance.lifecycleLock.Unlock()
 	if closed {
 		return func() {}
 	}
@@ -175,8 +175,8 @@ func (storeInstance *Store) OnChange(callback func(Event)) func() {
 	var once sync.Once
 	return func() {
 		once.Do(func() {
-			storeInstance.callbacksLock.Lock()
-			defer storeInstance.callbacksLock.Unlock()
+			storeInstance.callbackLock.Lock()
+			defer storeInstance.callbackLock.Unlock()
 			for i := range storeInstance.callbacks {
 				if storeInstance.callbacks[i].registrationID == registrationID {
 					storeInstance.callbacks = append(storeInstance.callbacks[:i], storeInstance.callbacks[i+1:]...)
@@ -201,19 +201,19 @@ func (storeInstance *Store) notify(event Event) {
 		event.Timestamp = time.Now()
 	}
 
-	storeInstance.closeLock.Lock()
-	closed := storeInstance.closed
-	storeInstance.closeLock.Unlock()
+	storeInstance.lifecycleLock.Lock()
+	closed := storeInstance.isClosed
+	storeInstance.lifecycleLock.Unlock()
 	if closed {
 		return
 	}
 
-	storeInstance.watchersLock.RLock()
-	storeInstance.closeLock.Lock()
-	closed = storeInstance.closed
-	storeInstance.closeLock.Unlock()
+	storeInstance.watcherLock.RLock()
+	storeInstance.lifecycleLock.Lock()
+	closed = storeInstance.isClosed
+	storeInstance.lifecycleLock.Unlock()
 	if closed {
-		storeInstance.watchersLock.RUnlock()
+		storeInstance.watcherLock.RUnlock()
 		return
 	}
 	for _, registeredChannel := range storeInstance.watchers["*"] {
@@ -228,11 +228,11 @@ func (storeInstance *Store) notify(event Event) {
 		default:
 		}
 	}
-	storeInstance.watchersLock.RUnlock()
+	storeInstance.watcherLock.RUnlock()
 
-	storeInstance.callbacksLock.RLock()
+	storeInstance.callbackLock.RLock()
 	callbacks := append([]changeCallbackRegistration(nil), storeInstance.callbacks...)
-	storeInstance.callbacksLock.RUnlock()
+	storeInstance.callbackLock.RUnlock()
 
 	for _, callback := range callbacks {
 		callback.callback(event)

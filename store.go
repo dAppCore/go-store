@@ -141,18 +141,18 @@ type Store struct {
 	purgeWaitGroup          sync.WaitGroup
 	purgeInterval           time.Duration // interval between background purge cycles
 	journalConfiguration    JournalConfiguration
-	closeLock               sync.Mutex
-	closed                  bool
+	lifecycleLock           sync.Mutex
+	isClosed                bool
 
 	// Event dispatch state.
-	watchers                   map[string][]chan Event
-	callbacks                  []changeCallbackRegistration
-	watchersLock               sync.RWMutex // protects watcher registration and dispatch
-	callbacksLock              sync.RWMutex // protects callback registration and dispatch
-	nextCallbackRegistrationID uint64       // monotonic ID for callback registrations
+	watchers       map[string][]chan Event
+	callbacks      []changeCallbackRegistration
+	watcherLock    sync.RWMutex // protects watcher registration and dispatch
+	callbackLock   sync.RWMutex // protects callback registration and dispatch
+	nextCallbackID uint64       // monotonic ID for callback registrations
 
-	orphanWorkspacesLock sync.Mutex
-	orphanWorkspaces     []*Workspace
+	orphanWorkspaceLock    sync.Mutex
+	cachedOrphanWorkspaces []*Workspace
 }
 
 func (storeInstance *Store) ensureReady(operation string) error {
@@ -163,9 +163,9 @@ func (storeInstance *Store) ensureReady(operation string) error {
 		return core.E(operation, "store is not initialised", nil)
 	}
 
-	storeInstance.closeLock.Lock()
-	closed := storeInstance.closed
-	storeInstance.closeLock.Unlock()
+	storeInstance.lifecycleLock.Lock()
+	closed := storeInstance.isClosed
+	storeInstance.lifecycleLock.Unlock()
 	if closed {
 		return core.E(operation, "store is closed", nil)
 	}
@@ -250,9 +250,9 @@ func (storeInstance *Store) IsClosed() bool {
 		return true
 	}
 
-	storeInstance.closeLock.Lock()
-	closed := storeInstance.closed
-	storeInstance.closeLock.Unlock()
+	storeInstance.lifecycleLock.Lock()
+	closed := storeInstance.isClosed
+	storeInstance.lifecycleLock.Unlock()
 	return closed
 }
 
@@ -294,7 +294,7 @@ func openConfiguredStore(operation string, storeConfig StoreConfig) (*Store, err
 
 	// New() performs a non-destructive orphan scan so callers can discover
 	// leftover workspaces via RecoverOrphans().
-	storeInstance.orphanWorkspaces = discoverOrphanWorkspaces(storeInstance.workspaceStateDirectoryPath(), storeInstance)
+	storeInstance.cachedOrphanWorkspaces = discoverOrphanWorkspaces(storeInstance.workspaceStateDirectoryPath(), storeInstance)
 	storeInstance.startBackgroundPurge()
 	return storeInstance, nil
 }
@@ -358,41 +358,41 @@ func (storeInstance *Store) Close() error {
 		return nil
 	}
 
-	storeInstance.closeLock.Lock()
-	if storeInstance.closed {
-		storeInstance.closeLock.Unlock()
+	storeInstance.lifecycleLock.Lock()
+	if storeInstance.isClosed {
+		storeInstance.lifecycleLock.Unlock()
 		return nil
 	}
-	storeInstance.closed = true
-	storeInstance.closeLock.Unlock()
+	storeInstance.isClosed = true
+	storeInstance.lifecycleLock.Unlock()
 
 	if storeInstance.cancelPurge != nil {
 		storeInstance.cancelPurge()
 	}
 	storeInstance.purgeWaitGroup.Wait()
 
-	storeInstance.watchersLock.Lock()
+	storeInstance.watcherLock.Lock()
 	for groupName, registeredEvents := range storeInstance.watchers {
 		for _, registeredEventChannel := range registeredEvents {
 			close(registeredEventChannel)
 		}
 		delete(storeInstance.watchers, groupName)
 	}
-	storeInstance.watchersLock.Unlock()
+	storeInstance.watcherLock.Unlock()
 
-	storeInstance.callbacksLock.Lock()
+	storeInstance.callbackLock.Lock()
 	storeInstance.callbacks = nil
-	storeInstance.callbacksLock.Unlock()
+	storeInstance.callbackLock.Unlock()
 
-	storeInstance.orphanWorkspacesLock.Lock()
+	storeInstance.orphanWorkspaceLock.Lock()
 	var orphanCleanupErr error
-	for _, orphanWorkspace := range storeInstance.orphanWorkspaces {
+	for _, orphanWorkspace := range storeInstance.cachedOrphanWorkspaces {
 		if err := orphanWorkspace.closeWithoutRemovingFiles(); err != nil && orphanCleanupErr == nil {
 			orphanCleanupErr = err
 		}
 	}
-	storeInstance.orphanWorkspaces = nil
-	storeInstance.orphanWorkspacesLock.Unlock()
+	storeInstance.cachedOrphanWorkspaces = nil
+	storeInstance.orphanWorkspaceLock.Unlock()
 
 	if storeInstance.sqliteDatabase == nil {
 		return orphanCleanupErr
