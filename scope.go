@@ -751,14 +751,12 @@ func (scopedStore *ScopedStore) checkQuota(operation, group, key string) error {
 			return core.E(operation, "quota check", err)
 		}
 		if existingGroupCount == 0 {
-			// This group is new — check if adding it would exceed the group limit.
-			knownGroupCount := 0
-			for _, iterationErr := range scopedStore.backingStore.GroupsSeq(namespacePrefix) {
-				if iterationErr != nil {
-					return core.E(operation, "quota check", iterationErr)
-				}
-				knownGroupCount++
+			// This group is new, so count existing namespace groups with the public helper.
+			groupNames, err := scopedStore.backingStore.Groups(namespacePrefix)
+			if err != nil {
+				return core.E(operation, "quota check", err)
 			}
+			knownGroupCount := len(groupNames)
 			if knownGroupCount >= scopedStore.MaxGroups {
 				return core.E(operation, core.Sprintf("group limit (%d)", scopedStore.MaxGroups), QuotaExceededError)
 			}
