@@ -72,6 +72,8 @@ func (journalConfig journalConfiguration) isConfigured() bool {
 		journalConfig.bucketName != ""
 }
 
+// Store is the SQLite key-value store with optional journal backing.
+//
 // Usage example: `storeInstance, err := store.New(":memory:")`
 type Store struct {
 	sqliteDatabase       *sql.DB
