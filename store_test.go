@@ -141,6 +141,42 @@ func TestStore_JournalConfiguration_Good(t *testing.T) {
 	}, config)
 }
 
+func TestStore_JournalConfiguration_Good_Validate(t *testing.T) {
+	err := (JournalConfiguration{
+		EndpointURL:  "http://127.0.0.1:8086",
+		Organisation: "core",
+		BucketName:   "events",
+	}).Validate()
+	require.NoError(t, err)
+}
+
+func TestStore_JournalConfiguration_Bad_ValidateMissingEndpointURL(t *testing.T) {
+	err := (JournalConfiguration{
+		Organisation: "core",
+		BucketName:   "events",
+	}).Validate()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "endpoint URL is empty")
+}
+
+func TestStore_JournalConfiguration_Bad_ValidateMissingOrganisation(t *testing.T) {
+	err := (JournalConfiguration{
+		EndpointURL: "http://127.0.0.1:8086",
+		BucketName:  "events",
+	}).Validate()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "organisation is empty")
+}
+
+func TestStore_JournalConfiguration_Bad_ValidateMissingBucketName(t *testing.T) {
+	err := (JournalConfiguration{
+		EndpointURL:  "http://127.0.0.1:8086",
+		Organisation: "core",
+	}).Validate()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "bucket name is empty")
+}
+
 func TestStore_JournalConfigured_Good(t *testing.T) {
 	storeInstance, err := New(":memory:", WithJournal("http://127.0.0.1:8086", "core", "events"))
 	require.NoError(t, err)
@@ -165,7 +201,8 @@ func TestStore_NewConfigured_Bad_PartialJournalConfiguration(t *testing.T) {
 		},
 	})
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "journal configuration must include endpoint URL, organisation, and bucket name")
+	assert.Contains(t, err.Error(), "journal config")
+	assert.Contains(t, err.Error(), "bucket name is empty")
 }
 
 func TestStore_StoreConfig_Good_Validate(t *testing.T) {

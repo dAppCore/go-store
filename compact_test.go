@@ -183,3 +183,29 @@ func TestCompact_Compact_Good_DeterministicOrderingForSameTimestamp(t *testing.T
 	require.True(t, unmarshalResult.OK, "archive line unmarshal failed: %v", unmarshalResult.Value)
 	assert.Equal(t, "session-a", secondArchivedRow["measurement"])
 }
+
+func TestCompact_CompactOptions_Good_Normalised(t *testing.T) {
+	options := (CompactOptions{
+		Before: time.Now().Add(-24 * time.Hour),
+	}).Normalised()
+
+	assert.Equal(t, defaultArchiveOutputDirectory, options.Output)
+	assert.Equal(t, "gzip", options.Format)
+}
+
+func TestCompact_CompactOptions_Good_Validate(t *testing.T) {
+	err := (CompactOptions{
+		Before: time.Now().Add(-24 * time.Hour),
+		Format: "zstd",
+	}).Validate()
+	require.NoError(t, err)
+}
+
+func TestCompact_CompactOptions_Bad_ValidateUnsupportedFormat(t *testing.T) {
+	err := (CompactOptions{
+		Before: time.Now().Add(-24 * time.Hour),
+		Format: "zip",
+	}).Validate()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), `format must be "gzip" or "zstd"`)
+}

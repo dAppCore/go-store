@@ -26,6 +26,31 @@ type CompactOptions struct {
 	Format string
 }
 
+// Usage example: `normalisedOptions := (store.CompactOptions{Before: time.Now().Add(-30 * 24 * time.Hour)}).Normalised()`
+func (compactOptions CompactOptions) Normalised() CompactOptions {
+	if compactOptions.Output == "" {
+		compactOptions.Output = defaultArchiveOutputDirectory
+	}
+	if compactOptions.Format == "" {
+		compactOptions.Format = "gzip"
+	}
+	return compactOptions
+}
+
+// Usage example: `if err := (store.CompactOptions{Before: time.Now().Add(-30 * 24 * time.Hour), Format: "gzip"}).Validate(); err != nil { return }`
+func (compactOptions CompactOptions) Validate() error {
+	switch compactOptions.Format {
+	case "", "gzip", "zstd":
+		return nil
+	default:
+		return core.E(
+			"store.CompactOptions.Validate",
+			core.Concat(`format must be "gzip" or "zstd"; got `, compactOptions.Format),
+			nil,
+		)
+	}
+}
+
 type compactArchiveEntry struct {
 	journalEntryID              int64
 	journalBucketName           string
@@ -44,20 +69,13 @@ func (storeInstance *Store) Compact(options CompactOptions) core.Result {
 		return core.Result{Value: core.E("store.Compact", "ensure journal schema", err), OK: false}
 	}
 
-	outputDirectory := options.Output
-	if outputDirectory == "" {
-		outputDirectory = defaultArchiveOutputDirectory
-	}
-	format := options.Format
-	if format == "" {
-		format = "gzip"
-	}
-	if format != "gzip" && format != "zstd" {
-		return core.Result{Value: core.E("store.Compact", core.Concat("unsupported archive format: ", format), nil), OK: false}
+	options = options.Normalised()
+	if err := options.Validate(); err != nil {
+		return core.Result{Value: core.E("store.Compact", "validate options", err), OK: false}
 	}
 
 	filesystem := (&core.Fs{}).NewUnrestricted()
-	if result := filesystem.EnsureDir(outputDirectory); !result.OK {
+	if result := filesystem.EnsureDir(options.Output); !result.OK {
 		return core.Result{Value: core.E("store.Compact", "ensure archive directory", result.Value.(error)), OK: false}
 	}
 
@@ -92,7 +110,7 @@ func (storeInstance *Store) Compact(options CompactOptions) core.Result {
 		return core.Result{Value: "", OK: true}
 	}
 
-	outputPath := compactOutputPath(outputDirectory, format)
+	outputPath := compactOutputPath(options.Output, options.Format)
 	archiveFileResult := filesystem.Create(outputPath)
 	if !archiveFileResult.OK {
 		return core.Result{Value: core.E("store.Compact", "create archive file", archiveFileResult.Value.(error)), OK: false}
@@ -109,7 +127,7 @@ func (storeInstance *Store) Compact(options CompactOptions) core.Result {
 		}
 	}()
 
-	writer, err := archiveWriter(file, format)
+	writer, err := archiveWriter(file, options.Format)
 	if err != nil {
 		return core.Result{Value: err, OK: false}
 	}

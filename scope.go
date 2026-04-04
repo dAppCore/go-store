@@ -22,6 +22,18 @@ type QuotaConfig struct {
 	MaxGroups int
 }
 
+// Usage example: `if err := (store.QuotaConfig{MaxKeys: 100, MaxGroups: 10}).Validate(); err != nil { return }`
+func (quotaConfig QuotaConfig) Validate() error {
+	if quotaConfig.MaxKeys < 0 || quotaConfig.MaxGroups < 0 {
+		return core.E(
+			"store.QuotaConfig.Validate",
+			core.Sprintf("quota values must be zero or positive; got MaxKeys=%d MaxGroups=%d", quotaConfig.MaxKeys, quotaConfig.MaxGroups),
+			nil,
+		)
+	}
+	return nil
+}
+
 // Usage example: `scopedStore, err := store.NewScopedConfigured(storeInstance, store.ScopedStoreConfig{Namespace: "tenant-a", Quota: store.QuotaConfig{MaxKeys: 100, MaxGroups: 10}}); if err != nil { return }; _ = scopedStore.Set("colour", "blue")`
 // ScopedStore keeps one namespace isolated behind helpers such as Set and
 // GetFrom so callers do not repeat the `tenant-a:` prefix manually.
@@ -61,12 +73,8 @@ func (scopedConfig ScopedStoreConfig) Validate() error {
 			nil,
 		)
 	}
-	if scopedConfig.Quota.MaxKeys < 0 || scopedConfig.Quota.MaxGroups < 0 {
-		return core.E(
-			"store.ScopedStoreConfig.Validate",
-			core.Sprintf("quota values must be zero or positive; got MaxKeys=%d MaxGroups=%d", scopedConfig.Quota.MaxKeys, scopedConfig.Quota.MaxGroups),
-			nil,
-		)
+	if err := scopedConfig.Quota.Validate(); err != nil {
+		return core.E("store.ScopedStoreConfig.Validate", "quota", err)
 	}
 	return nil
 }

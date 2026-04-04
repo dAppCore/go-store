@@ -126,6 +126,17 @@ func TestScope_NewScopedConfigured_Bad_InvalidNamespace(t *testing.T) {
 	assert.Contains(t, err.Error(), "namespace")
 }
 
+func TestScope_QuotaConfig_Good_Validate(t *testing.T) {
+	err := (QuotaConfig{MaxKeys: 4, MaxGroups: 2}).Validate()
+	require.NoError(t, err)
+}
+
+func TestScope_QuotaConfig_Bad_ValidateNegativeValue(t *testing.T) {
+	err := (QuotaConfig{MaxKeys: -1, MaxGroups: 2}).Validate()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "quota values must be zero or positive")
+}
+
 func TestScope_ScopedStoreConfig_Good_Validate(t *testing.T) {
 	err := (ScopedStoreConfig{
 		Namespace: "tenant-a",

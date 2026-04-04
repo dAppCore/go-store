@@ -55,12 +55,10 @@ func (storeConfig StoreConfig) Validate() error {
 			nil,
 		)
 	}
-	if storeConfig.Journal != (JournalConfiguration{}) && !storeConfig.Journal.isConfigured() {
-		return core.E(
-			"store.StoreConfig.Validate",
-			"journal configuration must include endpoint URL, organisation, and bucket name",
-			nil,
-		)
+	if storeConfig.Journal != (JournalConfiguration{}) {
+		if err := storeConfig.Journal.Validate(); err != nil {
+			return core.E("store.StoreConfig.Validate", "journal config", err)
+		}
 	}
 	if storeConfig.PurgeInterval < 0 {
 		return core.E("store.StoreConfig.Validate", "purge interval must be zero or positive", nil)
@@ -77,6 +75,32 @@ type JournalConfiguration struct {
 	Organisation string
 	// Usage example: `config := store.JournalConfiguration{BucketName: "events"}`
 	BucketName string
+}
+
+// Usage example: `if err := (store.JournalConfiguration{EndpointURL: "http://127.0.0.1:8086", Organisation: "core", BucketName: "events"}).Validate(); err != nil { return }`
+func (journalConfig JournalConfiguration) Validate() error {
+	switch {
+	case journalConfig.EndpointURL == "":
+		return core.E(
+			"store.JournalConfiguration.Validate",
+			`endpoint URL is empty; use values like "http://127.0.0.1:8086"`,
+			nil,
+		)
+	case journalConfig.Organisation == "":
+		return core.E(
+			"store.JournalConfiguration.Validate",
+			`organisation is empty; use values like "core"`,
+			nil,
+		)
+	case journalConfig.BucketName == "":
+		return core.E(
+			"store.JournalConfiguration.Validate",
+			`bucket name is empty; use values like "events"`,
+			nil,
+		)
+	default:
+		return nil
+	}
 }
 
 func (journalConfig JournalConfiguration) isConfigured() bool {
