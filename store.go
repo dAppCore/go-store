@@ -25,6 +25,7 @@ const (
 	entryGroupColumn        = "group_name"
 	entryKeyColumn          = "entry_key"
 	entryValueColumn        = "entry_value"
+	defaultPurgeInterval    = 60 * time.Second
 )
 
 // Usage example: `storeInstance, err := store.NewConfigured(store.StoreConfig{DatabasePath: "/tmp/go-store.db", Journal: store.JournalConfiguration{EndpointURL: "http://127.0.0.1:8086", Organisation: "core", BucketName: "events"}, PurgeInterval: 30 * time.Second})`
@@ -44,6 +45,19 @@ type StoreConfig struct {
 	PurgeInterval time.Duration
 	// Usage example: `config := store.StoreConfig{WorkspaceStateDirectory: "/tmp/core-state"}`
 	WorkspaceStateDirectory string
+}
+
+// Usage example: `config := (store.StoreConfig{DatabasePath: ":memory:"}).Normalised(); fmt.Println(config.PurgeInterval, config.WorkspaceStateDirectory)`
+func (storeConfig StoreConfig) Normalised() StoreConfig {
+	if storeConfig.PurgeInterval == 0 {
+		storeConfig.PurgeInterval = defaultPurgeInterval
+	}
+	if storeConfig.WorkspaceStateDirectory == "" {
+		storeConfig.WorkspaceStateDirectory = normaliseWorkspaceStateDirectory(defaultWorkspaceStateDirectory)
+	} else {
+		storeConfig.WorkspaceStateDirectory = normaliseWorkspaceStateDirectory(storeConfig.WorkspaceStateDirectory)
+	}
+	return storeConfig
 }
 
 // Usage example: `if err := (store.StoreConfig{DatabasePath: ":memory:", PurgeInterval: 30 * time.Second}).Validate(); err != nil { return }`
@@ -265,6 +279,7 @@ func openConfiguredStore(operation string, storeConfig StoreConfig) (*Store, err
 	if err := storeConfig.Validate(); err != nil {
 		return nil, core.E(operation, "validate config", err)
 	}
+	storeConfig = storeConfig.Normalised()
 
 	storeInstance, err := openSQLiteStore(operation, storeConfig.DatabasePath)
 	if err != nil {
@@ -274,12 +289,8 @@ func openConfiguredStore(operation string, storeConfig StoreConfig) (*Store, err
 	if storeConfig.Journal != (JournalConfiguration{}) {
 		storeInstance.journalConfiguration = storeConfig.Journal
 	}
-	if storeConfig.PurgeInterval > 0 {
-		storeInstance.purgeInterval = storeConfig.PurgeInterval
-	}
-	if storeConfig.WorkspaceStateDirectory != "" {
-		storeInstance.workspaceStateDirectory = normaliseWorkspaceStateDirectory(storeConfig.WorkspaceStateDirectory)
-	}
+	storeInstance.purgeInterval = storeConfig.PurgeInterval
+	storeInstance.workspaceStateDirectory = storeConfig.WorkspaceStateDirectory
 
 	// New() performs a non-destructive orphan scan so callers can discover
 	// leftover workspaces via RecoverOrphans().
@@ -329,7 +340,7 @@ func openSQLiteStore(operation, databasePath string) (*Store, error) {
 		workspaceStateDirectory: normaliseWorkspaceStateDirectory(defaultWorkspaceStateDirectory),
 		purgeContext:            purgeContext,
 		cancelPurge:             cancel,
-		purgeInterval:           60 * time.Second,
+		purgeInterval:           defaultPurgeInterval,
 		watchers:                make(map[string][]chan Event),
 	}, nil
 }
@@ -839,7 +850,7 @@ func (storeInstance *Store) startBackgroundPurge() {
 		return
 	}
 	if storeInstance.purgeInterval <= 0 {
-		storeInstance.purgeInterval = 60 * time.Second
+		storeInstance.purgeInterval = defaultPurgeInterval
 	}
 	purgeInterval := storeInstance.purgeInterval
 

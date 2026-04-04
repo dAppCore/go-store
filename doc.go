@@ -14,7 +14,9 @@
 // journal, purge interval, or workspace state directory are already known.
 // Prefer the struct literal over `store.New(..., store.WithJournal(...))`
 // when the full configuration is already available, because it reads as data
-// rather than a chain of steps. Use
+// rather than a chain of steps. Use `StoreConfig.Normalised()` when you want
+// the default purge interval and workspace state directory filled in before
+// you pass the config onward. Use
 // `store.WithWorkspaceStateDirectory("/tmp/core-state")` only when the
 // workspace path is assembled incrementally rather than declared up front.
 //

@@ -152,6 +152,7 @@ func TestStore_WorkspaceStateDirectory_Good_Default(t *testing.T) {
 
 	assert.Equal(t, normaliseWorkspaceStateDirectory(defaultWorkspaceStateDirectory), storeInstance.WorkspaceStateDirectory())
 	assert.Equal(t, storeInstance.WorkspaceStateDirectory(), storeInstance.Config().WorkspaceStateDirectory)
+	assert.Equal(t, defaultPurgeInterval, storeInstance.Config().PurgeInterval)
 }
 
 func TestStore_JournalConfiguration_Good(t *testing.T) {
@@ -242,6 +243,23 @@ func TestStore_StoreConfig_Good_Validate(t *testing.T) {
 		PurgeInterval: 20 * time.Millisecond,
 	}).Validate()
 	require.NoError(t, err)
+}
+
+func TestStore_StoreConfig_Good_NormalisedDefaults(t *testing.T) {
+	normalisedConfig := (StoreConfig{DatabasePath: ":memory:"}).Normalised()
+
+	assert.Equal(t, ":memory:", normalisedConfig.DatabasePath)
+	assert.Equal(t, defaultPurgeInterval, normalisedConfig.PurgeInterval)
+	assert.Equal(t, normaliseWorkspaceStateDirectory(defaultWorkspaceStateDirectory), normalisedConfig.WorkspaceStateDirectory)
+}
+
+func TestStore_StoreConfig_Good_NormalisedWorkspaceStateDirectory(t *testing.T) {
+	normalisedConfig := (StoreConfig{
+		DatabasePath:            ":memory:",
+		WorkspaceStateDirectory: ".core/state///",
+	}).Normalised()
+
+	assert.Equal(t, ".core/state", normalisedConfig.WorkspaceStateDirectory)
 }
 
 func TestStore_StoreConfig_Bad_NegativePurgeInterval(t *testing.T) {
