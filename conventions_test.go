@@ -124,6 +124,46 @@ func TestConventions_Exports_Good_UsageExamples(t *testing.T) {
 	assert.Empty(t, missing, "exported declarations must include a usage example in their doc comment")
 }
 
+func TestConventions_Exports_Good_FieldUsageExamples(t *testing.T) {
+	files := repoGoFiles(t, func(name string) bool {
+		return core.HasSuffix(name, ".go") && !core.HasSuffix(name, "_test.go")
+	})
+
+	var missing []string
+	for _, path := range files {
+		file := parseGoFile(t, path)
+		for _, decl := range file.Decls {
+			node, ok := decl.(*ast.GenDecl)
+			if !ok {
+				continue
+			}
+			for _, spec := range node.Specs {
+				typeSpec, ok := spec.(*ast.TypeSpec)
+				if !ok || !typeSpec.Name.IsExported() {
+					continue
+				}
+				structType, ok := typeSpec.Type.(*ast.StructType)
+				if !ok {
+					continue
+				}
+				for _, field := range structType.Fields.List {
+					for _, fieldName := range field.Names {
+						if !fieldName.IsExported() {
+							continue
+						}
+						if !core.Contains(commentText(field.Doc), "Usage example:") {
+							missing = append(missing, core.Concat(path, ": ", typeSpec.Name.Name, ".", fieldName.Name))
+						}
+					}
+				}
+			}
+		}
+	}
+
+	slices.Sort(missing)
+	assert.Empty(t, missing, "exported struct fields must include a usage example in their doc comment")
+}
+
 func TestConventions_Exports_Good_NoCompatibilityAliases(t *testing.T) {
 	files := repoGoFiles(t, func(name string) bool {
 		return core.HasSuffix(name, ".go") && !core.HasSuffix(name, "_test.go")
