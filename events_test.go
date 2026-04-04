@@ -293,7 +293,8 @@ func TestEvents_Watch_Good_ScopedStoreEventGroup(t *testing.T) {
 	storeInstance, _ := New(":memory:")
 	defer storeInstance.Close()
 
-	scopedStore := NewScoped(storeInstance, "tenant-a")
+	scopedStore, err := NewScoped(storeInstance, "tenant-a")
+	require.NoError(t, err)
 	require.NotNil(t, scopedStore)
 
 	events := storeInstance.Watch("tenant-a:config")

@@ -284,13 +284,13 @@ func TestCoverage_ScopedStore_Bad_GroupsClosedStore(t *testing.T) {
 	storeInstance, _ := New(":memory:")
 	require.NoError(t, storeInstance.Close())
 
-	scopedStore := NewScoped(storeInstance, "tenant-a")
+	scopedStore, err := NewScoped(storeInstance, "tenant-a")
+	require.NoError(t, err)
 	require.NotNil(t, scopedStore)
 
-	var err error
 	_, err = scopedStore.Groups("")
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "store.ScopedStore.Groups")
+	assert.Contains(t, err.Error(), "store.Groups")
 }
 
 func TestCoverage_ScopedStore_Bad_GroupsSeqRowsError(t *testing.T) {
@@ -304,7 +304,7 @@ func TestCoverage_ScopedStore_Bad_GroupsSeqRowsError(t *testing.T) {
 	defer database.Close()
 
 	scopedStore := &ScopedStore{
-		store: &Store{
+		storeInstance: &Store{
 			sqliteDatabase: database,
 			cancelPurge:    func() {},
 		},
