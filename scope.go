@@ -190,6 +190,11 @@ func (scopedStore *ScopedStore) GetAll(group string) (map[string]string, error) 
 	return scopedStore.storeInstance.GetAll(scopedStore.namespacedGroup(group))
 }
 
+// Usage example: `page, err := scopedStore.GetPage("config", 0, 25); if err != nil { return }; for _, entry := range page { fmt.Println(entry.Key, entry.Value) }`
+func (scopedStore *ScopedStore) GetPage(group string, offset, limit int) ([]KeyValue, error) {
+	return scopedStore.storeInstance.GetPage(scopedStore.namespacedGroup(group), offset, limit)
+}
+
 // Usage example: `for entry, err := range scopedStore.All("config") { if err != nil { break }; fmt.Println(entry.Key, entry.Value) }`
 func (scopedStore *ScopedStore) All(group string) iter.Seq2[KeyValue, error] {
 	return scopedStore.storeInstance.All(scopedStore.namespacedGroup(group))
@@ -397,6 +402,14 @@ func (scopedStoreTransaction *ScopedStoreTransaction) GetAll(group string) (map[
 		return nil, err
 	}
 	return scopedStoreTransaction.storeTransaction.GetAll(scopedStoreTransaction.scopedStore.namespacedGroup(group))
+}
+
+// Usage example: `page, err := scopedStoreTransaction.GetPage("config", 0, 25); if err != nil { return }; for _, entry := range page { fmt.Println(entry.Key, entry.Value) }`
+func (scopedStoreTransaction *ScopedStoreTransaction) GetPage(group string, offset, limit int) ([]KeyValue, error) {
+	if err := scopedStoreTransaction.ensureReady("store.ScopedStoreTransaction.GetPage"); err != nil {
+		return nil, err
+	}
+	return scopedStoreTransaction.storeTransaction.GetPage(scopedStoreTransaction.scopedStore.namespacedGroup(group), offset, limit)
 }
 
 // Usage example: `for entry, err := range scopedStoreTransaction.All("config") { if err != nil { break }; fmt.Println(entry.Key, entry.Value) }`

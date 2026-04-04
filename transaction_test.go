@@ -127,6 +127,33 @@ func TestTransaction_Transaction_Good_ReadHelpersSeePendingWrites(t *testing.T) 
 	require.NoError(t, err)
 }
 
+func TestTransaction_ScopedStoreTransaction_Good_GetPage(t *testing.T) {
+	storeInstance, _ := New(":memory:")
+	defer storeInstance.Close()
+
+	scopedStore, err := NewScoped(storeInstance, "tenant-a")
+	require.NoError(t, err)
+
+	err = scopedStore.Transaction(func(transaction *ScopedStoreTransaction) error {
+		if err := transaction.SetIn("items", "charlie", "3"); err != nil {
+			return err
+		}
+		if err := transaction.SetIn("items", "alpha", "1"); err != nil {
+			return err
+		}
+		if err := transaction.SetIn("items", "bravo", "2"); err != nil {
+			return err
+		}
+
+		page, err := transaction.GetPage("items", 1, 1)
+		require.NoError(t, err)
+		require.Len(t, page, 1)
+		assert.Equal(t, KeyValue{Key: "bravo", Value: "2"}, page[0])
+		return nil
+	})
+	require.NoError(t, err)
+}
+
 func TestTransaction_ScopedStoreTransaction_Good_CommitsNamespacedWrites(t *testing.T) {
 	storeInstance, _ := New(":memory:")
 	defer storeInstance.Close()

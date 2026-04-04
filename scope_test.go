@@ -293,6 +293,21 @@ func TestScope_ScopedStore_Good_GetAll(t *testing.T) {
 	assert.Equal(t, map[string]string{"z": "3"}, betaEntries)
 }
 
+func TestScope_ScopedStore_Good_GetPage(t *testing.T) {
+	storeInstance, _ := New(":memory:")
+	defer storeInstance.Close()
+
+	scopedStore, _ := NewScoped(storeInstance, "tenant-a")
+	require.NoError(t, scopedStore.SetIn("items", "charlie", "3"))
+	require.NoError(t, scopedStore.SetIn("items", "alpha", "1"))
+	require.NoError(t, scopedStore.SetIn("items", "bravo", "2"))
+
+	page, err := scopedStore.GetPage("items", 1, 1)
+	require.NoError(t, err)
+	require.Len(t, page, 1)
+	assert.Equal(t, KeyValue{Key: "bravo", Value: "2"}, page[0])
+}
+
 func TestScope_ScopedStore_Good_All(t *testing.T) {
 	storeInstance, _ := New(":memory:")
 	defer storeInstance.Close()
