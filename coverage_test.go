@@ -304,7 +304,7 @@ func TestCoverage_ScopedStore_Bad_GroupsSeqRowsError(t *testing.T) {
 	defer database.Close()
 
 	scopedStore := &ScopedStore{
-		backingStore: &Store{
+		parentStore: &Store{
 			sqliteDatabase: database,
 			cancelPurge:    func() {},
 		},
