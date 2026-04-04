@@ -67,6 +67,10 @@ func (storeConfig StoreConfig) Validate() error {
 }
 
 // Usage example: `config := storeInstance.JournalConfiguration(); fmt.Println(config.EndpointURL, config.Organisation, config.BucketName)`
+// JournalConfiguration stores the SQLite journal metadata used by
+// CommitToJournal and QueryJournal. The field names stay aligned with the
+// agent-facing RFC vocabulary even though the implementation is local to this
+// package.
 // Usage example: `store.NewConfigured(store.StoreConfig{DatabasePath: ":memory:", Journal: store.JournalConfiguration{EndpointURL: "http://127.0.0.1:8086", Organisation: "core", BucketName: "events"}})`
 type JournalConfiguration struct {
 	// Usage example: `config := store.JournalConfiguration{EndpointURL: "http://127.0.0.1:8086"}`

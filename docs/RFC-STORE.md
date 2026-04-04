@@ -43,9 +43,9 @@ SQLite-backed key-value store with TTL, namespace isolation, reactive events, an
 // Store is the SQLite KV store with optional SQLite journal backing.
 type Store struct {
     db      *sql.DB            // SQLite connection (single, WAL mode)
-    journal influxdb2.Client   // InfluxDB client (nil if no journal configured)
-    bucket  string             // InfluxDB bucket name
-    org     string             // InfluxDB org
+    journal JournalConfiguration // SQLite journal metadata (nil-equivalent when zero-valued)
+    bucket  string             // Journal bucket name
+    org     string             // Journal organisation
     mu      sync.RWMutex
     watchers map[string][]chan Event
 }
@@ -62,7 +62,7 @@ type Event struct {
 // New creates a store. Journal is optional — pass WithJournal() to enable.
 //
 //   st, _ := store.New(":memory:")                           // SQLite only
-//   st, _ := store.New("/path/to/db", store.WithJournal(    // SQLite + InfluxDB
+//   st, _ := store.New("/path/to/db", store.WithJournal(
 //       "http://localhost:8086", "core-org", "core-bucket",
 //   ))
 func New(path string, opts ...StoreOption) (*Store, error) { }
