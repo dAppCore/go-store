@@ -78,6 +78,9 @@ type Store struct {
 	watchersLock               sync.RWMutex // protects watcher registration and dispatch
 	callbacksLock              sync.RWMutex // protects callback registration and dispatch
 	nextCallbackRegistrationID uint64       // monotonic ID for callback registrations
+
+	orphanWorkspacesLock sync.Mutex
+	orphanWorkspaces     []*Workspace
 }
 
 func (storeInstance *Store) ensureReady(operation string) error {
@@ -172,7 +175,7 @@ func openConfiguredStore(operation string, config StoreConfig) (*Store, error) {
 
 	// New() performs a non-destructive orphan scan so callers can discover
 	// leftover workspaces via RecoverOrphans().
-	discoverOrphanWorkspacePaths(defaultWorkspaceStateDirectory)
+	storeInstance.orphanWorkspaces = discoverOrphanWorkspaces(defaultWorkspaceStateDirectory, storeInstance)
 	storeInstance.startBackgroundPurge()
 	return storeInstance, nil
 }
@@ -253,6 +256,13 @@ func (storeInstance *Store) Close() error {
 	storeInstance.callbacksLock.Lock()
 	storeInstance.callbacks = nil
 	storeInstance.callbacksLock.Unlock()
+
+	storeInstance.orphanWorkspacesLock.Lock()
+	for _, orphanWorkspace := range storeInstance.orphanWorkspaces {
+		orphanWorkspace.Discard()
+	}
+	storeInstance.orphanWorkspaces = nil
+	storeInstance.orphanWorkspacesLock.Unlock()
 
 	if storeInstance.database == nil {
 		return nil
