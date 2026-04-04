@@ -94,10 +94,9 @@ func (journalConfig journalConfiguration) isConfigured() bool {
 		journalConfig.bucketName != ""
 }
 
+// Usage example: `storeInstance, err := store.NewConfigured(store.StoreConfig{DatabasePath: ":memory:", Journal: store.JournalConfiguration{EndpointURL: "http://127.0.0.1:8086", Organisation: "core", BucketName: "events"}, PurgeInterval: 30 * time.Second})`
 // Store keeps grouped key-value entries in SQLite and can also write completed
 // work summaries to the journal table.
-//
-// Usage example: `storeInstance, err := store.NewConfigured(store.StoreConfig{DatabasePath: ":memory:", Journal: store.JournalConfiguration{EndpointURL: "http://127.0.0.1:8086", Organisation: "core", BucketName: "events"}, PurgeInterval: 30 * time.Second})`
 type Store struct {
 	sqliteDatabase       *sql.DB
 	databasePath         string
