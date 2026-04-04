@@ -32,6 +32,7 @@ func main() {
 			BucketName:   "events",
 		},
 		PurgeInterval: 30 * time.Second,
+		WorkspaceStateDirectory: "/tmp/core-state",
 	})
 	if err != nil {
 		return

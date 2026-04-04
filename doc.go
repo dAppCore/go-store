@@ -16,9 +16,10 @@
 // already available, because it reads as data rather than a sequence of
 // steps. Use `StoreConfig.Normalised()` when you want the default purge
 // interval and workspace state directory filled in before you pass the config
-// onward. Use `store.WithWorkspaceStateDirectory("/tmp/core-state")` only
-// when the workspace path is assembled incrementally rather than declared up
-// front.
+// onward. Include `WorkspaceStateDirectory: "/tmp/core-state"` in the struct
+// literal when the path is known; use `store.WithWorkspaceStateDirectory`
+// only when the workspace path is assembled incrementally rather than
+// declared up front.
 //
 // Usage example:
 //
@@ -31,6 +32,7 @@
 //				BucketName:   "events",
 //			},
 //			PurgeInterval: 20 * time.Millisecond,
+//			WorkspaceStateDirectory: "/tmp/core-state",
 //		})
 //		if err != nil {
 //			return

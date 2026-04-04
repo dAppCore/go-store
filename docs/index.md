@@ -32,6 +32,7 @@ func main() {
     storeInstance, err := store.NewConfigured(store.StoreConfig{
         DatabasePath: "/tmp/app.db",
         PurgeInterval: 30 * time.Second,
+        WorkspaceStateDirectory: "/tmp/core-state",
     })
     if err != nil {
         return
