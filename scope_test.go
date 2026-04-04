@@ -273,6 +273,32 @@ func TestScope_ScopedStore_Good_DeletePrefix(t *testing.T) {
 	assert.Equal(t, "keep", otherValue)
 }
 
+func TestScope_ScopedStore_Good_OnChange_NamespaceLocal(t *testing.T) {
+	storeInstance, _ := New(":memory:")
+	defer storeInstance.Close()
+
+	scopedStore, _ := NewScoped(storeInstance, "tenant-a")
+	otherScopedStore, _ := NewScoped(storeInstance, "tenant-b")
+
+	var events []Event
+	unregister := scopedStore.OnChange(func(event Event) {
+		events = append(events, event)
+	})
+	defer unregister()
+
+	require.NoError(t, scopedStore.SetIn("config", "colour", "blue"))
+	require.NoError(t, otherScopedStore.SetIn("config", "colour", "red"))
+	require.NoError(t, scopedStore.Delete("config", "colour"))
+
+	require.Len(t, events, 2)
+	assert.Equal(t, "config", events[0].Group)
+	assert.Equal(t, "colour", events[0].Key)
+	assert.Equal(t, "blue", events[0].Value)
+	assert.Equal(t, "config", events[1].Group)
+	assert.Equal(t, "colour", events[1].Key)
+	assert.Equal(t, "", events[1].Value)
+}
+
 func TestScope_ScopedStore_Good_GetAll(t *testing.T) {
 	storeInstance, _ := New(":memory:")
 	defer storeInstance.Close()

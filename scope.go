@@ -280,6 +280,27 @@ func (scopedStore *ScopedStore) PurgeExpired() (int64, error) {
 	return removedRows, nil
 }
 
+// Usage example: `unregister := scopedStore.OnChange(func(event store.Event) { fmt.Println(event.Group, event.Key, event.Value) })`
+// The callback receives the namespace-local group name, so a write to
+// `tenant-a:config` is reported as `config`.
+func (scopedStore *ScopedStore) OnChange(callback func(Event)) func() {
+	if scopedStore == nil || callback == nil {
+		return func() {}
+	}
+	if scopedStore.storeInstance == nil {
+		return func() {}
+	}
+
+	namespacePrefix := scopedStore.namespacePrefix()
+	return scopedStore.storeInstance.OnChange(func(event Event) {
+		if !core.HasPrefix(event.Group, namespacePrefix) {
+			return
+		}
+		event.Group = core.TrimPrefix(event.Group, namespacePrefix)
+		callback(event)
+	})
+}
+
 // ScopedStoreTransaction exposes namespace-local transaction helpers so callers
 // can work inside a scoped namespace without manually prefixing group names.
 //
