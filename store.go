@@ -27,7 +27,7 @@ const (
 	entryValueColumn        = "entry_value"
 )
 
-// Usage example: `storeInstance, err := store.New("/tmp/go-store.db", store.WithJournal("http://127.0.0.1:8086", "core", "events"), store.WithPurgeInterval(30*time.Second))`
+// Usage example: `storeInstance, err := store.NewConfigured(store.StoreConfig{DatabasePath: "/tmp/go-store.db", Journal: store.JournalConfiguration{EndpointURL: "http://127.0.0.1:8086", Organisation: "core", BucketName: "events"}, PurgeInterval: 30 * time.Second})`
 // Prefer `store.NewConfigured(store.StoreConfig{...})` when the configuration
 // is already known as a struct literal. Use `StoreOption` only when values
 // need to be assembled incrementally, such as when a caller receives them from
@@ -204,7 +204,7 @@ func (storeInstance *Store) IsClosed() bool {
 	return closed
 }
 
-// Usage example: `storeInstance, err := store.New(":memory:", store.WithPurgeInterval(20*time.Millisecond))`
+// Usage example: `storeInstance, err := store.NewConfigured(store.StoreConfig{DatabasePath: ":memory:", PurgeInterval: 20 * time.Millisecond})`
 func WithPurgeInterval(interval time.Duration) StoreOption {
 	return func(storeConfig *StoreConfig) {
 		if storeConfig == nil {
@@ -249,7 +249,7 @@ func openConfiguredStore(operation string, storeConfig StoreConfig) (*Store, err
 	return storeInstance, nil
 }
 
-// Usage example: `storeInstance, err := store.New("/tmp/go-store.db", store.WithJournal("http://127.0.0.1:8086", "core", "events"))`
+// Usage example: `storeInstance, err := store.NewConfigured(store.StoreConfig{DatabasePath: "/tmp/go-store.db", Journal: store.JournalConfiguration{EndpointURL: "http://127.0.0.1:8086", Organisation: "core", BucketName: "events"}})`
 func New(databasePath string, options ...StoreOption) (*Store, error) {
 	storeConfig := StoreConfig{DatabasePath: databasePath}
 	for _, option := range options {
