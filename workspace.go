@@ -116,11 +116,12 @@ func (storeInstance *Store) NewWorkspace(name string) (*Workspace, error) {
 	}
 
 	filesystem := (&core.Fs{}).NewUnrestricted()
-	databasePath := workspaceFilePath(defaultWorkspaceStateDirectory, name)
+	stateDirectory := storeInstance.workspaceStateDirectoryPath()
+	databasePath := workspaceFilePath(stateDirectory, name)
 	if filesystem.Exists(databasePath) {
 		return nil, core.E("store.NewWorkspace", core.Concat("workspace already exists: ", name), nil)
 	}
-	if result := filesystem.EnsureDir(defaultWorkspaceStateDirectory); !result.OK {
+	if result := filesystem.EnsureDir(stateDirectory); !result.OK {
 		return nil, core.E("store.NewWorkspace", "ensure state directory", result.Value.(error))
 	}
 
@@ -225,11 +226,11 @@ func (storeInstance *Store) RecoverOrphans(stateDirectory string) []*Workspace {
 	}
 
 	if stateDirectory == "" {
-		stateDirectory = defaultWorkspaceStateDirectory
+		stateDirectory = storeInstance.workspaceStateDirectoryPath()
 	}
 	stateDirectory = normaliseWorkspaceStateDirectory(stateDirectory)
 
-	if stateDirectory == normaliseWorkspaceStateDirectory(defaultWorkspaceStateDirectory) {
+	if stateDirectory == storeInstance.workspaceStateDirectoryPath() {
 		storeInstance.orphanWorkspacesLock.Lock()
 		cachedWorkspaces := slices.Clone(storeInstance.orphanWorkspaces)
 		storeInstance.orphanWorkspaces = nil
