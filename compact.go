@@ -116,7 +116,7 @@ func (storeInstance *Store) Compact(options CompactOptions) core.Result {
 	}()
 
 	for _, entry := range archiveEntries {
-		lineMap, err := compactArchiveLine(entry)
+		lineMap, err := archiveEntryLine(entry)
 		if err != nil {
 			return core.Result{Value: err, OK: false}
 		}
@@ -167,7 +167,7 @@ func (storeInstance *Store) Compact(options CompactOptions) core.Result {
 	return core.Result{Value: outputPath, OK: true}
 }
 
-func compactArchiveLine(entry compactArchiveEntry) (map[string]any, error) {
+func archiveEntryLine(entry compactArchiveEntry) (map[string]any, error) {
 	fields := make(map[string]any)
 	fieldsResult := core.JSONUnmarshalString(entry.fieldsJSON, &fields)
 	if !fieldsResult.OK {

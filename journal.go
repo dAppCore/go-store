@@ -116,7 +116,7 @@ func (storeInstance *Store) QueryJournal(flux string) core.Result {
 		return storeInstance.queryJournalRows(trimmedQuery)
 	}
 
-	selectSQL, arguments, err := storeInstance.queryJournalFlux(trimmedQuery)
+	selectSQL, arguments, err := storeInstance.queryJournalFromFlux(trimmedQuery)
 	if err != nil {
 		return core.Result{Value: err, OK: false}
 	}
@@ -145,7 +145,7 @@ func (storeInstance *Store) queryJournalRows(query string, arguments ...any) cor
 	return core.Result{Value: inflateJournalRows(rowMaps), OK: true}
 }
 
-func (storeInstance *Store) queryJournalFlux(flux string) (string, []any, error) {
+func (storeInstance *Store) queryJournalFromFlux(flux string) (string, []any, error) {
 	queryBuilder := core.NewBuilder()
 	queryBuilder.WriteString("SELECT bucket_name, measurement, fields_json, tags_json, committed_at, archived_at FROM ")
 	queryBuilder.WriteString(journalEntriesTableName)
