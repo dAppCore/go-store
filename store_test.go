@@ -170,6 +170,12 @@ func TestStore_StoreConfig_Bad_NegativePurgeInterval(t *testing.T) {
 	assert.Contains(t, err.Error(), "purge interval must be zero or positive")
 }
 
+func TestStore_StoreConfig_Bad_EmptyDatabasePath(t *testing.T) {
+	err := (StoreConfig{}).Validate()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "database path is empty")
+}
+
 func TestStore_NewConfigured_Bad_NegativePurgeInterval(t *testing.T) {
 	_, err := NewConfigured(StoreConfig{
 		DatabasePath:  ":memory:",
@@ -178,6 +184,12 @@ func TestStore_NewConfigured_Bad_NegativePurgeInterval(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "validate config")
 	assert.Contains(t, err.Error(), "purge interval must be zero or positive")
+}
+
+func TestStore_NewConfigured_Bad_EmptyDatabasePath(t *testing.T) {
+	_, err := NewConfigured(StoreConfig{})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "database path is empty")
 }
 
 func TestStore_Config_Good(t *testing.T) {

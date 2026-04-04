@@ -45,6 +45,13 @@ type StoreConfig struct {
 
 // Usage example: `if err := (store.StoreConfig{DatabasePath: ":memory:", PurgeInterval: 30 * time.Second}).Validate(); err != nil { return }`
 func (config StoreConfig) Validate() error {
+	if config.DatabasePath == "" {
+		return core.E(
+			"store.StoreConfig.Validate",
+			"database path is empty",
+			nil,
+		)
+	}
 	if config.Journal != (JournalConfiguration{}) && !config.Journal.isConfigured() {
 		return core.E(
 			"store.StoreConfig.Validate",
