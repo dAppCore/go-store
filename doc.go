@@ -6,8 +6,9 @@
 // `RecoverOrphans(".core/state")`.
 //
 // Use `store.NewConfigured(store.StoreConfig{...})` when the database path,
-// journal, and purge interval are already known.
-// Keep `store.New(..., store.WithJournal(...))` for incremental assembly.
+// journal, and purge interval are already known. Prefer the struct literal
+// over `store.New(..., store.WithJournal(...))` when the full configuration is
+// already available, because it reads as data rather than a chain of steps.
 //
 // Usage example:
 //
