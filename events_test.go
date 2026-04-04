@@ -177,6 +177,25 @@ func TestEvents_OnChange_Good_GroupFilteredCallback(t *testing.T) {
 	assert.Equal(t, []string{"theme=dark"}, seen)
 }
 
+func TestEvents_Notify_Good_PopulatesTimestamp(t *testing.T) {
+	storeInstance, _ := New(":memory:")
+	defer storeInstance.Close()
+
+	events := storeInstance.Watch("config")
+	defer storeInstance.Unwatch("config", events)
+
+	storeInstance.notify(Event{Type: EventSet, Group: "config", Key: "theme", Value: "dark"})
+
+	select {
+	case event := <-events:
+		assert.False(t, event.Timestamp.IsZero())
+		assert.Equal(t, "config", event.Group)
+		assert.Equal(t, "theme", event.Key)
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for timestamped event")
+	}
+}
+
 func TestEvents_Watch_Good_BufferDrops(t *testing.T) {
 	storeInstance, _ := New(":memory:")
 	defer storeInstance.Close()

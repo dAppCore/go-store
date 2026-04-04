@@ -32,8 +32,8 @@ FROM workspace_entries`
 
 var defaultWorkspaceStateDirectory = ".core/state/"
 
-// Workspace buffers mutable work-in-progress in `.core/state/scroll-session.duckdb`
-// until Commit or Discard removes the file.
+// Workspace buffers mutable work-in-progress in a SQLite file under
+// `.core/state/scroll-session.duckdb` until Commit or Discard removes it.
 //
 // Usage example: `workspace, err := storeInstance.NewWorkspace("scroll-session-2026-03-30"); if err != nil { return }; defer workspace.Discard(); _ = workspace.Put("like", map[string]any{"user": "@alice"})`
 type Workspace struct {
@@ -63,8 +63,8 @@ func (workspace *Workspace) DatabasePath() string {
 	return workspace.databasePath
 }
 
-// Close leaves `.core/state/scroll-session-2026-03-30.duckdb` on disk so a
-// later store instance can recover it as an orphan.
+// Close leaves the SQLite workspace file `.core/state/scroll-session-2026-03-30.duckdb`
+// on disk so a later store instance can recover it as an orphan.
 //
 // Usage example: `if err := workspace.Close(); err != nil { return }; orphans := storeInstance.RecoverOrphans(".core/state"); _ = orphans`
 func (workspace *Workspace) Close() error {
@@ -98,8 +98,9 @@ func (workspace *Workspace) ensureReady(operation string) error {
 	return nil
 }
 
-// NewWorkspace creates `.core/state/scroll-session-2026-03-30.duckdb` and
-// removes it when the workspace is committed or discarded.
+// NewWorkspace creates a SQLite workspace file at
+// `.core/state/scroll-session-2026-03-30.duckdb` and removes it when the
+// workspace is committed or discarded.
 //
 // Usage example: `workspace, err := storeInstance.NewWorkspace("scroll-session-2026-03-30"); if err != nil { return }; defer workspace.Discard()`
 func (storeInstance *Store) NewWorkspace(name string) (*Workspace, error) {
@@ -135,8 +136,8 @@ func (storeInstance *Store) NewWorkspace(name string) (*Workspace, error) {
 	}, nil
 }
 
-// discoverOrphanWorkspacePaths(".core/state") returns leftover workspace files
-// such as `scroll-session.duckdb` without opening them.
+// discoverOrphanWorkspacePaths(".core/state") returns leftover SQLite workspace
+// files such as `scroll-session.duckdb` without opening them.
 func discoverOrphanWorkspacePaths(stateDirectory string) []string {
 	filesystem := (&core.Fs{}).NewUnrestricted()
 	if stateDirectory == "" {

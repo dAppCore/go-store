@@ -197,6 +197,9 @@ func (storeInstance *Store) notify(event Event) {
 	if storeInstance == nil {
 		return
 	}
+	if event.Timestamp.IsZero() {
+		event.Timestamp = time.Now()
+	}
 
 	storeInstance.closeLock.Lock()
 	closed := storeInstance.closed
