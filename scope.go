@@ -26,8 +26,8 @@ type QuotaConfig struct {
 // ScopedStore keeps one namespace isolated behind helpers such as Set and
 // GetFrom so callers do not repeat the `tenant-a:` prefix manually.
 type ScopedStore struct {
-	backingStore *Store
-	namespace    string
+	parentStore *Store
+	namespace   string
 	// Usage example: `scopedStore.MaxKeys = 100`
 	MaxKeys int
 	// Usage example: `scopedStore.MaxGroups = 10`
@@ -74,7 +74,7 @@ func (scopedConfig ScopedStoreConfig) Validate() error {
 }
 
 type scopedWatcherBinding struct {
-	backingStore     *Store
+	parentStore      *Store
 	underlyingEvents <-chan Event
 	done             chan struct{}
 	stop             chan struct{}
@@ -85,13 +85,13 @@ func (scopedStore *ScopedStore) resolvedStore(operation string) (*Store, error) 
 	if scopedStore == nil {
 		return nil, core.E(operation, "scoped store is nil", nil)
 	}
-	if scopedStore.backingStore == nil {
+	if scopedStore.parentStore == nil {
 		return nil, core.E(operation, "underlying store is nil", nil)
 	}
-	if err := scopedStore.backingStore.ensureReady(operation); err != nil {
+	if err := scopedStore.parentStore.ensureReady(operation); err != nil {
 		return nil, err
 	}
-	return scopedStore.backingStore, nil
+	return scopedStore.parentStore, nil
 }
 
 // Usage example: `scopedStore := store.NewScoped(storeInstance, "tenant-a"); if scopedStore == nil { return }`
@@ -102,7 +102,7 @@ func NewScoped(storeInstance *Store, namespace string) *ScopedStore {
 	if !validNamespace.MatchString(namespace) {
 		return nil
 	}
-	scopedStore := &ScopedStore{backingStore: storeInstance, namespace: namespace}
+	scopedStore := &ScopedStore{parentStore: storeInstance, namespace: namespace}
 	return scopedStore
 }
 
@@ -362,7 +362,7 @@ func (scopedStore *ScopedStore) Watch(group string) <-chan Event {
 
 	forwardedEvents := make(chan Event, watcherEventBufferCapacity)
 	binding := &scopedWatcherBinding{
-		backingStore:     backingStore,
+		parentStore:      backingStore,
 		underlyingEvents: backingStore.Watch("*"),
 		done:             make(chan struct{}),
 		stop:             make(chan struct{}),
@@ -784,8 +784,8 @@ func (scopedStore *ScopedStore) forgetAndStopScopedWatcher(events <-chan Event) 
 	binding.stopOnce.Do(func() {
 		close(binding.stop)
 	})
-	if binding.backingStore != nil {
-		binding.backingStore.Unwatch("*", binding.underlyingEvents)
+	if binding.parentStore != nil {
+		binding.parentStore.Unwatch("*", binding.underlyingEvents)
 	}
 	<-binding.done
 }
@@ -806,7 +806,7 @@ func (scopedStore *ScopedStore) checkQuota(operation, group, key string) error {
 	namespacePrefix := scopedStore.namespacePrefix()
 
 	// Check if this is an upsert (key already exists) — upserts never exceed quota.
-	_, err := scopedStore.backingStore.Get(namespacedGroup, key)
+	_, err := scopedStore.parentStore.Get(namespacedGroup, key)
 	if err == nil {
 		// Key exists — this is an upsert, no quota check needed.
 		return nil
@@ -818,7 +818,7 @@ func (scopedStore *ScopedStore) checkQuota(operation, group, key string) error {
 
 	// Check MaxKeys quota.
 	if scopedStore.MaxKeys > 0 {
-		keyCount, err := scopedStore.backingStore.CountAll(namespacePrefix)
+		keyCount, err := scopedStore.parentStore.CountAll(namespacePrefix)
 		if err != nil {
 			return core.E(operation, "quota check", err)
 		}
@@ -829,13 +829,13 @@ func (scopedStore *ScopedStore) checkQuota(operation, group, key string) error {
 
 	// Check MaxGroups quota — only if this would create a new group.
 	if scopedStore.MaxGroups > 0 {
-		existingGroupCount, err := scopedStore.backingStore.Count(namespacedGroup)
+		existingGroupCount, err := scopedStore.parentStore.Count(namespacedGroup)
 		if err != nil {
 			return core.E(operation, "quota check", err)
 		}
 		if existingGroupCount == 0 {
 			// This group is new, so count existing namespace groups with the public helper.
-			groupNames, err := scopedStore.backingStore.Groups(namespacePrefix)
+			groupNames, err := scopedStore.parentStore.Groups(namespacePrefix)
 			if err != nil {
 				return core.E(operation, "quota check", err)
 			}

@@ -39,7 +39,7 @@ var defaultWorkspaceStateDirectory = ".core/state/"
 // Usage example: `workspace, err := storeInstance.NewWorkspace("scroll-session-2026-03-30"); if err != nil { return }; defer workspace.Discard(); _ = workspace.Put("like", map[string]any{"user": "@alice"})`
 type Workspace struct {
 	name            string
-	backingStore    *Store
+	parentStore     *Store
 	sqliteDatabase  *sql.DB
 	databasePath    string
 	filesystem      *core.Fs
@@ -77,7 +77,7 @@ func (workspace *Workspace) ensureReady(operation string) error {
 	if workspace == nil {
 		return core.E(operation, "workspace is nil", nil)
 	}
-	if workspace.backingStore == nil {
+	if workspace.parentStore == nil {
 		return core.E(operation, "workspace store is nil", nil)
 	}
 	if workspace.sqliteDatabase == nil {
@@ -86,7 +86,7 @@ func (workspace *Workspace) ensureReady(operation string) error {
 	if workspace.filesystem == nil {
 		return core.E(operation, "workspace filesystem is nil", nil)
 	}
-	if err := workspace.backingStore.ensureReady(operation); err != nil {
+	if err := workspace.parentStore.ensureReady(operation); err != nil {
 		return err
 	}
 
@@ -131,7 +131,7 @@ func (storeInstance *Store) NewWorkspace(name string) (*Workspace, error) {
 
 	return &Workspace{
 		name:           name,
-		backingStore:   storeInstance,
+		parentStore:    storeInstance,
 		sqliteDatabase: sqliteDatabase,
 		databasePath:   databasePath,
 		filesystem:     filesystem,
@@ -180,11 +180,11 @@ func discoverOrphanWorkspacePaths(stateDirectory string) []string {
 	return orphanPaths
 }
 
-func discoverOrphanWorkspaces(stateDirectory string, backingStore *Store) []*Workspace {
-	return loadRecoveredWorkspaces(stateDirectory, backingStore)
+func discoverOrphanWorkspaces(stateDirectory string, parentStore *Store) []*Workspace {
+	return loadRecoveredWorkspaces(stateDirectory, parentStore)
 }
 
-func loadRecoveredWorkspaces(stateDirectory string, backingStore *Store) []*Workspace {
+func loadRecoveredWorkspaces(stateDirectory string, parentStore *Store) []*Workspace {
 	filesystem := (&core.Fs{}).NewUnrestricted()
 	orphanWorkspaces := make([]*Workspace, 0)
 	for _, databasePath := range discoverOrphanWorkspacePaths(stateDirectory) {
@@ -194,7 +194,7 @@ func loadRecoveredWorkspaces(stateDirectory string, backingStore *Store) []*Work
 		}
 		orphanWorkspace := &Workspace{
 			name:           workspaceNameFromPath(stateDirectory, databasePath),
-			backingStore:   backingStore,
+			parentStore:    parentStore,
 			sqliteDatabase: sqliteDatabase,
 			databasePath:   databasePath,
 			filesystem:     filesystem,
@@ -300,7 +300,7 @@ func (workspace *Workspace) Commit() core.Result {
 	if err != nil {
 		return core.Result{Value: core.E("store.Workspace.Commit", "aggregate workspace", err), OK: false}
 	}
-	if err := workspace.backingStore.commitWorkspaceAggregate(workspace.name, fields); err != nil {
+	if err := workspace.parentStore.commitWorkspaceAggregate(workspace.name, fields); err != nil {
 		return core.Result{Value: err, OK: false}
 	}
 	if err := workspace.closeAndRemoveFiles(); err != nil {
