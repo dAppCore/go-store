@@ -176,6 +176,40 @@ func TestScope_NewScopedConfigured_Bad_InvalidNamespace(t *testing.T) {
 	assert.Contains(t, err.Error(), "namespace")
 }
 
+func TestScope_ScopedStore_Good_NilReceiverReturnsErrors(t *testing.T) {
+	var scopedStore *ScopedStore
+
+	_, err := scopedStore.Get("theme")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "scoped store is nil")
+
+	err = scopedStore.Set("theme", "dark")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "scoped store is nil")
+
+	_, err = scopedStore.Count("config")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "scoped store is nil")
+
+	_, err = scopedStore.Groups()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "scoped store is nil")
+
+	for entry, iterationErr := range scopedStore.All("config") {
+		_ = entry
+		require.Error(t, iterationErr)
+		assert.Contains(t, iterationErr.Error(), "scoped store is nil")
+		break
+	}
+
+	for groupName, iterationErr := range scopedStore.GroupsSeq() {
+		_ = groupName
+		require.Error(t, iterationErr)
+		assert.Contains(t, iterationErr.Error(), "scoped store is nil")
+		break
+	}
+}
+
 // ---------------------------------------------------------------------------
 // ScopedStore — basic CRUD
 // ---------------------------------------------------------------------------
