@@ -319,12 +319,12 @@ func (workspace *Workspace) Discard() {
 }
 
 // Usage example: `result := workspace.Query("SELECT entry_kind, COUNT(*) AS count FROM workspace_entries GROUP BY entry_kind")`
-func (workspace *Workspace) Query(sqlQuery string) core.Result {
+func (workspace *Workspace) Query(query string) core.Result {
 	if err := workspace.ensureReady("store.Workspace.Query"); err != nil {
 		return core.Result{Value: err, OK: false}
 	}
 
-	rows, err := workspace.workspaceDatabase.Query(sqlQuery)
+	rows, err := workspace.workspaceDatabase.Query(query)
 	if err != nil {
 		return core.Result{Value: core.E("store.Workspace.Query", "query workspace", err), OK: false}
 	}
