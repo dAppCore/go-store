@@ -177,6 +177,32 @@ func TestWorkspace_Discard_Good_Idempotent(t *testing.T) {
 	assert.False(t, testFilesystem().Exists(workspace.databasePath))
 }
 
+func TestWorkspace_Close_Good_PreservesFileForRecovery(t *testing.T) {
+	stateDirectory := useWorkspaceStateDirectory(t)
+
+	storeInstance, err := New(":memory:")
+	require.NoError(t, err)
+	defer storeInstance.Close()
+
+	workspace, err := storeInstance.NewWorkspace("close-session")
+	require.NoError(t, err)
+
+	require.NoError(t, workspace.Put("like", map[string]any{"user": "@alice"}))
+	require.NoError(t, workspace.Close())
+
+	assert.True(t, testFilesystem().Exists(workspace.databasePath))
+
+	err = workspace.Put("like", map[string]any{"user": "@bob"})
+	require.Error(t, err)
+
+	orphans := storeInstance.RecoverOrphans(stateDirectory)
+	require.Len(t, orphans, 1)
+	assert.Equal(t, "close-session", orphans[0].Name())
+	assert.Equal(t, map[string]any{"like": 1}, orphans[0].Aggregate())
+	orphans[0].Discard()
+	assert.False(t, testFilesystem().Exists(workspace.databasePath))
+}
+
 func TestWorkspace_RecoverOrphans_Good(t *testing.T) {
 	stateDirectory := useWorkspaceStateDirectory(t)
 

@@ -63,6 +63,13 @@ func (workspace *Workspace) DatabasePath() string {
 	return workspace.databasePath
 }
 
+// Usage example: `if err := workspace.Close(); err != nil { return }`
+// Close releases the workspace database handle but keeps the on-disk file so a
+// later store instance can recover it as an orphan.
+func (workspace *Workspace) Close() error {
+	return workspace.closeWithoutRemovingFiles()
+}
+
 func (workspace *Workspace) ensureReady(operation string) error {
 	if workspace == nil {
 		return core.E(operation, "workspace is nil", nil)
