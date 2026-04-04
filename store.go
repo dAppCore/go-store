@@ -60,7 +60,7 @@ type JournalConfiguration struct {
 
 // Usage example: `storeInstance, err := store.New(":memory:")`
 type Store struct {
-	database             *sql.DB
+	sqliteDatabase       *sql.DB
 	databasePath         string
 	purgeContext         context.Context
 	cancelPurge          context.CancelFunc
@@ -85,7 +85,7 @@ func (storeInstance *Store) ensureReady(operation string) error {
 	if storeInstance == nil {
 		return core.E(operation, "store is nil", nil)
 	}
-	if storeInstance.database == nil {
+	if storeInstance.sqliteDatabase == nil {
 		return core.E(operation, "store is not initialised", nil)
 	}
 
@@ -242,12 +242,12 @@ func openSQLiteStore(operation, databasePath string) (*Store, error) {
 
 	purgeContext, cancel := context.WithCancel(context.Background())
 	return &Store{
-		database:      sqliteDatabase,
-		databasePath:  databasePath,
-		purgeContext:  purgeContext,
-		cancelPurge:   cancel,
-		purgeInterval: 60 * time.Second,
-		watchers:      make(map[string][]chan Event),
+		sqliteDatabase: sqliteDatabase,
+		databasePath:   databasePath,
+		purgeContext:   purgeContext,
+		cancelPurge:    cancel,
+		purgeInterval:  60 * time.Second,
+		watchers:       make(map[string][]chan Event),
 	}, nil
 }
 
@@ -293,10 +293,10 @@ func (storeInstance *Store) Close() error {
 	storeInstance.orphanWorkspaces = nil
 	storeInstance.orphanWorkspacesLock.Unlock()
 
-	if storeInstance.database == nil {
+	if storeInstance.sqliteDatabase == nil {
 		return orphanCleanupErr
 	}
-	if err := storeInstance.database.Close(); err != nil {
+	if err := storeInstance.sqliteDatabase.Close(); err != nil {
 		return core.E("store.Close", "database close", err)
 	}
 	return orphanCleanupErr
@@ -310,7 +310,7 @@ func (storeInstance *Store) Get(group, key string) (string, error) {
 
 	var value string
 	var expiresAt sql.NullInt64
-	err := storeInstance.database.QueryRow(
+	err := storeInstance.sqliteDatabase.QueryRow(
 		"SELECT "+entryValueColumn+", expires_at FROM "+entriesTableName+" WHERE "+entryGroupColumn+" = ? AND "+entryKeyColumn+" = ?",
 		group, key,
 	).Scan(&value, &expiresAt)
@@ -335,7 +335,7 @@ func (storeInstance *Store) Set(group, key, value string) error {
 		return err
 	}
 
-	_, err := storeInstance.database.Exec(
+	_, err := storeInstance.sqliteDatabase.Exec(
 		"INSERT INTO "+entriesTableName+" ("+entryGroupColumn+", "+entryKeyColumn+", "+entryValueColumn+", expires_at) VALUES (?, ?, ?, NULL) "+
 			"ON CONFLICT("+entryGroupColumn+", "+entryKeyColumn+") DO UPDATE SET "+entryValueColumn+" = excluded."+entryValueColumn+", expires_at = NULL",
 		group, key, value,
@@ -354,7 +354,7 @@ func (storeInstance *Store) SetWithTTL(group, key, value string, timeToLive time
 	}
 
 	expiresAt := time.Now().Add(timeToLive).UnixMilli()
-	_, err := storeInstance.database.Exec(
+	_, err := storeInstance.sqliteDatabase.Exec(
 		"INSERT INTO "+entriesTableName+" ("+entryGroupColumn+", "+entryKeyColumn+", "+entryValueColumn+", expires_at) VALUES (?, ?, ?, ?) "+
 			"ON CONFLICT("+entryGroupColumn+", "+entryKeyColumn+") DO UPDATE SET "+entryValueColumn+" = excluded."+entryValueColumn+", expires_at = excluded.expires_at",
 		group, key, value, expiresAt,
@@ -372,7 +372,7 @@ func (storeInstance *Store) Delete(group, key string) error {
 		return err
 	}
 
-	deleteResult, err := storeInstance.database.Exec("DELETE FROM "+entriesTableName+" WHERE "+entryGroupColumn+" = ? AND "+entryKeyColumn+" = ?", group, key)
+	deleteResult, err := storeInstance.sqliteDatabase.Exec("DELETE FROM "+entriesTableName+" WHERE "+entryGroupColumn+" = ? AND "+entryKeyColumn+" = ?", group, key)
 	if err != nil {
 		return core.E("store.Delete", "delete row", err)
 	}
@@ -393,7 +393,7 @@ func (storeInstance *Store) Count(group string) (int, error) {
 	}
 
 	var count int
-	err := storeInstance.database.QueryRow(
+	err := storeInstance.sqliteDatabase.QueryRow(
 		"SELECT COUNT(*) FROM "+entriesTableName+" WHERE "+entryGroupColumn+" = ? AND (expires_at IS NULL OR expires_at > ?)",
 		group, time.Now().UnixMilli(),
 	).Scan(&count)
@@ -409,7 +409,7 @@ func (storeInstance *Store) DeleteGroup(group string) error {
 		return err
 	}
 
-	deleteResult, err := storeInstance.database.Exec("DELETE FROM "+entriesTableName+" WHERE "+entryGroupColumn+" = ?", group)
+	deleteResult, err := storeInstance.sqliteDatabase.Exec("DELETE FROM "+entriesTableName+" WHERE "+entryGroupColumn+" = ?", group)
 	if err != nil {
 		return core.E("store.DeleteGroup", "delete group", err)
 	}
@@ -432,11 +432,11 @@ func (storeInstance *Store) DeletePrefix(groupPrefix string) error {
 	var rows *sql.Rows
 	var err error
 	if groupPrefix == "" {
-		rows, err = storeInstance.database.Query(
+		rows, err = storeInstance.sqliteDatabase.Query(
 			"SELECT DISTINCT " + entryGroupColumn + " FROM " + entriesTableName + " ORDER BY " + entryGroupColumn,
 		)
 	} else {
-		rows, err = storeInstance.database.Query(
+		rows, err = storeInstance.sqliteDatabase.Query(
 			"SELECT DISTINCT "+entryGroupColumn+" FROM "+entriesTableName+" WHERE "+entryGroupColumn+" LIKE ? ESCAPE '^' ORDER BY "+entryGroupColumn,
 			escapeLike(groupPrefix)+"%",
 		)
@@ -501,7 +501,7 @@ func (storeInstance *Store) GetPage(group string, offset, limit int) ([]KeyValue
 		return nil, core.E("store.GetPage", "limit must be zero or positive", nil)
 	}
 
-	rows, err := storeInstance.database.Query(
+	rows, err := storeInstance.sqliteDatabase.Query(
 		"SELECT "+entryKeyColumn+", "+entryValueColumn+" FROM "+entriesTableName+" WHERE "+entryGroupColumn+" = ? AND (expires_at IS NULL OR expires_at > ?) ORDER BY "+entryKeyColumn+" LIMIT ? OFFSET ?",
 		group, time.Now().UnixMilli(), limit, offset,
 	)
@@ -532,7 +532,7 @@ func (storeInstance *Store) AllSeq(group string) iter.Seq2[KeyValue, error] {
 			return
 		}
 
-		rows, err := storeInstance.database.Query(
+		rows, err := storeInstance.sqliteDatabase.Query(
 			"SELECT "+entryKeyColumn+", "+entryValueColumn+" FROM "+entriesTableName+" WHERE "+entryGroupColumn+" = ? AND (expires_at IS NULL OR expires_at > ?) ORDER BY "+entryKeyColumn,
 			group, time.Now().UnixMilli(),
 		)
@@ -625,12 +625,12 @@ func (storeInstance *Store) CountAll(groupPrefix string) (int, error) {
 	var count int
 	var err error
 	if groupPrefix == "" {
-		err = storeInstance.database.QueryRow(
+		err = storeInstance.sqliteDatabase.QueryRow(
 			"SELECT COUNT(*) FROM "+entriesTableName+" WHERE (expires_at IS NULL OR expires_at > ?)",
 			time.Now().UnixMilli(),
 		).Scan(&count)
 	} else {
-		err = storeInstance.database.QueryRow(
+		err = storeInstance.sqliteDatabase.QueryRow(
 			"SELECT COUNT(*) FROM "+entriesTableName+" WHERE "+entryGroupColumn+" LIKE ? ESCAPE '^' AND (expires_at IS NULL OR expires_at > ?)",
 			escapeLike(groupPrefix)+"%", time.Now().UnixMilli(),
 		).Scan(&count)
@@ -672,12 +672,12 @@ func (storeInstance *Store) GroupsSeq(groupPrefix ...string) iter.Seq2[string, e
 		var err error
 		now := time.Now().UnixMilli()
 		if actualGroupPrefix == "" {
-			rows, err = storeInstance.database.Query(
+			rows, err = storeInstance.sqliteDatabase.Query(
 				"SELECT DISTINCT "+entryGroupColumn+" FROM "+entriesTableName+" WHERE (expires_at IS NULL OR expires_at > ?) ORDER BY "+entryGroupColumn,
 				now,
 			)
 		} else {
-			rows, err = storeInstance.database.Query(
+			rows, err = storeInstance.sqliteDatabase.Query(
 				"SELECT DISTINCT "+entryGroupColumn+" FROM "+entriesTableName+" WHERE "+entryGroupColumn+" LIKE ? ESCAPE '^' AND (expires_at IS NULL OR expires_at > ?) ORDER BY "+entryGroupColumn,
 				escapeLike(actualGroupPrefix)+"%", now,
 			)
@@ -818,12 +818,12 @@ func (storeInstance *Store) purgeExpiredMatchingGroupPrefix(groupPrefix string) 
 	)
 	now := time.Now().UnixMilli()
 	if groupPrefix == "" {
-		deleteResult, err = storeInstance.database.Exec(
+		deleteResult, err = storeInstance.sqliteDatabase.Exec(
 			"DELETE FROM "+entriesTableName+" WHERE expires_at IS NOT NULL AND expires_at <= ?",
 			now,
 		)
 	} else {
-		deleteResult, err = storeInstance.database.Exec(
+		deleteResult, err = storeInstance.sqliteDatabase.Exec(
 			"DELETE FROM "+entriesTableName+" WHERE expires_at IS NOT NULL AND expires_at <= ? AND "+entryGroupColumn+" LIKE ? ESCAPE '^'",
 			now, escapeLike(groupPrefix)+"%",
 		)

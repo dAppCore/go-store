@@ -27,7 +27,7 @@ func TestCompact_Compact_Good_GzipArchive(t *testing.T) {
 		storeInstance.CommitToJournal("session-b", map[string]any{"like": 2}, map[string]string{"workspace": "session-b"}).OK,
 	)
 
-	_, err = storeInstance.database.Exec(
+	_, err = storeInstance.sqliteDatabase.Exec(
 		"UPDATE "+journalEntriesTableName+" SET committed_at = ? WHERE measurement = ?",
 		time.Now().Add(-48*time.Hour).UnixMilli(),
 		"session-a",
@@ -76,7 +76,7 @@ func TestCompact_Compact_Good_ZstdArchive(t *testing.T) {
 		storeInstance.CommitToJournal("session-a", map[string]any{"like": 1}, map[string]string{"workspace": "session-a"}).OK,
 	)
 
-	_, err = storeInstance.database.Exec(
+	_, err = storeInstance.sqliteDatabase.Exec(
 		"UPDATE "+journalEntriesTableName+" SET committed_at = ? WHERE measurement = ?",
 		time.Now().Add(-48*time.Hour).UnixMilli(),
 		"session-a",

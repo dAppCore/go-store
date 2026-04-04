@@ -37,11 +37,11 @@ var defaultWorkspaceStateDirectory = ".core/state/"
 //
 // Usage example: `workspace, err := storeInstance.NewWorkspace("scroll-session-2026-03-30"); if err != nil { return }; defer workspace.Discard(); _ = workspace.Put("like", map[string]any{"user": "@alice"})`
 type Workspace struct {
-	name         string
-	backingStore *Store
-	database     *sql.DB
-	databasePath string
-	filesystem   *core.Fs
+	name              string
+	backingStore      *Store
+	workspaceDatabase *sql.DB
+	databasePath      string
+	filesystem        *core.Fs
 
 	closeLock sync.Mutex
 	closed    bool
@@ -78,7 +78,7 @@ func (workspace *Workspace) ensureReady(operation string) error {
 	if workspace.backingStore == nil {
 		return core.E(operation, "workspace store is nil", nil)
 	}
-	if workspace.database == nil {
+	if workspace.workspaceDatabase == nil {
 		return core.E(operation, "workspace database is nil", nil)
 	}
 	if workspace.filesystem == nil {
@@ -127,11 +127,11 @@ func (storeInstance *Store) NewWorkspace(name string) (*Workspace, error) {
 	}
 
 	return &Workspace{
-		name:         name,
-		backingStore: storeInstance,
-		database:     workspaceDatabase,
-		databasePath: databasePath,
-		filesystem:   filesystem,
+		name:              name,
+		backingStore:      storeInstance,
+		workspaceDatabase: workspaceDatabase,
+		databasePath:      databasePath,
+		filesystem:        filesystem,
 	}, nil
 }
 
@@ -186,11 +186,11 @@ func discoverOrphanWorkspaces(stateDirectory string, backingStore *Store) []*Wor
 			continue
 		}
 		orphanWorkspaces = append(orphanWorkspaces, &Workspace{
-			name:         workspaceNameFromPath(stateDirectory, databasePath),
-			backingStore: backingStore,
-			database:     workspaceDatabase,
-			databasePath: databasePath,
-			filesystem:   filesystem,
+			name:              workspaceNameFromPath(stateDirectory, databasePath),
+			backingStore:      backingStore,
+			workspaceDatabase: workspaceDatabase,
+			databasePath:      databasePath,
+			filesystem:        filesystem,
 		})
 	}
 	return orphanWorkspaces
@@ -238,11 +238,11 @@ func (storeInstance *Store) RecoverOrphans(stateDirectory string) []*Workspace {
 			continue
 		}
 		orphanWorkspaces = append(orphanWorkspaces, &Workspace{
-			name:         workspaceNameFromPath(stateDirectory, databasePath),
-			backingStore: storeInstance,
-			database:     workspaceDatabase,
-			databasePath: databasePath,
-			filesystem:   filesystem,
+			name:              workspaceNameFromPath(stateDirectory, databasePath),
+			backingStore:      storeInstance,
+			workspaceDatabase: workspaceDatabase,
+			databasePath:      databasePath,
+			filesystem:        filesystem,
 		})
 	}
 	return orphanWorkspaces
@@ -266,7 +266,7 @@ func (workspace *Workspace) Put(kind string, data map[string]any) error {
 		return err
 	}
 
-	_, err = workspace.database.Exec(
+	_, err = workspace.workspaceDatabase.Exec(
 		"INSERT INTO "+workspaceEntriesTableName+" (entry_kind, entry_data, created_at) VALUES (?, ?, ?)",
 		kind,
 		dataJSON,
@@ -327,7 +327,7 @@ func (workspace *Workspace) Query(sqlQuery string) core.Result {
 		return core.Result{Value: err, OK: false}
 	}
 
-	rows, err := workspace.database.Query(sqlQuery)
+	rows, err := workspace.workspaceDatabase.Query(sqlQuery)
 	if err != nil {
 		return core.Result{Value: core.E("store.Workspace.Query", "query workspace", err), OK: false}
 	}
@@ -345,7 +345,7 @@ func (workspace *Workspace) aggregateFields() (map[string]any, error) {
 		return nil, err
 	}
 
-	rows, err := workspace.database.Query(
+	rows, err := workspace.workspaceDatabase.Query(
 		"SELECT entry_kind, COUNT(*) FROM " + workspaceEntriesTableName + " GROUP BY entry_kind ORDER BY entry_kind",
 	)
 	if err != nil {
@@ -384,7 +384,7 @@ func (workspace *Workspace) closeAndCleanup(removeFiles bool) error {
 	if workspace == nil {
 		return nil
 	}
-	if workspace.database == nil || workspace.filesystem == nil {
+	if workspace.workspaceDatabase == nil || workspace.filesystem == nil {
 		return nil
 	}
 
@@ -396,7 +396,7 @@ func (workspace *Workspace) closeAndCleanup(removeFiles bool) error {
 	}
 	workspace.closed = true
 
-	if err := workspace.database.Close(); err != nil {
+	if err := workspace.workspaceDatabase.Close(); err != nil {
 		return core.E("store.Workspace.closeAndRemoveFiles", "close workspace database", err)
 	}
 	if !removeFiles {
@@ -414,11 +414,11 @@ func (storeInstance *Store) commitWorkspaceAggregate(workspaceName string, field
 	if err := storeInstance.ensureReady("store.Workspace.Commit"); err != nil {
 		return err
 	}
-	if err := ensureJournalSchema(storeInstance.database); err != nil {
+	if err := ensureJournalSchema(storeInstance.sqliteDatabase); err != nil {
 		return core.E("store.Workspace.Commit", "ensure journal schema", err)
 	}
 
-	transaction, err := storeInstance.database.Begin()
+	transaction, err := storeInstance.sqliteDatabase.Begin()
 	if err != nil {
 		return core.E("store.Workspace.Commit", "begin transaction", err)
 	}

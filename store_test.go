@@ -93,7 +93,7 @@ func TestStore_New_Good_WALMode(t *testing.T) {
 	defer storeInstance.Close()
 
 	var mode string
-	err = storeInstance.database.QueryRow("PRAGMA journal_mode").Scan(&mode)
+	err = storeInstance.sqliteDatabase.QueryRow("PRAGMA journal_mode").Scan(&mode)
 	require.NoError(t, err)
 	assert.Equal(t, "wal", mode, "journal_mode should be WAL")
 }
@@ -840,8 +840,8 @@ func TestStore_Close_Good_OperationsFailAfterClose(t *testing.T) {
 func TestStore_Close_Bad_DriverCloseError(t *testing.T) {
 	database := testCloseErrorDatabase(t)
 	storeInstance := &Store{
-		database:    database,
-		cancelPurge: func() {},
+		sqliteDatabase: database,
+		cancelPurge:    func() {},
 	}
 
 	err := storeInstance.Close()
@@ -1400,8 +1400,8 @@ func TestStore_PurgeExpired_Bad_ClosedStore(t *testing.T) {
 func TestStore_PurgeExpired_Bad_RowsAffectedError(t *testing.T) {
 	database := testRowsAffectedErrorDatabase(t)
 	storeInstance := &Store{
-		database:    database,
-		cancelPurge: func() {},
+		sqliteDatabase: database,
+		cancelPurge:    func() {},
 	}
 
 	_, err := storeInstance.PurgeExpired()
@@ -1423,7 +1423,7 @@ func TestStore_PurgeExpired_Good_BackgroundPurge(t *testing.T) {
 	// The expired key should have been removed by the background goroutine.
 	// Use a raw query to check the row is actually gone (not just filtered by Get).
 	var count int
-	err = storeInstance.database.QueryRow("SELECT COUNT(*) FROM entries WHERE group_name = ?", "g").Scan(&count)
+	err = storeInstance.sqliteDatabase.QueryRow("SELECT COUNT(*) FROM entries WHERE group_name = ?", "g").Scan(&count)
 	require.NoError(t, err)
 	assert.Equal(t, 1, count, "background purge should have deleted the expired row")
 }

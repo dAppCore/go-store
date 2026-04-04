@@ -32,7 +32,7 @@ func (storeInstance *Store) Compact(options CompactOptions) core.Result {
 	if err := storeInstance.ensureReady("store.Compact"); err != nil {
 		return core.Result{Value: err, OK: false}
 	}
-	if err := ensureJournalSchema(storeInstance.database); err != nil {
+	if err := ensureJournalSchema(storeInstance.sqliteDatabase); err != nil {
 		return core.Result{Value: core.E("store.Compact", "ensure journal schema", err), OK: false}
 	}
 
@@ -53,7 +53,7 @@ func (storeInstance *Store) Compact(options CompactOptions) core.Result {
 		return core.Result{Value: core.E("store.Compact", "ensure archive directory", result.Value.(error)), OK: false}
 	}
 
-	rows, err := storeInstance.database.Query(
+	rows, err := storeInstance.sqliteDatabase.Query(
 		"SELECT entry_id, bucket_name, measurement, fields_json, tags_json, committed_at FROM "+journalEntriesTableName+" WHERE archived_at IS NULL AND committed_at < ? ORDER BY committed_at",
 		options.Before.UnixMilli(),
 	)
@@ -134,7 +134,7 @@ func (storeInstance *Store) Compact(options CompactOptions) core.Result {
 	}
 	fileClosed = true
 
-	transaction, err := storeInstance.database.Begin()
+	transaction, err := storeInstance.sqliteDatabase.Begin()
 	if err != nil {
 		return core.Result{Value: core.E("store.Compact", "begin archive transaction", err), OK: false}
 	}

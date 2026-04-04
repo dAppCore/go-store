@@ -136,7 +136,7 @@ func TestJournal_QueryJournal_Good_BucketFilter(t *testing.T) {
 		storeInstance.CommitToJournal("session-a", map[string]any{"like": 1}, map[string]string{"workspace": "session-a"}).OK,
 	)
 	require.NoError(t, insertJournalEntry(
-		storeInstance.database,
+		storeInstance.sqliteDatabase,
 		"events",
 		"session-b",
 		`{"like":2}`,
@@ -165,13 +165,13 @@ func TestJournal_QueryJournal_Good_AbsoluteRangeWithStop(t *testing.T) {
 		storeInstance.CommitToJournal("session-b", map[string]any{"like": 2}, map[string]string{"workspace": "session-b"}).OK,
 	)
 
-	_, err = storeInstance.database.Exec(
+	_, err = storeInstance.sqliteDatabase.Exec(
 		"UPDATE "+journalEntriesTableName+" SET committed_at = ? WHERE measurement = ?",
 		time.Date(2026, 3, 29, 12, 0, 0, 0, time.UTC).UnixMilli(),
 		"session-a",
 	)
 	require.NoError(t, err)
-	_, err = storeInstance.database.Exec(
+	_, err = storeInstance.sqliteDatabase.Exec(
 		"UPDATE "+journalEntriesTableName+" SET committed_at = ? WHERE measurement = ?",
 		time.Date(2026, 3, 30, 12, 0, 0, 0, time.UTC).UnixMilli(),
 		"session-b",
@@ -198,13 +198,13 @@ func TestJournal_QueryJournal_Good_AbsoluteRangeHonoursStop(t *testing.T) {
 		storeInstance.CommitToJournal("session-b", map[string]any{"like": 2}, map[string]string{"workspace": "session-b"}).OK,
 	)
 
-	_, err = storeInstance.database.Exec(
+	_, err = storeInstance.sqliteDatabase.Exec(
 		"UPDATE "+journalEntriesTableName+" SET committed_at = ? WHERE measurement = ?",
 		time.Date(2026, 3, 29, 12, 0, 0, 0, time.UTC).UnixMilli(),
 		"session-a",
 	)
 	require.NoError(t, err)
-	_, err = storeInstance.database.Exec(
+	_, err = storeInstance.sqliteDatabase.Exec(
 		"UPDATE "+journalEntriesTableName+" SET committed_at = ? WHERE measurement = ?",
 		time.Date(2026, 3, 30, 12, 0, 0, 0, time.UTC).UnixMilli(),
 		"session-b",
