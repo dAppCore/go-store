@@ -62,11 +62,11 @@ func (storeInstance *Store) CommitToJournal(measurement string, fields map[strin
 		return core.Result{Value: core.E("store.CommitToJournal", "ensure journal schema", err), OK: false}
 	}
 
-	fieldsJSON, err := jsonString(fields, "store.CommitToJournal", "marshal fields")
+	fieldsJSON, err := marshalJSONText(fields, "store.CommitToJournal", "marshal fields")
 	if err != nil {
 		return core.Result{Value: err, OK: false}
 	}
-	tagsJSON, err := jsonString(tags, "store.CommitToJournal", "marshal tags")
+	tagsJSON, err := marshalJSONText(tags, "store.CommitToJournal", "marshal tags")
 	if err != nil {
 		return core.Result{Value: err, OK: false}
 	}
@@ -162,7 +162,7 @@ func (storeInstance *Store) queryJournalFromFlux(flux string) (string, []any, er
 
 	startRange, stopRange := journalRangeBounds(flux)
 	if startRange != "" {
-		startTime, err := fluxTime(core.Trim(startRange))
+		startTime, err := parseFluxTime(core.Trim(startRange))
 		if err != nil {
 			return "", nil, core.E("store.QueryJournal", "parse range", err)
 		}
@@ -170,7 +170,7 @@ func (storeInstance *Store) queryJournalFromFlux(flux string) (string, []any, er
 		queryArguments = append(queryArguments, startTime.UnixMilli())
 	}
 	if stopRange != "" {
-		stopTime, err := fluxTime(core.Trim(stopRange))
+		stopTime, err := parseFluxTime(core.Trim(stopRange))
 		if err != nil {
 			return "", nil, core.E("store.QueryJournal", "parse range", err)
 		}
@@ -244,7 +244,7 @@ func insertJournalEntry(
 	return err
 }
 
-func jsonString(value any, operation, message string) (string, error) {
+func marshalJSONText(value any, operation, message string) (string, error) {
 	result := core.JSONMarshal(value)
 	if !result.OK {
 		return "", core.E(operation, message, result.Value.(error))
@@ -253,7 +253,7 @@ func jsonString(value any, operation, message string) (string, error) {
 }
 
 func journalRangeBounds(flux string) (string, string) {
-	rangeIndex := indexOf(flux, "range(")
+	rangeIndex := indexOfSubstring(flux, "range(")
 	if rangeIndex < 0 {
 		return "", ""
 	}
@@ -279,24 +279,24 @@ scanRange:
 
 	content := flux[contentStart:contentEnd]
 	startPrefix := "start:"
-	startIndex := indexOf(content, startPrefix)
+	startIndex := indexOfSubstring(content, startPrefix)
 	if startIndex < 0 {
 		return "", ""
 	}
 	startIndex += len(startPrefix)
 	start := core.Trim(content[startIndex:])
 	stop := ""
-	if stopIndex := indexOf(content, ", stop:"); stopIndex >= 0 {
+	if stopIndex := indexOfSubstring(content, ", stop:"); stopIndex >= 0 {
 		start = core.Trim(content[startIndex:stopIndex])
 		stop = core.Trim(content[stopIndex+len(", stop:"):])
-	} else if stopIndex := indexOf(content, ",stop:"); stopIndex >= 0 {
+	} else if stopIndex := indexOfSubstring(content, ",stop:"); stopIndex >= 0 {
 		start = core.Trim(content[startIndex:stopIndex])
 		stop = core.Trim(content[stopIndex+len(",stop:"):])
 	}
 	return start, stop
 }
 
-func indexOf(text, substring string) int {
+func indexOfSubstring(text, substring string) int {
 	if substring == "" {
 		return 0
 	}
@@ -311,10 +311,10 @@ func indexOf(text, substring string) int {
 	return -1
 }
 
-func fluxTime(value string) (time.Time, error) {
+func parseFluxTime(value string) (time.Time, error) {
 	value = core.Trim(value)
 	if value == "" {
-		return time.Time{}, core.E("store.fluxTime", "range value is empty", nil)
+		return time.Time{}, core.E("store.parseFluxTime", "range value is empty", nil)
 	}
 	value = firstOrEmptyString(core.Split(value, ","))
 	value = core.Trim(value)

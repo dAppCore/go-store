@@ -120,7 +120,7 @@ func (storeInstance *Store) Compact(options CompactOptions) core.Result {
 		if err != nil {
 			return core.Result{Value: err, OK: false}
 		}
-		lineJSON, err := jsonString(lineMap, "store.Compact", "marshal archive line")
+		lineJSON, err := marshalJSONText(lineMap, "store.Compact", "marshal archive line")
 		if err != nil {
 			return core.Result{Value: err, OK: false}
 		}

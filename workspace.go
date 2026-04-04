@@ -255,7 +255,7 @@ func (workspace *Workspace) Put(kind string, data map[string]any) error {
 		data = map[string]any{}
 	}
 
-	dataJSON, err := jsonString(data, "store.Workspace.Put", "marshal entry data")
+	dataJSON, err := marshalJSONText(data, "store.Workspace.Put", "marshal entry data")
 	if err != nil {
 		return err
 	}
@@ -460,11 +460,11 @@ func (storeInstance *Store) commitWorkspaceAggregate(workspaceName string, field
 		}
 	}()
 
-	fieldsJSON, err := jsonString(fields, "store.Workspace.Commit", "marshal summary")
+	fieldsJSON, err := marshalJSONText(fields, "store.Workspace.Commit", "marshal summary")
 	if err != nil {
 		return err
 	}
-	tagsJSON, err := jsonString(map[string]string{"workspace": workspaceName}, "store.Workspace.Commit", "marshal tags")
+	tagsJSON, err := marshalJSONText(map[string]string{"workspace": workspaceName}, "store.Workspace.Commit", "marshal tags")
 	if err != nil {
 		return err
 	}
