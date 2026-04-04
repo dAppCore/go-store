@@ -122,7 +122,7 @@ The entire package lives in a single Go package (`package store`) with the follo
 | `events.go` | `EventType` constants, `Event` struct, `Watch`/`Unwatch` channel subscriptions, `OnChange` callback registration, internal `notify` dispatch |
 | `scope.go` | `ScopedStore` wrapper for namespace isolation, `QuotaConfig` struct, `NewScoped`/`NewScopedWithQuota` constructors, namespace-local helper delegation, quota enforcement logic |
 | `journal.go` | Journal persistence, Flux-like querying, JSON row inflation, journal schema helpers |
-| `workspace.go` | Workspace buffers, aggregation, commit flow, and orphan recovery |
+| `workspace.go` | Workspace buffers, aggregation, query analysis, commit flow, and orphan recovery |
 | `compact.go` | Cold archive generation to JSONL gzip or zstd |
 
 Tests are organised in corresponding files:

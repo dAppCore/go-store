@@ -318,6 +318,9 @@ func (workspace *Workspace) Discard() {
 	_ = workspace.closeAndRemoveFiles()
 }
 
+// Query runs SQL against the buffer for ad-hoc analysis and returns rows as
+// `[]map[string]any`.
+//
 // Usage example: `result := workspace.Query("SELECT entry_kind, COUNT(*) AS count FROM workspace_entries GROUP BY entry_kind")`
 func (workspace *Workspace) Query(query string) core.Result {
 	if err := workspace.ensureReady("store.Workspace.Query"); err != nil {
