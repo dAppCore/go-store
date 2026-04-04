@@ -7,15 +7,15 @@ import (
 	core "dappco.re/go/core"
 )
 
-// Usage example: `err := storeInstance.Transaction(func(tx *store.StoreTx) error { return tx.Set("config", "colour", "blue") })`
-type StoreTx struct {
+// Usage example: `err := storeInstance.Transaction(func(transaction *store.StoreTransaction) error { return transaction.Set("config", "colour", "blue") })`
+type StoreTransaction struct {
 	store         *Store
 	transaction   *sql.Tx
 	pendingEvents []Event
 }
 
-// Usage example: `err := storeInstance.Transaction(func(tx *store.StoreTx) error { if err := tx.Set("tenant-a:config", "colour", "blue"); err != nil { return err }; return tx.Set("tenant-b:config", "language", "en-GB") })`
-func (storeInstance *Store) Transaction(operation func(*StoreTx) error) error {
+// Usage example: `err := storeInstance.Transaction(func(transaction *store.StoreTransaction) error { if err := transaction.Set("tenant-a:config", "colour", "blue"); err != nil { return err }; return transaction.Set("tenant-b:config", "language", "en-GB") })`
+func (storeInstance *Store) Transaction(operation func(*StoreTransaction) error) error {
 	if err := storeInstance.ensureReady("store.Transaction"); err != nil {
 		return err
 	}
@@ -28,7 +28,7 @@ func (storeInstance *Store) Transaction(operation func(*StoreTx) error) error {
 		return core.E("store.Transaction", "begin transaction", err)
 	}
 
-	storeTransaction := &StoreTx{
+	storeTransaction := &StoreTransaction{
 		store:       storeInstance,
 		transaction: transaction,
 	}
@@ -54,7 +54,7 @@ func (storeInstance *Store) Transaction(operation func(*StoreTx) error) error {
 	return nil
 }
 
-func (storeTransaction *StoreTx) ensureReady(operation string) error {
+func (storeTransaction *StoreTransaction) ensureReady(operation string) error {
 	if storeTransaction == nil {
 		return core.E(operation, "transaction is nil", nil)
 	}
@@ -70,7 +70,7 @@ func (storeTransaction *StoreTx) ensureReady(operation string) error {
 	return nil
 }
 
-func (storeTransaction *StoreTx) recordEvent(event Event) {
+func (storeTransaction *StoreTransaction) recordEvent(event Event) {
 	if storeTransaction == nil {
 		return
 	}
@@ -78,7 +78,7 @@ func (storeTransaction *StoreTx) recordEvent(event Event) {
 }
 
 // Usage example: `value, err := tx.Get("config", "colour")`
-func (storeTransaction *StoreTx) Get(group, key string) (string, error) {
+func (storeTransaction *StoreTransaction) Get(group, key string) (string, error) {
 	if err := storeTransaction.ensureReady("store.Transaction.Get"); err != nil {
 		return "", err
 	}
@@ -105,7 +105,7 @@ func (storeTransaction *StoreTx) Get(group, key string) (string, error) {
 }
 
 // Usage example: `if err := tx.Set("config", "colour", "blue"); err != nil { return err }`
-func (storeTransaction *StoreTx) Set(group, key, value string) error {
+func (storeTransaction *StoreTransaction) Set(group, key, value string) error {
 	if err := storeTransaction.ensureReady("store.Transaction.Set"); err != nil {
 		return err
 	}
@@ -123,7 +123,7 @@ func (storeTransaction *StoreTx) Set(group, key, value string) error {
 }
 
 // Usage example: `if err := tx.SetWithTTL("session", "token", "abc123", time.Minute); err != nil { return err }`
-func (storeTransaction *StoreTx) SetWithTTL(group, key, value string, timeToLive time.Duration) error {
+func (storeTransaction *StoreTransaction) SetWithTTL(group, key, value string, timeToLive time.Duration) error {
 	if err := storeTransaction.ensureReady("store.Transaction.SetWithTTL"); err != nil {
 		return err
 	}
@@ -142,7 +142,7 @@ func (storeTransaction *StoreTx) SetWithTTL(group, key, value string, timeToLive
 }
 
 // Usage example: `if err := tx.Delete("config", "colour"); err != nil { return err }`
-func (storeTransaction *StoreTx) Delete(group, key string) error {
+func (storeTransaction *StoreTransaction) Delete(group, key string) error {
 	if err := storeTransaction.ensureReady("store.Transaction.Delete"); err != nil {
 		return err
 	}
@@ -165,7 +165,7 @@ func (storeTransaction *StoreTx) Delete(group, key string) error {
 }
 
 // Usage example: `if err := tx.DeleteGroup("cache"); err != nil { return err }`
-func (storeTransaction *StoreTx) DeleteGroup(group string) error {
+func (storeTransaction *StoreTransaction) DeleteGroup(group string) error {
 	if err := storeTransaction.ensureReady("store.Transaction.DeleteGroup"); err != nil {
 		return err
 	}
@@ -188,7 +188,7 @@ func (storeTransaction *StoreTx) DeleteGroup(group string) error {
 }
 
 // Usage example: `if err := tx.DeletePrefix("tenant-a:"); err != nil { return err }`
-func (storeTransaction *StoreTx) DeletePrefix(groupPrefix string) error {
+func (storeTransaction *StoreTransaction) DeletePrefix(groupPrefix string) error {
 	if err := storeTransaction.ensureReady("store.Transaction.DeletePrefix"); err != nil {
 		return err
 	}
@@ -230,7 +230,7 @@ func (storeTransaction *StoreTx) DeletePrefix(groupPrefix string) error {
 }
 
 // Usage example: `keyCount, err := tx.Count("config")`
-func (storeTransaction *StoreTx) Count(group string) (int, error) {
+func (storeTransaction *StoreTransaction) Count(group string) (int, error) {
 	if err := storeTransaction.ensureReady("store.Transaction.Count"); err != nil {
 		return 0, err
 	}
