@@ -102,6 +102,16 @@ func NewScopedConfigured(storeInstance *Store, scopedConfig ScopedStoreConfig) (
 	return scopedStore, nil
 }
 
+// Usage example: `scopedStore, err := store.NewScopedWithQuota(storeInstance, "tenant-a", store.QuotaConfig{MaxKeys: 100, MaxGroups: 10}); if err != nil { return }`
+// Prefer `NewScopedConfigured(store.ScopedStoreConfig{...})` when the full
+// namespace and quota configuration are already known at the call site.
+func NewScopedWithQuota(storeInstance *Store, namespace string, quota QuotaConfig) (*ScopedStore, error) {
+	return NewScopedConfigured(storeInstance, ScopedStoreConfig{
+		Namespace: namespace,
+		Quota:     quota,
+	})
+}
+
 func (scopedStore *ScopedStore) namespacedGroup(group string) string {
 	return scopedStore.namespace + ":" + group
 }
