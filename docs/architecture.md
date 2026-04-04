@@ -241,7 +241,7 @@ All operations are safe to call from multiple goroutines concurrently. The race 
 
 ## Transaction API
 
-`Store.Transaction(func(transaction *StoreTransaction) error)` opens a SQLite transaction and hands a `StoreTransaction` helper to the callback. The helper exposes transaction-scoped write methods such as `Set`, `SetWithTTL`, `Delete`, `DeleteGroup`, and `DeletePrefix`. If the callback returns an error, the transaction rolls back. If the callback succeeds, the transaction commits and the staged events are published after commit.
+`Store.Transaction(func(transaction *StoreTransaction) error)` opens a SQLite transaction and hands a `StoreTransaction` helper to the callback. The helper exposes transaction-scoped write methods such as `Set`, `SetWithTTL`, `Delete`, `DeleteGroup`, and `DeletePrefix`, plus read helpers such as `Get`, `GetAll`, `All`, `Count`, `CountAll`, `Groups`, `GroupsSeq`, `Render`, `GetSplit`, and `GetFields` so callers can inspect uncommitted writes before commit. If the callback returns an error, the transaction rolls back. If the callback succeeds, the transaction commits and the staged events are published after commit.
 
 This API is the supported way to perform atomic multi-group operations without exposing raw `Begin`/`Commit` control to callers.
 

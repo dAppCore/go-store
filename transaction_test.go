@@ -1,6 +1,7 @@
 package store
 
 import (
+	"iter"
 	"testing"
 	"time"
 
@@ -80,4 +81,58 @@ func TestTransaction_Transaction_Good_DeletesAtomically(t *testing.T) {
 	assert.ErrorIs(t, err, NotFoundError)
 	_, err = storeInstance.Get("beta", "second")
 	assert.ErrorIs(t, err, NotFoundError)
+}
+
+func TestTransaction_Transaction_Good_ReadHelpersSeePendingWrites(t *testing.T) {
+	storeInstance, _ := New(":memory:")
+	defer storeInstance.Close()
+
+	err := storeInstance.Transaction(func(transaction *StoreTransaction) error {
+		if err := transaction.Set("config", "colour", "blue"); err != nil {
+			return err
+		}
+		if err := transaction.Set("config", "hosts", "alpha beta"); err != nil {
+			return err
+		}
+		if err := transaction.Set("audit", "enabled", "true"); err != nil {
+			return err
+		}
+
+		entriesByKey, err := transaction.GetAll("config")
+		require.NoError(t, err)
+		assert.Equal(t, map[string]string{"colour": "blue", "hosts": "alpha beta"}, entriesByKey)
+
+		count, err := transaction.CountAll("")
+		require.NoError(t, err)
+		assert.Equal(t, 3, count)
+
+		groupNames, err := transaction.Groups()
+		require.NoError(t, err)
+		assert.Equal(t, []string{"audit", "config"}, groupNames)
+
+		renderedTemplate, err := transaction.Render("{{ .colour }} / {{ .hosts }}", "config")
+		require.NoError(t, err)
+		assert.Equal(t, "blue / alpha beta", renderedTemplate)
+
+		splitParts, err := transaction.GetSplit("config", "hosts", " ")
+		require.NoError(t, err)
+		assert.Equal(t, []string{"alpha", "beta"}, collectSeq(t, splitParts))
+
+		fieldParts, err := transaction.GetFields("config", "hosts")
+		require.NoError(t, err)
+		assert.Equal(t, []string{"alpha", "beta"}, collectSeq(t, fieldParts))
+
+		return nil
+	})
+	require.NoError(t, err)
+}
+
+func collectSeq[T any](t *testing.T, sequence iter.Seq[T]) []T {
+	t.Helper()
+
+	values := make([]T, 0)
+	for value := range sequence {
+		values = append(values, value)
+	}
+	return values
 }
