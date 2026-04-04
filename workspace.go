@@ -306,7 +306,7 @@ func (workspace *Workspace) Commit() core.Result {
 	if err := workspace.closeAndRemoveFiles(); err != nil {
 		return core.Result{Value: err, OK: false}
 	}
-	return core.Result{Value: fields, OK: true}
+	return core.Result{Value: cloneAnyMap(fields), OK: true}
 }
 
 // Usage example: `workspace.Discard()`

@@ -125,6 +125,29 @@ func TestWorkspace_Commit_Good_JournalAndSummary(t *testing.T) {
 	assert.Equal(t, "scroll-session", tags["workspace"])
 }
 
+func TestWorkspace_Commit_Good_ResultCopiesAggregatedMap(t *testing.T) {
+	useWorkspaceStateDirectory(t)
+
+	storeInstance, err := New(":memory:", WithJournal("http://127.0.0.1:8086", "core", "events"))
+	require.NoError(t, err)
+	defer storeInstance.Close()
+
+	workspace, err := storeInstance.NewWorkspace("scroll-session")
+	require.NoError(t, err)
+
+	aggregateSource := map[string]any{"like": 1}
+	require.NoError(t, workspace.Put("like", aggregateSource))
+
+	result := workspace.Commit()
+	require.True(t, result.OK, "workspace commit failed: %v", result.Value)
+
+	aggregateSource["like"] = 99
+
+	value, ok := result.Value.(map[string]any)
+	require.True(t, ok, "unexpected result type: %T", result.Value)
+	assert.Equal(t, 1, value["like"])
+}
+
 func TestWorkspace_Commit_Good_EmitsSummaryEvent(t *testing.T) {
 	useWorkspaceStateDirectory(t)
 
