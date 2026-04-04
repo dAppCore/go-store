@@ -67,7 +67,7 @@ func (storeConfig StoreConfig) Validate() error {
 }
 
 // Usage example: `config := storeInstance.JournalConfiguration(); fmt.Println(config.EndpointURL, config.Organisation, config.BucketName)`
-// The values are copied into the store and used as journal metadata.
+// Usage example: `store.New(":memory:", store.WithJournal("http://127.0.0.1:8086", "core", "events"))`
 type JournalConfiguration struct {
 	// Usage example: `config := store.JournalConfiguration{EndpointURL: "http://127.0.0.1:8086"}`
 	EndpointURL string
@@ -84,8 +84,7 @@ func (journalConfig JournalConfiguration) isConfigured() bool {
 }
 
 // Usage example: `storeInstance, err := store.NewConfigured(store.StoreConfig{DatabasePath: ":memory:", Journal: store.JournalConfiguration{EndpointURL: "http://127.0.0.1:8086", Organisation: "core", BucketName: "events"}, PurgeInterval: 30 * time.Second})`
-// Store keeps grouped key-value entries in SQLite and can also write completed
-// work summaries to the journal table.
+// Usage example: `value, err := storeInstance.Get("config", "colour")`
 type Store struct {
 	sqliteDatabase       *sql.DB
 	databasePath         string

@@ -37,10 +37,8 @@ type ScopedStore struct {
 	scopedWatchers     map[uintptr]*scopedWatcherBinding
 }
 
-// ScopedStoreTransaction stages multiple namespace-prefixed writes in one
-// SQLite transaction and only emits events after commit succeeds.
-//
 // Usage example: `err := scopedStore.Transaction(func(transaction *store.ScopedStoreTransaction) error { return transaction.Set("colour", "blue") })`
+// Usage example: `if err := transaction.Delete("config", "colour"); err != nil { return err }`
 type ScopedStoreTransaction struct {
 	scopedStore      *ScopedStore
 	storeTransaction *StoreTransaction
