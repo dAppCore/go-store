@@ -181,6 +181,10 @@ func discoverOrphanWorkspacePaths(stateDirectory string) []string {
 }
 
 func discoverOrphanWorkspaces(stateDirectory string, backingStore *Store) []*Workspace {
+	return loadRecoveredWorkspaces(stateDirectory, backingStore)
+}
+
+func loadRecoveredWorkspaces(stateDirectory string, backingStore *Store) []*Workspace {
 	filesystem := (&core.Fs{}).NewUnrestricted()
 	orphanWorkspaces := make([]*Workspace, 0)
 	for _, databasePath := range discoverOrphanWorkspacePaths(stateDirectory) {
@@ -234,25 +238,7 @@ func (storeInstance *Store) RecoverOrphans(stateDirectory string) []*Workspace {
 			return cachedWorkspaces
 		}
 	}
-
-	filesystem := (&core.Fs{}).NewUnrestricted()
-	var orphanWorkspaces []*Workspace
-	for _, databasePath := range discoverOrphanWorkspacePaths(stateDirectory) {
-		workspaceDatabase, err := openWorkspaceDatabase(databasePath)
-		if err != nil {
-			continue
-		}
-		orphanWorkspace := &Workspace{
-			name:              workspaceNameFromPath(stateDirectory, databasePath),
-			backingStore:      storeInstance,
-			workspaceDatabase: workspaceDatabase,
-			databasePath:      databasePath,
-			filesystem:        filesystem,
-		}
-		orphanWorkspace.orphanAggregate = orphanWorkspace.captureAggregateSnapshot()
-		orphanWorkspaces = append(orphanWorkspaces, orphanWorkspace)
-	}
-	return orphanWorkspaces
+	return loadRecoveredWorkspaces(stateDirectory, storeInstance)
 }
 
 // Usage example: `err := workspace.Put("like", map[string]any{"user": "@alice", "post": "video_123"})`
