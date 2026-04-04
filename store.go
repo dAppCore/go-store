@@ -258,19 +258,22 @@ func (storeInstance *Store) Close() error {
 	storeInstance.callbacksLock.Unlock()
 
 	storeInstance.orphanWorkspacesLock.Lock()
+	var orphanCleanupErr error
 	for _, orphanWorkspace := range storeInstance.orphanWorkspaces {
-		orphanWorkspace.Discard()
+		if err := orphanWorkspace.closeWithoutRemovingFiles(); err != nil && orphanCleanupErr == nil {
+			orphanCleanupErr = err
+		}
 	}
 	storeInstance.orphanWorkspaces = nil
 	storeInstance.orphanWorkspacesLock.Unlock()
 
 	if storeInstance.database == nil {
-		return nil
+		return orphanCleanupErr
 	}
 	if err := storeInstance.database.Close(); err != nil {
 		return core.E("store.Close", "database close", err)
 	}
-	return nil
+	return orphanCleanupErr
 }
 
 // Usage example: `colourValue, err := storeInstance.Get("config", "colour")`
