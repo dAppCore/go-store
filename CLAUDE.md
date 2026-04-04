@@ -11,6 +11,7 @@ SQLite key-value store with TTL, namespace isolation, and reactive events. Pure 
 - Prefer descriptive names over abbreviations.
 - Public comments should show real usage with concrete values.
 - Keep examples in UK English.
+- Prefer `StoreConfig` and `ScopedStoreConfig` literals over option chains when the configuration is already known.
 - Do not add compatibility aliases; the primary API names are the contract.
 - Preserve the single-connection SQLite design.
 - Verify with `go test ./...`, `go test -race ./...`, and `go vet ./...` before committing.
@@ -71,20 +72,37 @@ func main() {
 	}
 	defer storeInstance.Close()
 
-	if err := storeInstance.Set("group", "key", "value"); err != nil {
+	configuredStore, err := store.NewConfigured(store.StoreConfig{
+		DatabasePath: ":memory:",
+		Journal: store.JournalConfiguration{
+			EndpointURL:  "http://127.0.0.1:8086",
+			Organisation: "core",
+			BucketName:   "events",
+		},
+		PurgeInterval: 30 * time.Second,
+	})
+	if err != nil {
 		return
 	}
-	value, err := storeInstance.Get("group", "key")
+	defer configuredStore.Close()
+
+	if err := configuredStore.Set("group", "key", "value"); err != nil {
+		return
+	}
+	value, err := configuredStore.Get("group", "key")
 	if err != nil {
 		return
 	}
 	fmt.Println(value)
 
-	if err := storeInstance.SetWithTTL("session", "token", "abc123", 5*time.Minute); err != nil {
+	if err := configuredStore.SetWithTTL("session", "token", "abc123", 5*time.Minute); err != nil {
 		return
 	}
 
-	scopedStore, err := store.NewScoped(storeInstance, "tenant")
+	scopedStore, err := store.NewScopedConfigured(configuredStore, store.ScopedStoreConfig{
+		Namespace: "tenant",
+		Quota:     store.QuotaConfig{MaxKeys: 100, MaxGroups: 10},
+	})
 	if err != nil {
 		return
 	}
@@ -92,23 +110,15 @@ func main() {
 		return
 	}
 
-	quotaScopedStore, err := store.NewScopedWithQuota(storeInstance, "tenant", store.QuotaConfig{MaxKeys: 100, MaxGroups: 10})
-	if err != nil {
-		return
-	}
-	if err := quotaScopedStore.SetIn("prefs", "locale", "en-GB"); err != nil {
-		return
-	}
-
-	events := storeInstance.Watch("group")
-	defer storeInstance.Unwatch("group", events)
+	events := configuredStore.Watch("group")
+	defer configuredStore.Unwatch("group", events)
 	go func() {
 		for event := range events {
 			fmt.Println(event.Type, event.Group, event.Key, event.Value)
 		}
 	}()
 
-	unregister := storeInstance.OnChange(func(event store.Event) {
+	unregister := configuredStore.OnChange(func(event store.Event) {
 		fmt.Println("changed", event.Group, event.Key, event.Value)
 	})
 	defer unregister()

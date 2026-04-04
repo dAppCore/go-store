@@ -26,6 +26,11 @@ func main() {
 	// Configure a persistent store with "/tmp/go-store.db", or use ":memory:" for ephemeral data.
 	storeInstance, err := store.NewConfigured(store.StoreConfig{
 		DatabasePath: "/tmp/go-store.db",
+		Journal: store.JournalConfiguration{
+			EndpointURL:  "http://127.0.0.1:8086",
+			Organisation: "core",
+			BucketName:   "events",
+		},
 		PurgeInterval: 30 * time.Second,
 	})
 	if err != nil {
@@ -55,8 +60,11 @@ func main() {
 	}()
 
 	// Store tenant-42 preferences under the "tenant-42:" prefix.
-	scopedStore := store.NewScoped(storeInstance, "tenant-42")
-	if scopedStore == nil {
+	scopedStore, err := store.NewScopedConfigured(storeInstance, store.ScopedStoreConfig{
+		Namespace: "tenant-42",
+		Quota:     store.QuotaConfig{MaxKeys: 100, MaxGroups: 10},
+	})
+	if err != nil {
 		return
 	}
 	if err := scopedStore.SetIn("preferences", "locale", "en-GB"); err != nil {
