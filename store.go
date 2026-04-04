@@ -29,9 +29,9 @@ const (
 )
 
 // Usage example: `storeInstance, err := store.NewConfigured(store.StoreConfig{DatabasePath: "/tmp/go-store.db", Journal: store.JournalConfiguration{EndpointURL: "http://127.0.0.1:8086", Organisation: "core", BucketName: "events"}, PurgeInterval: 30 * time.Second})`
-// Prefer `store.NewConfigured(store.StoreConfig{...})` when the configuration
-// is already known as a struct literal. Use `StoreOption` only when values
-// need to be assembled incrementally, such as when a caller receives them from
+// Prefer `store.NewConfigured(store.StoreConfig{...})` when the full
+// configuration is already known. Use `StoreOption` only when values need to
+// be assembled incrementally, such as when a caller receives them from
 // different sources.
 type StoreOption func(*StoreConfig)
 

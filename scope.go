@@ -83,6 +83,8 @@ type scopedWatcherBridge struct {
 
 // NewScoped validates a namespace and prefixes groups with namespace + ":".
 // Usage example: `scopedStore, err := store.NewScoped(storeInstance, "tenant-a"); if err != nil { return }`
+// Prefer `NewScopedConfigured` when the namespace and quota are already known
+// as a struct literal.
 func NewScoped(storeInstance *Store, namespace string) (*ScopedStore, error) {
 	if storeInstance == nil {
 		return nil, core.E("store.NewScoped", "store instance is nil", nil)
