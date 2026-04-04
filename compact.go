@@ -137,9 +137,9 @@ func (storeInstance *Store) Compact(options CompactOptions) core.Result {
 	if !ok {
 		return core.Result{Value: core.E("store.Compact", "archive file is not writable", nil), OK: false}
 	}
-	fileClosed := false
+	archiveFileClosed := false
 	defer func() {
-		if !fileClosed {
+		if !archiveFileClosed {
 			_ = file.Close()
 		}
 	}()
@@ -148,9 +148,9 @@ func (storeInstance *Store) Compact(options CompactOptions) core.Result {
 	if err != nil {
 		return core.Result{Value: err, OK: false}
 	}
-	writeOK := false
+	archiveWriteFinished := false
 	defer func() {
-		if !writeOK {
+		if !archiveWriteFinished {
 			_ = writer.Close()
 		}
 	}()
@@ -171,11 +171,11 @@ func (storeInstance *Store) Compact(options CompactOptions) core.Result {
 	if err := writer.Close(); err != nil {
 		return core.Result{Value: core.E("store.Compact", "close archive writer", err), OK: false}
 	}
-	writeOK = true
+	archiveWriteFinished = true
 	if err := file.Close(); err != nil {
 		return core.Result{Value: core.E("store.Compact", "close archive file", err), OK: false}
 	}
-	fileClosed = true
+	archiveFileClosed = true
 
 	transaction, err := storeInstance.sqliteDatabase.Begin()
 	if err != nil {
