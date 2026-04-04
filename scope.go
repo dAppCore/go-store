@@ -33,6 +33,14 @@ type ScopedStore struct {
 	scopedWatchers     map[uintptr]*scopedWatcherBinding
 }
 
+// Usage example: `config := store.ScopedStoreConfig{Namespace: "tenant-a", Quota: store.QuotaConfig{MaxKeys: 100, MaxGroups: 10}}`
+type ScopedStoreConfig struct {
+	// Usage example: `config := store.ScopedStoreConfig{Namespace: "tenant-a"}`
+	Namespace string
+	// Usage example: `config := store.ScopedStoreConfig{Quota: store.QuotaConfig{MaxKeys: 100, MaxGroups: 10}}`
+	Quota QuotaConfig
+}
+
 type scopedWatcherBinding struct {
 	backingStore     *Store
 	underlyingEvents <-chan Event
@@ -66,25 +74,33 @@ func NewScoped(storeInstance *Store, namespace string) *ScopedStore {
 	return scopedStore
 }
 
-// Usage example: `scopedStore, err := store.NewScopedWithQuota(storeInstance, "tenant-a", store.QuotaConfig{MaxKeys: 100, MaxGroups: 10}); if err != nil { return }`
-func NewScopedWithQuota(storeInstance *Store, namespace string, quota QuotaConfig) (*ScopedStore, error) {
-	scopedStore := NewScoped(storeInstance, namespace)
+// Usage example: `scopedStore, err := store.NewScopedConfigured(storeInstance, store.ScopedStoreConfig{Namespace: "tenant-a", Quota: store.QuotaConfig{MaxKeys: 100, MaxGroups: 10}}); if err != nil { return }`
+func NewScopedConfigured(storeInstance *Store, config ScopedStoreConfig) (*ScopedStore, error) {
+	scopedStore := NewScoped(storeInstance, config.Namespace)
 	if scopedStore == nil {
 		if storeInstance == nil {
-			return nil, core.E("store.NewScopedWithQuota", "store instance is nil", nil)
+			return nil, core.E("store.NewScopedConfigured", "store instance is nil", nil)
 		}
-		return nil, core.E("store.NewScopedWithQuota", core.Sprintf("namespace %q is invalid; use names like %q or %q", namespace, "tenant-a", "tenant-42"), nil)
+		return nil, core.E("store.NewScopedConfigured", core.Sprintf("namespace %q is invalid; use names like %q or %q", config.Namespace, "tenant-a", "tenant-42"), nil)
 	}
-	if quota.MaxKeys < 0 || quota.MaxGroups < 0 {
+	if config.Quota.MaxKeys < 0 || config.Quota.MaxGroups < 0 {
 		return nil, core.E(
-			"store.NewScopedWithQuota",
-			core.Sprintf("quota values must be zero or positive; got MaxKeys=%d MaxGroups=%d", quota.MaxKeys, quota.MaxGroups),
+			"store.NewScopedConfigured",
+			core.Sprintf("quota values must be zero or positive; got MaxKeys=%d MaxGroups=%d", config.Quota.MaxKeys, config.Quota.MaxGroups),
 			nil,
 		)
 	}
-	scopedStore.MaxKeys = quota.MaxKeys
-	scopedStore.MaxGroups = quota.MaxGroups
+	scopedStore.MaxKeys = config.Quota.MaxKeys
+	scopedStore.MaxGroups = config.Quota.MaxGroups
 	return scopedStore, nil
+}
+
+// Usage example: `scopedStore, err := store.NewScopedWithQuota(storeInstance, "tenant-a", store.QuotaConfig{MaxKeys: 100, MaxGroups: 10}); if err != nil { return }`
+func NewScopedWithQuota(storeInstance *Store, namespace string, quota QuotaConfig) (*ScopedStore, error) {
+	return NewScopedConfigured(storeInstance, ScopedStoreConfig{
+		Namespace: namespace,
+		Quota:     quota,
+	})
 }
 
 func (scopedStore *ScopedStore) namespacedGroup(group string) string {
