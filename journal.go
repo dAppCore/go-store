@@ -123,7 +123,8 @@ func isRawSQLJournalQuery(query string) bool {
 	upperQuery := core.Upper(core.Trim(query))
 	return core.HasPrefix(upperQuery, "SELECT") ||
 		core.HasPrefix(upperQuery, "WITH") ||
-		core.HasPrefix(upperQuery, "EXPLAIN")
+		core.HasPrefix(upperQuery, "EXPLAIN") ||
+		core.HasPrefix(upperQuery, "PRAGMA")
 }
 
 func (storeInstance *Store) queryJournalRows(query string, arguments ...any) core.Result {
