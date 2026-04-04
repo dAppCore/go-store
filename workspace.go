@@ -34,7 +34,7 @@ FROM workspace_entries`
 var defaultWorkspaceStateDirectory = ".core/state/"
 
 // Workspace keeps mutable work-in-progress in a SQLite file such as
-// `.core/state/scroll-session.duckdb` until Commit or Discard removes it.
+// `.core/state/scroll-session.duckdb` until Commit() or Discard() removes it.
 //
 // Usage example: `workspace, err := storeInstance.NewWorkspace("scroll-session-2026-03-30"); if err != nil { return }; defer workspace.Discard(); _ = workspace.Put("like", map[string]any{"user": "@alice"})`
 type Workspace struct {
@@ -68,6 +68,7 @@ func (workspace *Workspace) DatabasePath() string {
 // Close keeps the workspace file on disk so `RecoverOrphans(".core/state/")`
 // can reopen it later.
 //
+// Usage example: `if err := workspace.Close(); err != nil { return }`
 // Usage example: `if err := workspace.Close(); err != nil { return }; orphans := storeInstance.RecoverOrphans(".core/state"); _ = orphans`
 func (workspace *Workspace) Close() error {
 	return workspace.closeWithoutRemovingFiles()
