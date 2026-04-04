@@ -314,6 +314,93 @@ func TestScope_ScopedStore_Good_OnChange_NamespaceLocal(t *testing.T) {
 	assert.Equal(t, "", events[1].Value)
 }
 
+func TestScope_ScopedStore_Good_Watch_NamespaceLocal(t *testing.T) {
+	storeInstance, _ := New(":memory:")
+	defer storeInstance.Close()
+
+	scopedStore, _ := NewScoped(storeInstance, "tenant-a")
+	otherScopedStore, _ := NewScoped(storeInstance, "tenant-b")
+
+	events := scopedStore.Watch("config")
+	defer scopedStore.Unwatch("config", events)
+
+	require.NoError(t, scopedStore.SetIn("config", "colour", "blue"))
+	require.NoError(t, otherScopedStore.SetIn("config", "colour", "red"))
+
+	select {
+	case event, ok := <-events:
+		require.True(t, ok)
+		assert.Equal(t, EventSet, event.Type)
+		assert.Equal(t, "config", event.Group)
+		assert.Equal(t, "colour", event.Key)
+		assert.Equal(t, "blue", event.Value)
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for scoped watch event")
+	}
+
+	select {
+	case event := <-events:
+		t.Fatalf("unexpected event from another namespace: %#v", event)
+	case <-time.After(50 * time.Millisecond):
+	}
+}
+
+func TestScope_ScopedStore_Good_Watch_All_NamespaceLocal(t *testing.T) {
+	storeInstance, _ := New(":memory:")
+	defer storeInstance.Close()
+
+	scopedStore, _ := NewScoped(storeInstance, "tenant-a")
+	otherScopedStore, _ := NewScoped(storeInstance, "tenant-b")
+
+	events := scopedStore.Watch("*")
+	defer scopedStore.Unwatch("*", events)
+
+	require.NoError(t, scopedStore.SetIn("config", "colour", "blue"))
+	require.NoError(t, scopedStore.SetIn("cache", "page", "home"))
+	require.NoError(t, otherScopedStore.SetIn("config", "colour", "red"))
+
+	select {
+	case event, ok := <-events:
+		require.True(t, ok)
+		assert.Equal(t, "config", event.Group)
+		assert.Equal(t, "colour", event.Key)
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for first wildcard scoped watch event")
+	}
+
+	select {
+	case event, ok := <-events:
+		require.True(t, ok)
+		assert.Equal(t, "cache", event.Group)
+		assert.Equal(t, "page", event.Key)
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for second wildcard scoped watch event")
+	}
+
+	select {
+	case event := <-events:
+		t.Fatalf("unexpected wildcard event from another namespace: %#v", event)
+	case <-time.After(50 * time.Millisecond):
+	}
+}
+
+func TestScope_ScopedStore_Good_Unwatch_ClosesLocalChannel(t *testing.T) {
+	storeInstance, _ := New(":memory:")
+	defer storeInstance.Close()
+
+	scopedStore, _ := NewScoped(storeInstance, "tenant-a")
+
+	events := scopedStore.Watch("config")
+	scopedStore.Unwatch("config", events)
+
+	select {
+	case _, ok := <-events:
+		assert.False(t, ok)
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for scoped watch channel to close")
+	}
+}
+
 func TestScope_ScopedStore_Good_GetAll(t *testing.T) {
 	storeInstance, _ := New(":memory:")
 	defer storeInstance.Close()

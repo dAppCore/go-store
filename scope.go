@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"iter"
 	"regexp"
+	"sync"
 	"time"
 
 	core "dappco.re/go/core"
@@ -69,6 +70,15 @@ type ScopedStore struct {
 	MaxKeys int
 	// Usage example: `scopedStore.MaxGroups = 10`
 	MaxGroups int
+
+	watcherLock    sync.Mutex
+	watcherBridges map[uintptr]scopedWatcherBridge
+}
+
+type scopedWatcherBridge struct {
+	sourceGroup  string
+	sourceEvents <-chan Event
+	done         chan struct{}
 }
 
 // NewScoped validates a namespace and prefixes groups with namespace + ":".
@@ -80,7 +90,11 @@ func NewScoped(storeInstance *Store, namespace string) (*ScopedStore, error) {
 	if !validNamespace.MatchString(namespace) {
 		return nil, core.E("store.NewScoped", core.Sprintf("namespace %q is invalid; use names like %q or %q", namespace, "tenant-a", "tenant-42"), nil)
 	}
-	scopedStore := &ScopedStore{store: storeInstance, namespace: namespace}
+	scopedStore := &ScopedStore{
+		store:          storeInstance,
+		namespace:      namespace,
+		watcherBridges: make(map[uintptr]scopedWatcherBridge),
+	}
 	return scopedStore, nil
 }
 
@@ -269,6 +283,114 @@ func (scopedStore *ScopedStore) PurgeExpired() (int64, error) {
 		return 0, core.E("store.ScopedStore.PurgeExpired", "delete expired rows", err)
 	}
 	return removedRows, nil
+}
+
+// Usage example: `events := scopedStore.Watch("config")`
+// Usage example: `events := scopedStore.Watch("*")`
+// The returned events always use namespace-local group names, so a write to
+// `tenant-a:config` is delivered as `config`.
+func (scopedStore *ScopedStore) Watch(group string) <-chan Event {
+	if scopedStore == nil || scopedStore.store == nil {
+		return closedEventChannel()
+	}
+
+	sourceGroup := scopedStore.namespacedGroup(group)
+	if group == "*" {
+		sourceGroup = "*"
+	}
+
+	sourceEvents := scopedStore.store.Watch(sourceGroup)
+	localEvents := make(chan Event, watcherEventBufferCapacity)
+	done := make(chan struct{})
+	localEventsPointer := channelPointer(localEvents)
+
+	scopedStore.watcherLock.Lock()
+	if scopedStore.watcherBridges == nil {
+		scopedStore.watcherBridges = make(map[uintptr]scopedWatcherBridge)
+	}
+	scopedStore.watcherBridges[localEventsPointer] = scopedWatcherBridge{
+		sourceGroup:  sourceGroup,
+		sourceEvents: sourceEvents,
+		done:         done,
+	}
+	scopedStore.watcherLock.Unlock()
+
+	go func() {
+		defer close(localEvents)
+		defer scopedStore.removeWatcherBridge(localEventsPointer)
+
+		for {
+			select {
+			case <-done:
+				return
+			case event, ok := <-sourceEvents:
+				if !ok {
+					return
+				}
+
+				localEvent, allowed := scopedStore.localiseWatchedEvent(event)
+				if !allowed {
+					continue
+				}
+
+				select {
+				case localEvents <- localEvent:
+				default:
+				}
+			}
+		}
+	}()
+
+	return localEvents
+}
+
+// Usage example: `events := scopedStore.Watch("config"); scopedStore.Unwatch("config", events)`
+// Usage example: `events := scopedStore.Watch("*"); scopedStore.Unwatch("*", events)`
+func (scopedStore *ScopedStore) Unwatch(group string, events <-chan Event) {
+	if scopedStore == nil || events == nil {
+		return
+	}
+
+	scopedStore.watcherLock.Lock()
+	watcherBridge, ok := scopedStore.watcherBridges[channelPointer(events)]
+	if ok {
+		delete(scopedStore.watcherBridges, channelPointer(events))
+	}
+	scopedStore.watcherLock.Unlock()
+
+	if !ok {
+		return
+	}
+
+	close(watcherBridge.done)
+	scopedStore.store.Unwatch(watcherBridge.sourceGroup, watcherBridge.sourceEvents)
+}
+
+func (scopedStore *ScopedStore) removeWatcherBridge(pointer uintptr) {
+	if scopedStore == nil {
+		return
+	}
+
+	scopedStore.watcherLock.Lock()
+	delete(scopedStore.watcherBridges, pointer)
+	scopedStore.watcherLock.Unlock()
+}
+
+func (scopedStore *ScopedStore) localiseWatchedEvent(event Event) (Event, bool) {
+	if scopedStore == nil {
+		return Event{}, false
+	}
+
+	namespacePrefix := scopedStore.namespacePrefix()
+	if event.Group == "*" {
+		return event, true
+	}
+	if !core.HasPrefix(event.Group, namespacePrefix) {
+		return Event{}, false
+	}
+
+	event.Group = core.TrimPrefix(event.Group, namespacePrefix)
+	return event, true
 }
 
 // Usage example: `unregister := scopedStore.OnChange(func(event store.Event) { fmt.Println(event.Group, event.Key, event.Value) })`
