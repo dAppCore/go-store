@@ -222,3 +222,27 @@ func TestWorkspace_New_Good_LeavesOrphanedWorkspacesForRecovery(t *testing.T) {
 	assert.False(t, testFilesystem().Exists(orphanDatabasePath+"-wal"))
 	assert.False(t, testFilesystem().Exists(orphanDatabasePath+"-shm"))
 }
+
+func TestWorkspace_New_Good_CachesOrphansDuringConstruction(t *testing.T) {
+	stateDirectory := useWorkspaceStateDirectory(t)
+	requireCoreOK(t, testFilesystem().EnsureDir(stateDirectory))
+
+	orphanDatabasePath := workspaceFilePath(stateDirectory, "orphan-session")
+	orphanDatabase, err := openWorkspaceDatabase(orphanDatabasePath)
+	require.NoError(t, err)
+	require.NoError(t, orphanDatabase.Close())
+	assert.True(t, testFilesystem().Exists(orphanDatabasePath))
+
+	storeInstance, err := New(":memory:")
+	require.NoError(t, err)
+	defer storeInstance.Close()
+
+	requireCoreOK(t, testFilesystem().DeleteAll(stateDirectory))
+	assert.False(t, testFilesystem().Exists(orphanDatabasePath))
+
+	orphans := storeInstance.RecoverOrphans(stateDirectory)
+	require.Len(t, orphans, 1)
+	assert.Equal(t, "orphan-session", orphans[0].Name())
+	assert.Equal(t, map[string]any{}, orphans[0].Aggregate())
+	orphans[0].Discard()
+}

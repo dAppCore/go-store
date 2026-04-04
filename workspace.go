@@ -168,6 +168,25 @@ func discoverOrphanWorkspacePaths(stateDirectory string) []string {
 	return orphanPaths
 }
 
+func discoverOrphanWorkspaces(stateDirectory string, backingStore *Store) []*Workspace {
+	filesystem := (&core.Fs{}).NewUnrestricted()
+	orphanWorkspaces := make([]*Workspace, 0)
+	for _, databasePath := range discoverOrphanWorkspacePaths(stateDirectory) {
+		workspaceDatabase, err := openWorkspaceDatabase(databasePath)
+		if err != nil {
+			continue
+		}
+		orphanWorkspaces = append(orphanWorkspaces, &Workspace{
+			name:         workspaceNameFromPath(stateDirectory, databasePath),
+			backingStore: backingStore,
+			database:     workspaceDatabase,
+			databasePath: databasePath,
+			filesystem:   filesystem,
+		})
+	}
+	return orphanWorkspaces
+}
+
 func workspaceNameFromPath(stateDirectory, databasePath string) string {
 	relativePath := core.TrimPrefix(databasePath, joinPath(stateDirectory, ""))
 	return core.TrimSuffix(relativePath, ".duckdb")
@@ -183,6 +202,16 @@ func (storeInstance *Store) RecoverOrphans(stateDirectory string) []*Workspace {
 
 	if stateDirectory == "" {
 		stateDirectory = defaultWorkspaceStateDirectory
+	}
+
+	if stateDirectory == defaultWorkspaceStateDirectory {
+		storeInstance.orphanWorkspacesLock.Lock()
+		cachedWorkspaces := storeInstance.orphanWorkspaces
+		storeInstance.orphanWorkspaces = nil
+		storeInstance.orphanWorkspacesLock.Unlock()
+		if len(cachedWorkspaces) > 0 {
+			return cachedWorkspaces
+		}
 	}
 
 	filesystem := (&core.Fs{}).NewUnrestricted()
