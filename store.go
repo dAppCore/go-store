@@ -42,6 +42,8 @@ type StoreConfig struct {
 	Journal JournalConfiguration
 	// Usage example: `config := store.StoreConfig{PurgeInterval: 30 * time.Second}`
 	PurgeInterval time.Duration
+	// Usage example: `config := store.StoreConfig{WorkspaceStateDirectory: "/tmp/core-state"}`
+	WorkspaceStateDirectory string
 }
 
 // Usage example: `if err := (store.StoreConfig{DatabasePath: ":memory:", PurgeInterval: 30 * time.Second}).Validate(); err != nil { return }`
@@ -89,15 +91,16 @@ func (journalConfig JournalConfiguration) isConfigured() bool {
 // Usage example: `storeInstance, err := store.NewConfigured(store.StoreConfig{DatabasePath: ":memory:", Journal: store.JournalConfiguration{EndpointURL: "http://127.0.0.1:8086", Organisation: "core", BucketName: "events"}, PurgeInterval: 30 * time.Second})`
 // Usage example: `value, err := storeInstance.Get("config", "colour")`
 type Store struct {
-	sqliteDatabase       *sql.DB
-	databasePath         string
-	purgeContext         context.Context
-	cancelPurge          context.CancelFunc
-	purgeWaitGroup       sync.WaitGroup
-	purgeInterval        time.Duration // interval between background purge cycles
-	journalConfiguration JournalConfiguration
-	closeLock            sync.Mutex
-	closed               bool
+	sqliteDatabase          *sql.DB
+	databasePath            string
+	workspaceStateDirectory string
+	purgeContext            context.Context
+	cancelPurge             context.CancelFunc
+	purgeWaitGroup          sync.WaitGroup
+	purgeInterval           time.Duration // interval between background purge cycles
+	journalConfiguration    JournalConfiguration
+	closeLock               sync.Mutex
+	closed                  bool
 
 	// Event dispatch state.
 	watchers                   map[string][]chan Event
@@ -164,9 +167,10 @@ func (storeInstance *Store) Config() StoreConfig {
 		return StoreConfig{}
 	}
 	return StoreConfig{
-		DatabasePath:  storeInstance.databasePath,
-		Journal:       storeInstance.JournalConfiguration(),
-		PurgeInterval: storeInstance.purgeInterval,
+		DatabasePath:            storeInstance.databasePath,
+		Journal:                 storeInstance.JournalConfiguration(),
+		PurgeInterval:           storeInstance.purgeInterval,
+		WorkspaceStateDirectory: storeInstance.workspaceStateDirectoryPath(),
 	}
 }
 
@@ -223,10 +227,13 @@ func openConfiguredStore(operation string, storeConfig StoreConfig) (*Store, err
 	if storeConfig.PurgeInterval > 0 {
 		storeInstance.purgeInterval = storeConfig.PurgeInterval
 	}
+	if storeConfig.WorkspaceStateDirectory != "" {
+		storeInstance.workspaceStateDirectory = normaliseWorkspaceStateDirectory(storeConfig.WorkspaceStateDirectory)
+	}
 
 	// New() performs a non-destructive orphan scan so callers can discover
 	// leftover workspaces via RecoverOrphans().
-	storeInstance.orphanWorkspaces = discoverOrphanWorkspaces(defaultWorkspaceStateDirectory, storeInstance)
+	storeInstance.orphanWorkspaces = discoverOrphanWorkspaces(storeInstance.workspaceStateDirectoryPath(), storeInstance)
 	storeInstance.startBackgroundPurge()
 	return storeInstance, nil
 }
@@ -267,13 +274,21 @@ func openSQLiteStore(operation, databasePath string) (*Store, error) {
 
 	purgeContext, cancel := context.WithCancel(context.Background())
 	return &Store{
-		sqliteDatabase: sqliteDatabase,
-		databasePath:   databasePath,
-		purgeContext:   purgeContext,
-		cancelPurge:    cancel,
-		purgeInterval:  60 * time.Second,
-		watchers:       make(map[string][]chan Event),
+		sqliteDatabase:          sqliteDatabase,
+		databasePath:            databasePath,
+		workspaceStateDirectory: normaliseWorkspaceStateDirectory(defaultWorkspaceStateDirectory),
+		purgeContext:            purgeContext,
+		cancelPurge:             cancel,
+		purgeInterval:           60 * time.Second,
+		watchers:                make(map[string][]chan Event),
 	}, nil
+}
+
+func (storeInstance *Store) workspaceStateDirectoryPath() string {
+	if storeInstance == nil || storeInstance.workspaceStateDirectory == "" {
+		return normaliseWorkspaceStateDirectory(defaultWorkspaceStateDirectory)
+	}
+	return normaliseWorkspaceStateDirectory(storeInstance.workspaceStateDirectory)
 }
 
 // Usage example: `storeInstance, err := store.New(":memory:"); if err != nil { return }; defer storeInstance.Close()`

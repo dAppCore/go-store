@@ -108,6 +108,26 @@ func TestStore_New_Good_WithJournalOption(t *testing.T) {
 	assert.Equal(t, "http://127.0.0.1:8086", storeInstance.journalConfiguration.EndpointURL)
 }
 
+func TestStore_NewConfigured_Good_WorkspaceStateDirectory(t *testing.T) {
+	workspaceStateDirectory := testPath(t, "workspace-state")
+
+	storeInstance, err := NewConfigured(StoreConfig{
+		DatabasePath:            ":memory:",
+		WorkspaceStateDirectory: workspaceStateDirectory,
+	})
+	require.NoError(t, err)
+	defer storeInstance.Close()
+
+	assert.Equal(t, workspaceStateDirectory, storeInstance.Config().WorkspaceStateDirectory)
+
+	workspace, err := storeInstance.NewWorkspace("scroll-session")
+	require.NoError(t, err)
+	defer workspace.Discard()
+
+	assert.Equal(t, workspaceFilePath(workspaceStateDirectory, "scroll-session"), workspace.DatabasePath())
+	assert.True(t, testFilesystem().Exists(workspace.DatabasePath()))
+}
+
 func TestStore_JournalConfiguration_Good(t *testing.T) {
 	storeInstance, err := New(":memory:", WithJournal("http://127.0.0.1:8086", "core", "events"))
 	require.NoError(t, err)
@@ -212,7 +232,8 @@ func TestStore_Config_Good(t *testing.T) {
 			Organisation: "core",
 			BucketName:   "events",
 		},
-		PurgeInterval: 20 * time.Millisecond,
+		PurgeInterval:           20 * time.Millisecond,
+		WorkspaceStateDirectory: normaliseWorkspaceStateDirectory(defaultWorkspaceStateDirectory),
 	}, storeInstance.Config())
 }
 

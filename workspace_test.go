@@ -310,6 +310,39 @@ func TestWorkspace_New_Good_CachesOrphansDuringConstruction(t *testing.T) {
 	orphans[0].Discard()
 }
 
+func TestWorkspace_NewConfigured_Good_CachesOrphansFromConfiguredStateDirectory(t *testing.T) {
+	stateDirectory := testPath(t, "configured-state")
+	requireCoreOK(t, testFilesystem().EnsureDir(stateDirectory))
+
+	orphanDatabasePath := workspaceFilePath(stateDirectory, "orphan-session")
+	orphanDatabase, err := openWorkspaceDatabase(orphanDatabasePath)
+	require.NoError(t, err)
+	_, err = orphanDatabase.Exec(
+		"INSERT INTO "+workspaceEntriesTableName+" (entry_kind, entry_data, created_at) VALUES (?, ?, ?)",
+		"like",
+		`{"user":"@alice"}`,
+		time.Now().UnixMilli(),
+	)
+	require.NoError(t, err)
+	require.NoError(t, orphanDatabase.Close())
+
+	storeInstance, err := NewConfigured(StoreConfig{
+		DatabasePath:            ":memory:",
+		WorkspaceStateDirectory: stateDirectory,
+	})
+	require.NoError(t, err)
+	defer storeInstance.Close()
+
+	requireCoreOK(t, testFilesystem().DeleteAll(stateDirectory))
+	assert.False(t, testFilesystem().Exists(orphanDatabasePath))
+
+	orphans := storeInstance.RecoverOrphans("")
+	require.Len(t, orphans, 1)
+	assert.Equal(t, "orphan-session", orphans[0].Name())
+	assert.Equal(t, map[string]any{"like": 1}, orphans[0].Aggregate())
+	orphans[0].Discard()
+}
+
 func TestWorkspace_RecoverOrphans_Good_TrailingSlashUsesCache(t *testing.T) {
 	stateDirectory := useWorkspaceStateDirectory(t)
 	requireCoreOK(t, testFilesystem().EnsureDir(stateDirectory))
