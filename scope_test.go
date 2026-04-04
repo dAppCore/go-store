@@ -637,6 +637,42 @@ func TestScope_ScopedStoreTransaction_Good_PrefixesAndReadsPendingWrites(t *test
 	assert.Equal(t, "tenant-a:config", received[1].Group)
 }
 
+func TestScope_Quota_Good_TransactionEnforcesMaxKeys(t *testing.T) {
+	storeInstance, _ := New(":memory:")
+	defer storeInstance.Close()
+
+	scopedStore, err := NewScopedWithQuota(storeInstance, "tenant-a", QuotaConfig{MaxKeys: 1})
+	require.NoError(t, err)
+
+	err = scopedStore.Transaction(func(transaction *ScopedStoreTransaction) error {
+		require.NoError(t, transaction.SetIn("config", "colour", "blue"))
+		return transaction.SetIn("config", "language", "en-GB")
+	})
+	require.Error(t, err)
+	assert.True(t, core.Is(err, QuotaExceededError))
+
+	_, err = scopedStore.GetFrom("config", "colour")
+	assert.ErrorIs(t, err, NotFoundError)
+}
+
+func TestScope_Quota_Good_TransactionEnforcesMaxGroups(t *testing.T) {
+	storeInstance, _ := New(":memory:")
+	defer storeInstance.Close()
+
+	scopedStore, err := NewScopedWithQuota(storeInstance, "tenant-a", QuotaConfig{MaxGroups: 1})
+	require.NoError(t, err)
+
+	err = scopedStore.Transaction(func(transaction *ScopedStoreTransaction) error {
+		require.NoError(t, transaction.SetIn("config", "colour", "blue"))
+		return transaction.SetWithTTL("preferences", "language", "en-GB", time.Hour)
+	})
+	require.Error(t, err)
+	assert.True(t, core.Is(err, QuotaExceededError))
+
+	_, err = scopedStore.GetFrom("config", "colour")
+	assert.ErrorIs(t, err, NotFoundError)
+}
+
 // ---------------------------------------------------------------------------
 // Quota enforcement — MaxKeys
 // ---------------------------------------------------------------------------
