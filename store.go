@@ -43,6 +43,21 @@ type StoreConfig struct {
 	PurgeInterval time.Duration
 }
 
+// Usage example: `if err := (store.StoreConfig{DatabasePath: ":memory:", PurgeInterval: 30 * time.Second}).Validate(); err != nil { return }`
+func (config StoreConfig) Validate() error {
+	if config.Journal != (JournalConfiguration{}) && !config.Journal.isConfigured() {
+		return core.E(
+			"store.StoreConfig.Validate",
+			"journal configuration must include endpoint URL, organisation, and bucket name",
+			nil,
+		)
+	}
+	if config.PurgeInterval < 0 {
+		return core.E("store.StoreConfig.Validate", "purge interval must be zero or positive", nil)
+	}
+	return nil
+}
+
 // Usage example: `config := storeInstance.JournalConfiguration(); fmt.Println(config.EndpointURL, config.Organisation, config.BucketName)`
 // The values are copied into the store and used as journal metadata.
 type JournalConfiguration struct {
@@ -199,15 +214,16 @@ func NewConfigured(config StoreConfig) (*Store, error) {
 }
 
 func openConfiguredStore(operation string, config StoreConfig) (*Store, error) {
+	if err := config.Validate(); err != nil {
+		return nil, core.E(operation, "validate config", err)
+	}
+
 	storeInstance, err := openSQLiteStore(operation, config.DatabasePath)
 	if err != nil {
 		return nil, err
 	}
 
 	if config.Journal != (JournalConfiguration{}) {
-		if !config.Journal.isConfigured() {
-			return nil, core.E(operation, "journal configuration must include endpoint URL, organisation, and bucket name", nil)
-		}
 		storeInstance.journalConfiguration = journalConfiguration{
 			endpointURL:  config.Journal.EndpointURL,
 			organisation: config.Journal.Organisation,

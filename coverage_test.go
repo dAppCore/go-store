@@ -290,7 +290,7 @@ func TestCoverage_ScopedStore_Bad_GroupsClosedStore(t *testing.T) {
 	var err error
 	_, err = scopedStore.Groups("")
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "store.Groups")
+	assert.Contains(t, err.Error(), "store.ScopedStore.Groups")
 }
 
 func TestCoverage_ScopedStore_Bad_GroupsSeqRowsError(t *testing.T) {

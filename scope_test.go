@@ -126,6 +126,29 @@ func TestScope_NewScopedConfigured_Bad_InvalidNamespace(t *testing.T) {
 	assert.Contains(t, err.Error(), "namespace")
 }
 
+func TestScope_ScopedStoreConfig_Good_Validate(t *testing.T) {
+	err := (ScopedStoreConfig{
+		Namespace: "tenant-a",
+		Quota:     QuotaConfig{MaxKeys: 4, MaxGroups: 2},
+	}).Validate()
+	require.NoError(t, err)
+}
+
+func TestScope_ScopedStoreConfig_Bad_InvalidNamespace(t *testing.T) {
+	err := (ScopedStoreConfig{Namespace: "tenant_a"}).Validate()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "namespace")
+}
+
+func TestScope_ScopedStoreConfig_Bad_NegativeQuota(t *testing.T) {
+	err := (ScopedStoreConfig{
+		Namespace: "tenant-a",
+		Quota:     QuotaConfig{MaxKeys: -1},
+	}).Validate()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "quota values must be zero or positive")
+}
+
 // ---------------------------------------------------------------------------
 // ScopedStore — basic CRUD
 // ---------------------------------------------------------------------------
