@@ -169,6 +169,16 @@ func WithJournal(endpointURL, organisation, bucketName string) StoreOption {
 	}
 }
 
+// Usage example: `storeInstance, err := store.New(":memory:", store.WithWorkspaceStateDirectory("/tmp/core-state"))`
+func WithWorkspaceStateDirectory(directory string) StoreOption {
+	return func(storeConfig *StoreConfig) {
+		if storeConfig == nil {
+			return
+		}
+		storeConfig.WorkspaceStateDirectory = directory
+	}
+}
+
 // Usage example: `config := storeInstance.JournalConfiguration(); fmt.Println(config.EndpointURL, config.Organisation, config.BucketName)`
 func (storeInstance *Store) JournalConfiguration() JournalConfiguration {
 	if storeInstance == nil {
@@ -194,7 +204,7 @@ func (storeInstance *Store) Config() StoreConfig {
 		DatabasePath:            storeInstance.databasePath,
 		Journal:                 storeInstance.JournalConfiguration(),
 		PurgeInterval:           storeInstance.purgeInterval,
-		WorkspaceStateDirectory: storeInstance.workspaceStateDirectoryPath(),
+		WorkspaceStateDirectory: storeInstance.WorkspaceStateDirectory(),
 	}
 }
 
@@ -204,6 +214,14 @@ func (storeInstance *Store) DatabasePath() string {
 		return ""
 	}
 	return storeInstance.databasePath
+}
+
+// Usage example: `stateDirectory := storeInstance.WorkspaceStateDirectory(); fmt.Println(stateDirectory)`
+func (storeInstance *Store) WorkspaceStateDirectory() string {
+	if storeInstance == nil {
+		return normaliseWorkspaceStateDirectory(defaultWorkspaceStateDirectory)
+	}
+	return storeInstance.workspaceStateDirectoryPath()
 }
 
 // Usage example: `if storeInstance.IsClosed() { return }`

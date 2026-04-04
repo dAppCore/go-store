@@ -108,6 +108,23 @@ func TestStore_New_Good_WithJournalOption(t *testing.T) {
 	assert.Equal(t, "http://127.0.0.1:8086", storeInstance.journalConfiguration.EndpointURL)
 }
 
+func TestStore_New_Good_WithWorkspaceStateDirectoryOption(t *testing.T) {
+	workspaceStateDirectory := testPath(t, "workspace-state-option")
+
+	storeInstance, err := New(":memory:", WithWorkspaceStateDirectory(workspaceStateDirectory))
+	require.NoError(t, err)
+	defer storeInstance.Close()
+
+	assert.Equal(t, workspaceStateDirectory, storeInstance.WorkspaceStateDirectory())
+
+	workspace, err := storeInstance.NewWorkspace("scroll-session")
+	require.NoError(t, err)
+	defer workspace.Discard()
+
+	assert.Equal(t, workspaceFilePath(workspaceStateDirectory, "scroll-session"), workspace.DatabasePath())
+	assert.True(t, testFilesystem().Exists(workspace.DatabasePath()))
+}
+
 func TestStore_NewConfigured_Good_WorkspaceStateDirectory(t *testing.T) {
 	workspaceStateDirectory := testPath(t, "workspace-state")
 
@@ -126,6 +143,15 @@ func TestStore_NewConfigured_Good_WorkspaceStateDirectory(t *testing.T) {
 
 	assert.Equal(t, workspaceFilePath(workspaceStateDirectory, "scroll-session"), workspace.DatabasePath())
 	assert.True(t, testFilesystem().Exists(workspace.DatabasePath()))
+}
+
+func TestStore_WorkspaceStateDirectory_Good_Default(t *testing.T) {
+	storeInstance, err := New(":memory:")
+	require.NoError(t, err)
+	defer storeInstance.Close()
+
+	assert.Equal(t, normaliseWorkspaceStateDirectory(defaultWorkspaceStateDirectory), storeInstance.WorkspaceStateDirectory())
+	assert.Equal(t, storeInstance.WorkspaceStateDirectory(), storeInstance.Config().WorkspaceStateDirectory)
 }
 
 func TestStore_JournalConfiguration_Good(t *testing.T) {
