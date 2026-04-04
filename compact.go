@@ -41,6 +41,13 @@ func (compactOptions CompactOptions) Normalised() CompactOptions {
 
 // Usage example: `if err := (store.CompactOptions{Before: time.Date(2026, 3, 30, 0, 0, 0, 0, time.UTC), Format: "gzip"}).Validate(); err != nil { return }`
 func (compactOptions CompactOptions) Validate() error {
+	if compactOptions.Before.IsZero() {
+		return core.E(
+			"store.CompactOptions.Validate",
+			"before cutoff time is empty; use a value like time.Now().Add(-24 * time.Hour)",
+			nil,
+		)
+	}
 	switch lowerText(core.Trim(compactOptions.Format)) {
 	case "", "gzip", "zstd":
 		return nil

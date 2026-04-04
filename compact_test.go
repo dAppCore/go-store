@@ -201,6 +201,14 @@ func TestCompact_CompactOptions_Good_Validate(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestCompact_CompactOptions_Bad_ValidateMissingCutoff(t *testing.T) {
+	err := (CompactOptions{
+		Format: "gzip",
+	}).Validate()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "before cutoff time is empty")
+}
+
 func TestCompact_CompactOptions_Good_ValidateNormalisesFormatCase(t *testing.T) {
 	err := (CompactOptions{
 		Before: time.Now().Add(-24 * time.Hour),
