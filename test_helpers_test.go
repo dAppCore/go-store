@@ -78,3 +78,10 @@ func requireResultRows(tb testing.TB, result core.Result) []map[string]any {
 	require.True(tb, ok, "unexpected row type: %T", result.Value)
 	return rows
 }
+
+func NewScopedWithQuota(storeInstance *Store, namespace string, quota QuotaConfig) (*ScopedStore, error) {
+	return NewScopedConfigured(storeInstance, ScopedStoreConfig{
+		Namespace: namespace,
+		Quota:     quota,
+	})
+}
