@@ -135,7 +135,7 @@ func TestJournal_QueryJournal_Good_BucketFilter(t *testing.T) {
 	require.True(t,
 		storeInstance.CommitToJournal("session-a", map[string]any{"like": 1}, map[string]string{"workspace": "session-a"}).OK,
 	)
-	require.NoError(t, insertJournalEntry(
+	require.NoError(t, commitJournalEntry(
 		storeInstance.sqliteDatabase,
 		"events",
 		"session-b",
@@ -160,7 +160,7 @@ func TestJournal_QueryJournal_Good_DeterministicOrderingForSameTimestamp(t *test
 	require.NoError(t, ensureJournalSchema(storeInstance.sqliteDatabase))
 
 	committedAt := time.Date(2026, 3, 30, 12, 0, 0, 0, time.UTC).UnixMilli()
-	require.NoError(t, insertJournalEntry(
+	require.NoError(t, commitJournalEntry(
 		storeInstance.sqliteDatabase,
 		"events",
 		"session-b",
@@ -168,7 +168,7 @@ func TestJournal_QueryJournal_Good_DeterministicOrderingForSameTimestamp(t *test
 		`{"workspace":"session-b"}`,
 		committedAt,
 	))
-	require.NoError(t, insertJournalEntry(
+	require.NoError(t, commitJournalEntry(
 		storeInstance.sqliteDatabase,
 		"events",
 		"session-a",

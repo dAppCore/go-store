@@ -136,7 +136,7 @@ func TestCompact_Compact_Good_DeterministicOrderingForSameTimestamp(t *testing.T
 	require.NoError(t, ensureJournalSchema(storeInstance.sqliteDatabase))
 
 	committedAt := time.Now().Add(-48 * time.Hour).UnixMilli()
-	require.NoError(t, insertJournalEntry(
+	require.NoError(t, commitJournalEntry(
 		storeInstance.sqliteDatabase,
 		"events",
 		"session-b",
@@ -144,7 +144,7 @@ func TestCompact_Compact_Good_DeterministicOrderingForSameTimestamp(t *testing.T
 		`{"workspace":"session-b"}`,
 		committedAt,
 	))
-	require.NoError(t, insertJournalEntry(
+	require.NoError(t, commitJournalEntry(
 		storeInstance.sqliteDatabase,
 		"events",
 		"session-a",
