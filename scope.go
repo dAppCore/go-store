@@ -59,7 +59,7 @@ func (scopedConfig ScopedStoreConfig) Validate() error {
 }
 
 // ScopedStore prefixes group names with namespace + ":" before delegating to Store.
-// Usage example: `scopedStore, err := store.NewScoped(storeInstance, "tenant-a"); if err != nil { return }; if err := scopedStore.Set("config", "colour", "blue"); err != nil { return }`
+// Usage example: `scopedStore, err := store.NewScoped(storeInstance, "tenant-a"); if err != nil { return }; if err := scopedStore.SetIn("config", "colour", "blue"); err != nil { return }`
 type ScopedStore struct {
 	storeInstance *Store
 	namespace     string
@@ -132,38 +132,32 @@ func (scopedStore *ScopedStore) Namespace() string {
 }
 
 // Usage example: `colourValue, err := scopedStore.Get("colour")`
-// Usage example: `colourValue, err := scopedStore.GetFrom("config", "colour")`
-func (scopedStore *ScopedStore) Get(arguments ...string) (string, error) {
-	group, key, err := scopedStore.getArguments(arguments)
-	if err != nil {
-		return "", err
-	}
-	return scopedStore.storeInstance.Get(scopedStore.namespacedGroup(group), key)
+func (scopedStore *ScopedStore) Get(key string) (string, error) {
+	return scopedStore.storeInstance.Get(scopedStore.namespacedGroup(scopedStore.defaultGroup()), key)
 }
 
 // GetFrom reads a key from an explicit namespaced group.
 // Usage example: `colourValue, err := scopedStore.GetFrom("config", "colour")`
 func (scopedStore *ScopedStore) GetFrom(group, key string) (string, error) {
-	return scopedStore.Get(group, key)
+	return scopedStore.storeInstance.Get(scopedStore.namespacedGroup(group), key)
 }
 
 // Usage example: `if err := scopedStore.Set("colour", "blue"); err != nil { return }`
-// Usage example: `if err := scopedStore.SetIn("config", "colour", "blue"); err != nil { return }`
-func (scopedStore *ScopedStore) Set(arguments ...string) error {
-	group, key, value, err := scopedStore.setArguments(arguments)
-	if err != nil {
+func (scopedStore *ScopedStore) Set(key, value string) error {
+	defaultGroup := scopedStore.defaultGroup()
+	if err := scopedStore.checkQuota("store.ScopedStore.Set", defaultGroup, key); err != nil {
 		return err
 	}
-	if err := scopedStore.checkQuota("store.ScopedStore.Set", group, key); err != nil {
-		return err
-	}
-	return scopedStore.storeInstance.Set(scopedStore.namespacedGroup(group), key, value)
+	return scopedStore.storeInstance.Set(scopedStore.namespacedGroup(defaultGroup), key, value)
 }
 
 // SetIn writes a key to an explicit namespaced group.
 // Usage example: `if err := scopedStore.SetIn("config", "colour", "blue"); err != nil { return }`
 func (scopedStore *ScopedStore) SetIn(group, key, value string) error {
-	return scopedStore.Set(group, key, value)
+	if err := scopedStore.checkQuota("store.ScopedStore.SetIn", group, key); err != nil {
+		return err
+	}
+	return scopedStore.storeInstance.Set(scopedStore.namespacedGroup(group), key, value)
 }
 
 // Usage example: `if err := scopedStore.SetWithTTL("sessions", "token", "abc123", time.Hour); err != nil { return }`
@@ -315,44 +309,49 @@ func (scopedStoreTransaction *ScopedStoreTransaction) ensureReady(operation stri
 }
 
 // Usage example: `colourValue, err := scopedStoreTransaction.Get("colour")`
-// Usage example: `colourValue, err := scopedStoreTransaction.GetFrom("config", "colour")`
-func (scopedStoreTransaction *ScopedStoreTransaction) Get(arguments ...string) (string, error) {
+func (scopedStoreTransaction *ScopedStoreTransaction) Get(key string) (string, error) {
 	if err := scopedStoreTransaction.ensureReady("store.ScopedStoreTransaction.Get"); err != nil {
 		return "", err
 	}
-
-	group, key, err := scopedStoreTransaction.scopedStore.getArguments(arguments)
-	if err != nil {
-		return "", core.E("store.ScopedStoreTransaction.Get", "arguments", err)
-	}
-	return scopedStoreTransaction.storeTransaction.Get(scopedStoreTransaction.scopedStore.namespacedGroup(group), key)
+	return scopedStoreTransaction.storeTransaction.Get(
+		scopedStoreTransaction.scopedStore.namespacedGroup(scopedStoreTransaction.scopedStore.defaultGroup()),
+		key,
+	)
 }
 
 // Usage example: `colourValue, err := scopedStoreTransaction.GetFrom("config", "colour")`
 func (scopedStoreTransaction *ScopedStoreTransaction) GetFrom(group, key string) (string, error) {
-	return scopedStoreTransaction.Get(group, key)
+	if err := scopedStoreTransaction.ensureReady("store.ScopedStoreTransaction.GetFrom"); err != nil {
+		return "", err
+	}
+	return scopedStoreTransaction.storeTransaction.Get(scopedStoreTransaction.scopedStore.namespacedGroup(group), key)
 }
 
 // Usage example: `if err := scopedStoreTransaction.Set("theme", "dark"); err != nil { return err }`
-// Usage example: `if err := scopedStoreTransaction.SetIn("config", "colour", "blue"); err != nil { return err }`
-func (scopedStoreTransaction *ScopedStoreTransaction) Set(arguments ...string) error {
+func (scopedStoreTransaction *ScopedStoreTransaction) Set(key, value string) error {
 	if err := scopedStoreTransaction.ensureReady("store.ScopedStoreTransaction.Set"); err != nil {
 		return err
 	}
-
-	group, key, value, err := scopedStoreTransaction.scopedStore.setArguments(arguments)
-	if err != nil {
-		return core.E("store.ScopedStoreTransaction.Set", "arguments", err)
-	}
-	if err := scopedStoreTransaction.checkQuota("store.ScopedStoreTransaction.Set", group, key); err != nil {
+	defaultGroup := scopedStoreTransaction.scopedStore.defaultGroup()
+	if err := scopedStoreTransaction.checkQuota("store.ScopedStoreTransaction.Set", defaultGroup, key); err != nil {
 		return err
 	}
-	return scopedStoreTransaction.storeTransaction.Set(scopedStoreTransaction.scopedStore.namespacedGroup(group), key, value)
+	return scopedStoreTransaction.storeTransaction.Set(
+		scopedStoreTransaction.scopedStore.namespacedGroup(defaultGroup),
+		key,
+		value,
+	)
 }
 
 // Usage example: `if err := scopedStoreTransaction.SetIn("config", "colour", "blue"); err != nil { return err }`
 func (scopedStoreTransaction *ScopedStoreTransaction) SetIn(group, key, value string) error {
-	return scopedStoreTransaction.Set(group, key, value)
+	if err := scopedStoreTransaction.ensureReady("store.ScopedStoreTransaction.SetIn"); err != nil {
+		return err
+	}
+	if err := scopedStoreTransaction.checkQuota("store.ScopedStoreTransaction.SetIn", group, key); err != nil {
+		return err
+	}
+	return scopedStoreTransaction.storeTransaction.Set(scopedStoreTransaction.scopedStore.namespacedGroup(group), key, value)
 }
 
 // Usage example: `if err := scopedStoreTransaction.SetWithTTL("sessions", "token", "abc123", time.Hour); err != nil { return err }`
@@ -600,36 +599,6 @@ func (scopedStore *ScopedStore) checkQuota(operation, group, key string) error {
 	}
 
 	return nil
-}
-
-func (scopedStore *ScopedStore) getArguments(arguments []string) (string, string, error) {
-	switch len(arguments) {
-	case 1:
-		return scopedStore.defaultGroup(), arguments[0], nil
-	case 2:
-		return arguments[0], arguments[1], nil
-	default:
-		return "", "", core.E(
-			"store.ScopedStore.Get",
-			core.Sprintf("expected 1 or 2 arguments; got %d", len(arguments)),
-			nil,
-		)
-	}
-}
-
-func (scopedStore *ScopedStore) setArguments(arguments []string) (string, string, string, error) {
-	switch len(arguments) {
-	case 2:
-		return scopedStore.defaultGroup(), arguments[0], arguments[1], nil
-	case 3:
-		return arguments[0], arguments[1], arguments[2], nil
-	default:
-		return "", "", "", core.E(
-			"store.ScopedStore.Set",
-			core.Sprintf("expected 2 or 3 arguments; got %d", len(arguments)),
-			nil,
-		)
-	}
 }
 
 func firstString(values []string) string {

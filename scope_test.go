@@ -148,9 +148,9 @@ func TestScope_ScopedStore_Good_SetGet(t *testing.T) {
 	defer storeInstance.Close()
 
 	scopedStore, _ := NewScoped(storeInstance, "tenant-a")
-	require.NoError(t, scopedStore.Set("config", "theme", "dark"))
+	require.NoError(t, scopedStore.SetIn("config", "theme", "dark"))
 
-	value, err := scopedStore.Get("config", "theme")
+	value, err := scopedStore.GetFrom("config", "theme")
 	require.NoError(t, err)
 	assert.Equal(t, "dark", value)
 }
@@ -188,7 +188,7 @@ func TestScope_ScopedStore_Good_PrefixedInUnderlyingStore(t *testing.T) {
 	defer storeInstance.Close()
 
 	scopedStore, _ := NewScoped(storeInstance, "tenant-a")
-	require.NoError(t, scopedStore.Set("config", "key", "val"))
+	require.NoError(t, scopedStore.SetIn("config", "key", "val"))
 
 	// The underlying store should have the prefixed group name.
 	value, err := storeInstance.Get("tenant-a:config", "key")
@@ -207,14 +207,14 @@ func TestScope_ScopedStore_Good_NamespaceIsolation(t *testing.T) {
 	alphaStore, _ := NewScoped(storeInstance, "tenant-a")
 	betaStore, _ := NewScoped(storeInstance, "tenant-b")
 
-	require.NoError(t, alphaStore.Set("config", "colour", "blue"))
-	require.NoError(t, betaStore.Set("config", "colour", "red"))
+	require.NoError(t, alphaStore.SetIn("config", "colour", "blue"))
+	require.NoError(t, betaStore.SetIn("config", "colour", "red"))
 
-	alphaValue, err := alphaStore.Get("config", "colour")
+	alphaValue, err := alphaStore.GetFrom("config", "colour")
 	require.NoError(t, err)
 	assert.Equal(t, "blue", alphaValue)
 
-	betaValue, err := betaStore.Get("config", "colour")
+	betaValue, err := betaStore.GetFrom("config", "colour")
 	require.NoError(t, err)
 	assert.Equal(t, "red", betaValue)
 }
@@ -224,10 +224,10 @@ func TestScope_ScopedStore_Good_Delete(t *testing.T) {
 	defer storeInstance.Close()
 
 	scopedStore, _ := NewScoped(storeInstance, "tenant-a")
-	require.NoError(t, scopedStore.Set("g", "k", "v"))
+	require.NoError(t, scopedStore.SetIn("g", "k", "v"))
 	require.NoError(t, scopedStore.Delete("g", "k"))
 
-	_, err := scopedStore.Get("g", "k")
+	_, err := scopedStore.GetFrom("g", "k")
 	assert.True(t, core.Is(err, NotFoundError))
 }
 
@@ -236,8 +236,8 @@ func TestScope_ScopedStore_Good_DeleteGroup(t *testing.T) {
 	defer storeInstance.Close()
 
 	scopedStore, _ := NewScoped(storeInstance, "tenant-a")
-	require.NoError(t, scopedStore.Set("g", "a", "1"))
-	require.NoError(t, scopedStore.Set("g", "b", "2"))
+	require.NoError(t, scopedStore.SetIn("g", "a", "1"))
+	require.NoError(t, scopedStore.SetIn("g", "b", "2"))
 	require.NoError(t, scopedStore.DeleteGroup("g"))
 
 	count, err := scopedStore.Count("g")
@@ -252,23 +252,23 @@ func TestScope_ScopedStore_Good_DeletePrefix(t *testing.T) {
 	scopedStore, _ := NewScoped(storeInstance, "tenant-a")
 	otherScopedStore, _ := NewScoped(storeInstance, "tenant-b")
 
-	require.NoError(t, scopedStore.Set("config", "theme", "dark"))
-	require.NoError(t, scopedStore.Set("cache", "page", "home"))
-	require.NoError(t, scopedStore.Set("cache-warm", "status", "ready"))
-	require.NoError(t, otherScopedStore.Set("cache", "page", "keep"))
+	require.NoError(t, scopedStore.SetIn("config", "theme", "dark"))
+	require.NoError(t, scopedStore.SetIn("cache", "page", "home"))
+	require.NoError(t, scopedStore.SetIn("cache-warm", "status", "ready"))
+	require.NoError(t, otherScopedStore.SetIn("cache", "page", "keep"))
 
 	require.NoError(t, scopedStore.DeletePrefix("cache"))
 
-	_, err := scopedStore.Get("cache", "page")
+	_, err := scopedStore.GetFrom("cache", "page")
 	assert.True(t, core.Is(err, NotFoundError))
-	_, err = scopedStore.Get("cache-warm", "status")
+	_, err = scopedStore.GetFrom("cache-warm", "status")
 	assert.True(t, core.Is(err, NotFoundError))
 
-	value, err := scopedStore.Get("config", "theme")
+	value, err := scopedStore.GetFrom("config", "theme")
 	require.NoError(t, err)
 	assert.Equal(t, "dark", value)
 
-	otherValue, err := otherScopedStore.Get("cache", "page")
+	otherValue, err := otherScopedStore.GetFrom("cache", "page")
 	require.NoError(t, err)
 	assert.Equal(t, "keep", otherValue)
 }
@@ -280,9 +280,9 @@ func TestScope_ScopedStore_Good_GetAll(t *testing.T) {
 	alphaStore, _ := NewScoped(storeInstance, "tenant-a")
 	betaStore, _ := NewScoped(storeInstance, "tenant-b")
 
-	require.NoError(t, alphaStore.Set("items", "x", "1"))
-	require.NoError(t, alphaStore.Set("items", "y", "2"))
-	require.NoError(t, betaStore.Set("items", "z", "3"))
+	require.NoError(t, alphaStore.SetIn("items", "x", "1"))
+	require.NoError(t, alphaStore.SetIn("items", "y", "2"))
+	require.NoError(t, betaStore.SetIn("items", "z", "3"))
 
 	all, err := alphaStore.GetAll("items")
 	require.NoError(t, err)
@@ -298,8 +298,8 @@ func TestScope_ScopedStore_Good_All(t *testing.T) {
 	defer storeInstance.Close()
 
 	scopedStore, _ := NewScoped(storeInstance, "tenant-a")
-	require.NoError(t, scopedStore.Set("items", "first", "1"))
-	require.NoError(t, scopedStore.Set("items", "second", "2"))
+	require.NoError(t, scopedStore.SetIn("items", "first", "1"))
+	require.NoError(t, scopedStore.SetIn("items", "second", "2"))
 
 	var keys []string
 	for entry, err := range scopedStore.All("items") {
@@ -315,9 +315,9 @@ func TestScope_ScopedStore_Good_All_SortedByKey(t *testing.T) {
 	defer storeInstance.Close()
 
 	scopedStore, _ := NewScoped(storeInstance, "tenant-a")
-	require.NoError(t, scopedStore.Set("items", "charlie", "3"))
-	require.NoError(t, scopedStore.Set("items", "alpha", "1"))
-	require.NoError(t, scopedStore.Set("items", "bravo", "2"))
+	require.NoError(t, scopedStore.SetIn("items", "charlie", "3"))
+	require.NoError(t, scopedStore.SetIn("items", "alpha", "1"))
+	require.NoError(t, scopedStore.SetIn("items", "bravo", "2"))
 
 	var keys []string
 	for entry, err := range scopedStore.All("items") {
@@ -333,8 +333,8 @@ func TestScope_ScopedStore_Good_Count(t *testing.T) {
 	defer storeInstance.Close()
 
 	scopedStore, _ := NewScoped(storeInstance, "tenant-a")
-	require.NoError(t, scopedStore.Set("g", "a", "1"))
-	require.NoError(t, scopedStore.Set("g", "b", "2"))
+	require.NoError(t, scopedStore.SetIn("g", "a", "1"))
+	require.NoError(t, scopedStore.SetIn("g", "b", "2"))
 
 	count, err := scopedStore.Count("g")
 	require.NoError(t, err)
@@ -348,7 +348,7 @@ func TestScope_ScopedStore_Good_SetWithTTL(t *testing.T) {
 	scopedStore, _ := NewScoped(storeInstance, "tenant-a")
 	require.NoError(t, scopedStore.SetWithTTL("g", "k", "v", time.Hour))
 
-	value, err := scopedStore.Get("g", "k")
+	value, err := scopedStore.GetFrom("g", "k")
 	require.NoError(t, err)
 	assert.Equal(t, "v", value)
 }
@@ -361,7 +361,7 @@ func TestScope_ScopedStore_Good_SetWithTTL_Expires(t *testing.T) {
 	require.NoError(t, scopedStore.SetWithTTL("g", "k", "v", 1*time.Millisecond))
 	time.Sleep(5 * time.Millisecond)
 
-	_, err := scopedStore.Get("g", "k")
+	_, err := scopedStore.GetFrom("g", "k")
 	assert.True(t, core.Is(err, NotFoundError))
 }
 
@@ -370,7 +370,7 @@ func TestScope_ScopedStore_Good_Render(t *testing.T) {
 	defer storeInstance.Close()
 
 	scopedStore, _ := NewScoped(storeInstance, "tenant-a")
-	require.NoError(t, scopedStore.Set("user", "name", "Alice"))
+	require.NoError(t, scopedStore.SetIn("user", "name", "Alice"))
 
 	renderedTemplate, err := scopedStore.Render("Hello {{ .name }}", "user")
 	require.NoError(t, err)
@@ -384,9 +384,9 @@ func TestScope_ScopedStore_Good_BulkHelpers(t *testing.T) {
 	alphaStore, _ := NewScoped(storeInstance, "tenant-a")
 	betaStore, _ := NewScoped(storeInstance, "tenant-b")
 
-	require.NoError(t, alphaStore.Set("config", "colour", "blue"))
-	require.NoError(t, alphaStore.Set("sessions", "token", "abc123"))
-	require.NoError(t, betaStore.Set("config", "colour", "red"))
+	require.NoError(t, alphaStore.SetIn("config", "colour", "blue"))
+	require.NoError(t, alphaStore.SetIn("sessions", "token", "abc123"))
+	require.NoError(t, betaStore.SetIn("config", "colour", "red"))
 
 	count, err := alphaStore.CountAll("")
 	require.NoError(t, err)
@@ -424,8 +424,8 @@ func TestScope_ScopedStore_Good_GroupsSeqStopsEarly(t *testing.T) {
 	defer storeInstance.Close()
 
 	scopedStore, _ := NewScoped(storeInstance, "tenant-a")
-	require.NoError(t, scopedStore.Set("alpha", "a", "1"))
-	require.NoError(t, scopedStore.Set("beta", "b", "2"))
+	require.NoError(t, scopedStore.SetIn("alpha", "a", "1"))
+	require.NoError(t, scopedStore.SetIn("beta", "b", "2"))
 
 	groups := scopedStore.GroupsSeq("")
 	var seen []string
@@ -443,9 +443,9 @@ func TestScope_ScopedStore_Good_GroupsSeqSorted(t *testing.T) {
 	defer storeInstance.Close()
 
 	scopedStore, _ := NewScoped(storeInstance, "tenant-a")
-	require.NoError(t, scopedStore.Set("charlie", "c", "3"))
-	require.NoError(t, scopedStore.Set("alpha", "a", "1"))
-	require.NoError(t, scopedStore.Set("bravo", "b", "2"))
+	require.NoError(t, scopedStore.SetIn("charlie", "c", "3"))
+	require.NoError(t, scopedStore.SetIn("alpha", "a", "1"))
+	require.NoError(t, scopedStore.SetIn("bravo", "b", "2"))
 
 	var groupNames []string
 	for groupName, iterationErr := range scopedStore.GroupsSeq("") {
@@ -461,8 +461,8 @@ func TestScope_ScopedStore_Good_GetSplitAndGetFields(t *testing.T) {
 	defer storeInstance.Close()
 
 	scopedStore, _ := NewScoped(storeInstance, "tenant-a")
-	require.NoError(t, scopedStore.Set("config", "hosts", "alpha,beta,gamma"))
-	require.NoError(t, scopedStore.Set("config", "flags", "one two\tthree\n"))
+	require.NoError(t, scopedStore.SetIn("config", "hosts", "alpha,beta,gamma"))
+	require.NoError(t, scopedStore.SetIn("config", "flags", "one two\tthree\n"))
 
 	parts, err := scopedStore.GetSplit("config", "hosts", ",")
 	require.NoError(t, err)
@@ -495,7 +495,7 @@ func TestScope_ScopedStore_Good_PurgeExpired(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, int64(1), removedRows)
 
-	_, err = scopedStore.Get("session", "token")
+	_, err = scopedStore.GetFrom("session", "token")
 	assert.True(t, core.Is(err, NotFoundError))
 }
 
@@ -534,11 +534,11 @@ func TestScope_Quota_Good_MaxKeys(t *testing.T) {
 
 	// Insert 5 keys across different groups — should be fine.
 	for i := range 5 {
-		require.NoError(t, scopedStore.Set("g", keyName(i), "v"))
+		require.NoError(t, scopedStore.SetIn("g", keyName(i), "v"))
 	}
 
 	// 6th key should fail.
-	err = scopedStore.Set("g", "overflow", "v")
+	err = scopedStore.SetIn("g", "overflow", "v")
 	require.Error(t, err)
 	assert.True(t, core.Is(err, QuotaExceededError), "expected QuotaExceededError, got: %v", err)
 }
@@ -555,7 +555,7 @@ func TestScope_Quota_Bad_QuotaCheckQueryError(t *testing.T) {
 	scopedStore, err := NewScopedWithQuota(storeInstance, "tenant-a", QuotaConfig{MaxKeys: 1})
 	require.NoError(t, err)
 
-	err = scopedStore.Set("config", "theme", "dark")
+	err = scopedStore.SetIn("config", "theme", "dark")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "quota check")
 }
@@ -566,12 +566,12 @@ func TestScope_Quota_Good_MaxKeys_AcrossGroups(t *testing.T) {
 
 	scopedStore, _ := NewScopedWithQuota(storeInstance, "tenant-a", QuotaConfig{MaxKeys: 3})
 
-	require.NoError(t, scopedStore.Set("g1", "a", "1"))
-	require.NoError(t, scopedStore.Set("g2", "b", "2"))
-	require.NoError(t, scopedStore.Set("g3", "c", "3"))
+	require.NoError(t, scopedStore.SetIn("g1", "a", "1"))
+	require.NoError(t, scopedStore.SetIn("g2", "b", "2"))
+	require.NoError(t, scopedStore.SetIn("g3", "c", "3"))
 
 	// Total is now 3 — any new key should fail regardless of group.
-	err := scopedStore.Set("g4", "d", "4")
+	err := scopedStore.SetIn("g4", "d", "4")
 	assert.True(t, core.Is(err, QuotaExceededError))
 }
 
@@ -581,14 +581,14 @@ func TestScope_Quota_Good_UpsertDoesNotCount(t *testing.T) {
 
 	scopedStore, _ := NewScopedWithQuota(storeInstance, "tenant-a", QuotaConfig{MaxKeys: 3})
 
-	require.NoError(t, scopedStore.Set("g", "a", "1"))
-	require.NoError(t, scopedStore.Set("g", "b", "2"))
-	require.NoError(t, scopedStore.Set("g", "c", "3"))
+	require.NoError(t, scopedStore.SetIn("g", "a", "1"))
+	require.NoError(t, scopedStore.SetIn("g", "b", "2"))
+	require.NoError(t, scopedStore.SetIn("g", "c", "3"))
 
 	// Upserting existing key should succeed.
-	require.NoError(t, scopedStore.Set("g", "a", "updated"))
+	require.NoError(t, scopedStore.SetIn("g", "a", "updated"))
 
-	value, err := scopedStore.Get("g", "a")
+	value, err := scopedStore.GetFrom("g", "a")
 	require.NoError(t, err)
 	assert.Equal(t, "updated", value)
 }
@@ -599,13 +599,13 @@ func TestScope_Quota_Good_DeleteAndReInsert(t *testing.T) {
 
 	scopedStore, _ := NewScopedWithQuota(storeInstance, "tenant-a", QuotaConfig{MaxKeys: 3})
 
-	require.NoError(t, scopedStore.Set("g", "a", "1"))
-	require.NoError(t, scopedStore.Set("g", "b", "2"))
-	require.NoError(t, scopedStore.Set("g", "c", "3"))
+	require.NoError(t, scopedStore.SetIn("g", "a", "1"))
+	require.NoError(t, scopedStore.SetIn("g", "b", "2"))
+	require.NoError(t, scopedStore.SetIn("g", "c", "3"))
 
 	// Delete one key, then insert a new one — should work.
 	require.NoError(t, scopedStore.Delete("g", "c"))
-	require.NoError(t, scopedStore.Set("g", "d", "4"))
+	require.NoError(t, scopedStore.SetIn("g", "d", "4"))
 }
 
 func TestScope_Quota_Good_ZeroMeansUnlimited(t *testing.T) {
@@ -616,7 +616,7 @@ func TestScope_Quota_Good_ZeroMeansUnlimited(t *testing.T) {
 
 	// Should be able to insert many keys and groups without error.
 	for i := range 100 {
-		require.NoError(t, scopedStore.Set("g", keyName(i), "v"))
+		require.NoError(t, scopedStore.SetIn("g", keyName(i), "v"))
 	}
 }
 
@@ -629,16 +629,16 @@ func TestScope_Quota_Good_ExpiredKeysExcluded(t *testing.T) {
 	// Insert 3 keys, 2 with short TTL.
 	require.NoError(t, scopedStore.SetWithTTL("g", "temp1", "v", 1*time.Millisecond))
 	require.NoError(t, scopedStore.SetWithTTL("g", "temp2", "v", 1*time.Millisecond))
-	require.NoError(t, scopedStore.Set("g", "permanent", "v"))
+	require.NoError(t, scopedStore.SetIn("g", "permanent", "v"))
 
 	time.Sleep(5 * time.Millisecond)
 
 	// After expiry, only 1 key counts — should be able to insert 2 more.
-	require.NoError(t, scopedStore.Set("g", "new1", "v"))
-	require.NoError(t, scopedStore.Set("g", "new2", "v"))
+	require.NoError(t, scopedStore.SetIn("g", "new1", "v"))
+	require.NoError(t, scopedStore.SetIn("g", "new2", "v"))
 
 	// Now at 3 — next should fail.
-	err := scopedStore.Set("g", "new3", "v")
+	err := scopedStore.SetIn("g", "new3", "v")
 	assert.True(t, core.Is(err, QuotaExceededError))
 }
 
@@ -665,12 +665,12 @@ func TestScope_Quota_Good_MaxGroups(t *testing.T) {
 
 	scopedStore, _ := NewScopedWithQuota(storeInstance, "tenant-a", QuotaConfig{MaxGroups: 3})
 
-	require.NoError(t, scopedStore.Set("g1", "k", "v"))
-	require.NoError(t, scopedStore.Set("g2", "k", "v"))
-	require.NoError(t, scopedStore.Set("g3", "k", "v"))
+	require.NoError(t, scopedStore.SetIn("g1", "k", "v"))
+	require.NoError(t, scopedStore.SetIn("g2", "k", "v"))
+	require.NoError(t, scopedStore.SetIn("g3", "k", "v"))
 
 	// 4th group should fail.
-	err := scopedStore.Set("g4", "k", "v")
+	err := scopedStore.SetIn("g4", "k", "v")
 	require.Error(t, err)
 	assert.True(t, core.Is(err, QuotaExceededError))
 }
@@ -681,12 +681,12 @@ func TestScope_Quota_Good_MaxGroups_ExistingGroupOK(t *testing.T) {
 
 	scopedStore, _ := NewScopedWithQuota(storeInstance, "tenant-a", QuotaConfig{MaxGroups: 2})
 
-	require.NoError(t, scopedStore.Set("g1", "a", "1"))
-	require.NoError(t, scopedStore.Set("g2", "b", "2"))
+	require.NoError(t, scopedStore.SetIn("g1", "a", "1"))
+	require.NoError(t, scopedStore.SetIn("g2", "b", "2"))
 
 	// Adding more keys to existing groups should be fine.
-	require.NoError(t, scopedStore.Set("g1", "c", "3"))
-	require.NoError(t, scopedStore.Set("g2", "d", "4"))
+	require.NoError(t, scopedStore.SetIn("g1", "c", "3"))
+	require.NoError(t, scopedStore.SetIn("g2", "d", "4"))
 }
 
 func TestScope_Quota_Good_MaxGroups_DeleteAndRecreate(t *testing.T) {
@@ -695,12 +695,12 @@ func TestScope_Quota_Good_MaxGroups_DeleteAndRecreate(t *testing.T) {
 
 	scopedStore, _ := NewScopedWithQuota(storeInstance, "tenant-a", QuotaConfig{MaxGroups: 2})
 
-	require.NoError(t, scopedStore.Set("g1", "k", "v"))
-	require.NoError(t, scopedStore.Set("g2", "k", "v"))
+	require.NoError(t, scopedStore.SetIn("g1", "k", "v"))
+	require.NoError(t, scopedStore.SetIn("g2", "k", "v"))
 
 	// Delete a group, then create a new one.
 	require.NoError(t, scopedStore.DeleteGroup("g1"))
-	require.NoError(t, scopedStore.Set("g3", "k", "v"))
+	require.NoError(t, scopedStore.SetIn("g3", "k", "v"))
 }
 
 func TestScope_Quota_Good_MaxGroups_ZeroUnlimited(t *testing.T) {
@@ -710,7 +710,7 @@ func TestScope_Quota_Good_MaxGroups_ZeroUnlimited(t *testing.T) {
 	scopedStore, _ := NewScopedWithQuota(storeInstance, "tenant-a", QuotaConfig{MaxGroups: 0})
 
 	for i := range 50 {
-		require.NoError(t, scopedStore.Set(keyName(i), "k", "v"))
+		require.NoError(t, scopedStore.SetIn(keyName(i), "k", "v"))
 	}
 }
 
@@ -722,12 +722,12 @@ func TestScope_Quota_Good_MaxGroups_ExpiredGroupExcluded(t *testing.T) {
 
 	// Create 2 groups, one with only TTL keys.
 	require.NoError(t, scopedStore.SetWithTTL("g1", "k", "v", 1*time.Millisecond))
-	require.NoError(t, scopedStore.Set("g2", "k", "v"))
+	require.NoError(t, scopedStore.SetIn("g2", "k", "v"))
 
 	time.Sleep(5 * time.Millisecond)
 
 	// g1's only key has expired, so group count should be 1 — we can create a new one.
-	require.NoError(t, scopedStore.Set("g3", "k", "v"))
+	require.NoError(t, scopedStore.SetIn("g3", "k", "v"))
 }
 
 func TestScope_Quota_Good_BothLimits(t *testing.T) {
@@ -736,15 +736,15 @@ func TestScope_Quota_Good_BothLimits(t *testing.T) {
 
 	scopedStore, _ := NewScopedWithQuota(storeInstance, "tenant-a", QuotaConfig{MaxKeys: 10, MaxGroups: 2})
 
-	require.NoError(t, scopedStore.Set("g1", "a", "1"))
-	require.NoError(t, scopedStore.Set("g2", "b", "2"))
+	require.NoError(t, scopedStore.SetIn("g1", "a", "1"))
+	require.NoError(t, scopedStore.SetIn("g2", "b", "2"))
 
 	// Group limit hit.
-	err := scopedStore.Set("g3", "c", "3")
+	err := scopedStore.SetIn("g3", "c", "3")
 	assert.True(t, core.Is(err, QuotaExceededError))
 
 	// But adding to existing groups is fine (within key limit).
-	require.NoError(t, scopedStore.Set("g1", "d", "4"))
+	require.NoError(t, scopedStore.SetIn("g1", "d", "4"))
 }
 
 func TestScope_Quota_Good_DoesNotAffectOtherNamespaces(t *testing.T) {
@@ -754,17 +754,17 @@ func TestScope_Quota_Good_DoesNotAffectOtherNamespaces(t *testing.T) {
 	alphaStore, _ := NewScopedWithQuota(storeInstance, "tenant-a", QuotaConfig{MaxKeys: 2})
 	betaStore, _ := NewScopedWithQuota(storeInstance, "tenant-b", QuotaConfig{MaxKeys: 2})
 
-	require.NoError(t, alphaStore.Set("g", "a1", "v"))
-	require.NoError(t, alphaStore.Set("g", "a2", "v"))
-	require.NoError(t, betaStore.Set("g", "b1", "v"))
-	require.NoError(t, betaStore.Set("g", "b2", "v"))
+	require.NoError(t, alphaStore.SetIn("g", "a1", "v"))
+	require.NoError(t, alphaStore.SetIn("g", "a2", "v"))
+	require.NoError(t, betaStore.SetIn("g", "b1", "v"))
+	require.NoError(t, betaStore.SetIn("g", "b2", "v"))
 
 	// alphaStore is at limit — but betaStore's keys don't count against alphaStore.
-	err := alphaStore.Set("g", "a3", "v")
+	err := alphaStore.SetIn("g", "a3", "v")
 	assert.True(t, core.Is(err, QuotaExceededError))
 
 	// betaStore is also at limit independently.
-	err = betaStore.Set("g", "b3", "v")
+	err = betaStore.SetIn("g", "b3", "v")
 	assert.True(t, core.Is(err, QuotaExceededError))
 }
 
