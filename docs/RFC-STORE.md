@@ -1,3 +1,17 @@
+---
+module: dappco.re/go/store
+repo: core/go-store
+lang: go
+tier: lib
+depends:
+  - code/core/go
+tags:
+  - storage
+  - sqlite
+  - duckdb
+  - database
+  - kv
+---
 # go-store RFC — SQLite Key-Value Store
 
 > An agent should be able to use this store from this document alone.
@@ -21,8 +35,8 @@ SQLite-backed key-value store with TTL, namespace isolation, reactive events, an
 | `store.go` | Core `Store`: CRUD on `(grp, key)` compound PK, TTL via `expires_at` (Unix ms), background purge (60s), `text/template` rendering, `iter.Seq2` iterators |
 | `events.go` | `Watch`/`Unwatch` (buffered chan, cap 16, non-blocking sends) + `OnChange` callbacks (synchronous) |
 | `scope.go` | `ScopedStore` wraps `*Store`, prefixes groups with `namespace:`. Quota enforcement (`MaxKeys`/`MaxGroups`) |
-| `workspace.go` | `Workspace` buffer: SQLite-backed mutable accumulation in `.duckdb` files, atomic commit to journal |
-| `journal.go` | SQLite journal table: write completed units, query time-series-shaped data, retention |
+| `workspace.go` | `Workspace` buffer: DuckDB-backed mutable accumulation, atomic commit to journal |
+| `journal.go` | InfluxDB journal: write completed units, query time-series, retention |
 | `compact.go` | Cold archive: compress journal entries to JSONL.gz |
 | `store_test.go` | Store unit tests |
 | `workspace_test.go` | Workspace buffer tests |
@@ -90,7 +104,7 @@ for group := range st.GroupsSeq() { ... }
 
 // Events
 ch := st.Watch("group")
-st.OnChange(func(event store.Event) { ... })
+st.OnChange("group", func(key, val string) { ... })
 ```
 
 ---
@@ -134,16 +148,35 @@ func (ss *ScopedStore) GetFrom(group, key string) (string, error) { }
 
 ## 7. Event System
 
-- `Watch(group string) <-chan Event` — returns buffered channel (cap 16), non-blocking sends drop events
+```go
+// EventType identifies the kind of change.
+type EventType int
+
+const (
+    EventSet EventType = iota        // Key value was set
+    EventDelete                       // Key was deleted
+    EventDeleteGroup                  // Entire group deleted
+)
+
+// Event is emitted on Watch channels or via OnChange callbacks.
+type Event struct {
+    Type      EventType   // What happened (set, delete, deletegroup)
+    Group     string      // Group name
+    Key       string      // Key (empty if group-level event)
+    Value     string      // New value (empty if delete)
+    Timestamp time.Time   // When the event occurred
+}
+```
+
+- `Watch(group string) <-chan Event` — returns buffered channel (cap 16), non-blocking sends drop events. Pass `"*"` to watch all groups
 - `Unwatch(group string, ch <-chan Event)` — remove a watcher
-- `OnChange(callback)` — synchronous callback in writer goroutine
-- `notify()` snapshots callbacks after watcher delivery, so callbacks may register or unregister subscriptions re-entrantly without deadlocking
+- `OnChange(callback func(Event)) func()` — register synchronous callback invoked for all events. Returns an unregister function. Callbacks run after event dispatch, outside locks, so they can safely re-register subscriptions. **Deadlock warning:** callbacks see notifications before watches complete — avoid blocking I/O in callbacks
 
 ---
 
 ## 8. Workspace Buffer
 
-Stateful work accumulation over time. A workspace is a named SQLite buffer for mutable work-in-progress stored in a `.duckdb` file for path compatibility. When a unit of work completes, the full state commits atomically to the journal table. A summary updates the identity store.
+Stateful work accumulation over time. A workspace is a named DuckDB buffer for mutable work-in-progress. When a unit of work completes, the full state commits atomically to a time-series journal (InfluxDB). A summary updates the identity store (the existing SQLite store or an external database).
 
 ### 7.1 The Problem
 
@@ -153,21 +186,21 @@ Writing every micro-event directly to a time-series makes deltas meaningless —
 
 ```
 Store (SQLite): "this thing exists"     — identity, current summary
-Buffer (SQLite workspace file): "this thing is working" — mutable temp state, atomic
-Journal (SQLite journal table): "this thing completed" — immutable, delta-ready
+Buffer (DuckDB): "this thing is working" — mutable temp state, atomic
+Journal (InfluxDB): "this thing completed" — immutable, delta-ready
 ```
 
 | Layer | Store | Mutability | Lifetime |
 |-------|-------|-----------|----------|
 | Identity | SQLite (go-store) | Mutable | Permanent |
-| Hot | SQLite `.duckdb` file | Mutable | Session/cycle |
-| Journal | SQLite journal table | Append-only | Retention policy |
+| Hot | DuckDB (temp file) | Mutable | Session/cycle |
+| Journal | InfluxDB | Append-only | Retention policy |
 | Cold | Compressed JSONL | Immutable | Archive |
 
 ### 7.3 Workspace API
 
 ```go
-// Workspace is a named SQLite buffer for mutable work-in-progress.
+// Workspace is a named DuckDB buffer for mutable work-in-progress.
 // It holds a reference to the parent Store for identity updates and journal writes.
 //
 //   ws, _ := st.NewWorkspace("scroll-session-2026-03-30")
@@ -176,10 +209,10 @@ Journal (SQLite journal table): "this thing completed" — immutable, delta-read
 type Workspace struct {
     name  string
     store *Store   // parent store for identity updates + journal config
-    db    *sql.DB  // SQLite via database/sql driver (temp file, deleted on commit/discard)
+    db    *sql.DB  // DuckDB via database/sql driver (temp file, deleted on commit/discard)
 }
 
-// NewWorkspace creates a workspace buffer. The SQLite file is created at .core/state/{name}.duckdb.
+// NewWorkspace creates a workspace buffer. The DuckDB file is created at .core/state/{name}.duckdb.
 //
 //   ws, _ := st.NewWorkspace("scroll-session-2026-03-30")
 func (s *Store) NewWorkspace(name string) (*Workspace, error) { }
@@ -219,13 +252,13 @@ func (ws *Workspace) Query(sql string) core.Result { }
 Commit writes a single point per completed workspace. One point = one unit of work.
 
 ```go
-// CommitToJournal writes aggregated state as a single journal entry.
+// CommitToJournal writes aggregated state as a single InfluxDB point.
 // Called by Workspace.Commit() internally, but exported for testing.
 //
 //   s.CommitToJournal("scroll-session", fields, tags)
 func (s *Store) CommitToJournal(measurement string, fields map[string]any, tags map[string]string) core.Result { }
 
-// QueryJournal runs a Flux-shaped filter or raw SQL query against the journal table.
+// QueryJournal runs a Flux query against the time-series.
 // Returns core.Result where Value is []map[string]any (rows as maps).
 //
 //   result := s.QueryJournal(`from(bucket: "core") |> range(start: -7d)`)
@@ -257,7 +290,7 @@ Output: gzip JSONL files. Each line is a complete unit of work — ready for tra
 
 ### 7.6 File Lifecycle
 
-Workspace files are ephemeral:
+DuckDB files are ephemeral:
 
 ```
 Created:   workspace opens → .core/state/{name}.duckdb
@@ -271,8 +304,8 @@ Orphan recovery on `New()`:
 
 ```go
 // New() scans .core/state/ for leftover .duckdb files.
-// Each orphan is opened and cached for RecoverOrphans().
-// The caller decides whether to commit or discard orphan data.
+// Each orphan is opened, aggregated, and discarded (not committed).
+// The caller decides whether to commit orphan data via RecoverOrphans().
 //
 //   orphans := st.RecoverOrphans(".core/state/")
 //   for _, ws := range orphans {
