@@ -190,10 +190,12 @@ Watcher delivery is grouped by the registered group name. Wildcard `"*"` matches
 
 ## Namespace Isolation (ScopedStore)
 
-`ScopedStore` wraps a `*Store` and automatically prefixes all group names with `namespace + ":"`. This prevents key collisions when multiple tenants share a single underlying database.
+`ScopedStore` wraps a `*Store` and automatically prefixes all group names with `namespace + ":"`. This prevents key collisions when multiple tenants share a single underlying database. When the namespace and quota are already known, prefer `NewScopedConfigured(store.ScopedStoreConfig{...})` so the configuration is explicit at the call site.
 
 ```go
-scopedStore, err := store.NewScoped(storeInstance, "tenant-42")
+scopedStore, err := store.NewScopedConfigured(storeInstance, store.ScopedStoreConfig{
+    Namespace: "tenant-42",
+})
 if err != nil {
     return
 }

@@ -74,7 +74,9 @@ func main() {
     fmt.Println(renderedTemplate) // "smtp.example.com:587"
 
     // Store tenant-42 preferences under the tenant-42: namespace prefix.
-    scopedStore, err := store.NewScoped(storeInstance, "tenant-42")
+    scopedStore, err := store.NewScopedConfigured(storeInstance, store.ScopedStoreConfig{
+        Namespace: "tenant-42",
+    })
     if err != nil {
         return
     }
@@ -84,7 +86,10 @@ func main() {
     // Stored internally as group "tenant-42:preferences", key "locale"
 
     // Cap tenant-99 at 100 keys and 5 groups.
-    quotaScopedStore, err := store.NewScopedWithQuota(storeInstance, "tenant-99", store.QuotaConfig{MaxKeys: 100, MaxGroups: 5})
+    quotaScopedStore, err := store.NewScopedConfigured(storeInstance, store.ScopedStoreConfig{
+        Namespace: "tenant-99",
+        Quota: store.QuotaConfig{MaxKeys: 100, MaxGroups: 5},
+    })
     if err != nil {
         return
     }
