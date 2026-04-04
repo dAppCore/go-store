@@ -34,11 +34,21 @@ var (
 		regexp.MustCompile(`r\.(?:_bucket|bucket|bucket_name)\s*==\s*"([^"]+)"`),
 		regexp.MustCompile(`r\[\s*"(?:_bucket|bucket|bucket_name)"\s*\]\s*==\s*"([^"]+)"`),
 	}
-	journalEqualityPatterns = []*regexp.Regexp{
+	journalStringEqualityPatterns = []*regexp.Regexp{
 		regexp.MustCompile(`r\.([a-zA-Z0-9_:-]+)\s*==\s*"([^"]+)"`),
 		regexp.MustCompile(`r\[\s*"([a-zA-Z0-9_:-]+)"\s*\]\s*==\s*"([^"]+)"`),
 	}
+	journalScalarEqualityPatterns = []*regexp.Regexp{
+		regexp.MustCompile(`r\.([a-zA-Z0-9_:-]+)\s*==\s*(true|false|-?[0-9]+(?:\.[0-9]+)?)`),
+		regexp.MustCompile(`r\[\s*"([a-zA-Z0-9_:-]+)"\s*\]\s*==\s*(true|false|-?[0-9]+(?:\.[0-9]+)?)`),
+	}
 )
+
+type journalEqualityFilter struct {
+	columnName    string
+	filterValue   any
+	stringCompare bool
+}
 
 type journalExecutor interface {
 	Exec(query string, args ...any) (sql.Result, error)
@@ -191,20 +201,15 @@ func (storeInstance *Store) queryJournalFromFlux(flux string) (string, []any, er
 		}
 	}
 
-	for _, pattern := range journalEqualityPatterns {
-		matches := pattern.FindAllStringSubmatch(flux, -1)
-		for _, match := range matches {
-			if len(match) < 3 {
-				continue
-			}
-			columnName := match[1]
-			filterValue := match[2]
-			if columnName == "_measurement" || columnName == "measurement" || columnName == "_bucket" || columnName == "bucket" || columnName == "bucket_name" {
-				continue
-			}
+	for _, filter := range journalEqualityFilters(flux) {
+		if filter.stringCompare {
 			queryBuilder.WriteString(" AND (CAST(json_extract(tags_json, '$.\"' || ? || '\"') AS TEXT) = ? OR CAST(json_extract(fields_json, '$.\"' || ? || '\"') AS TEXT) = ?)")
-			queryArguments = append(queryArguments, columnName, filterValue, columnName, filterValue)
+			queryArguments = append(queryArguments, filter.columnName, filter.filterValue, filter.columnName, filter.filterValue)
+			continue
 		}
+
+		queryBuilder.WriteString(" AND json_extract(fields_json, '$.\"' || ? || '\"') = ?")
+		queryArguments = append(queryArguments, filter.columnName, filter.filterValue)
 	}
 
 	queryBuilder.WriteString(" ORDER BY committed_at, entry_id")
@@ -428,6 +433,63 @@ func normaliseRowValue(value any) any {
 	default:
 		return typedValue
 	}
+}
+
+func journalEqualityFilters(flux string) []journalEqualityFilter {
+	var filters []journalEqualityFilter
+	appendFilter := func(columnName string, filterValue any, stringCompare bool) {
+		if columnName == "_measurement" || columnName == "measurement" || columnName == "_bucket" || columnName == "bucket" || columnName == "bucket_name" {
+			return
+		}
+		filters = append(filters, journalEqualityFilter{
+			columnName:    columnName,
+			filterValue:   filterValue,
+			stringCompare: stringCompare,
+		})
+	}
+
+	for _, pattern := range journalStringEqualityPatterns {
+		matches := pattern.FindAllStringSubmatch(flux, -1)
+		for _, match := range matches {
+			if len(match) < 3 {
+				continue
+			}
+			appendFilter(match[1], match[2], true)
+		}
+	}
+
+	for _, pattern := range journalScalarEqualityPatterns {
+		matches := pattern.FindAllStringSubmatch(flux, -1)
+		for _, match := range matches {
+			if len(match) < 3 {
+				continue
+			}
+			filterValue, ok := parseJournalScalarValue(match[2])
+			if !ok {
+				continue
+			}
+			appendFilter(match[1], filterValue, false)
+		}
+	}
+
+	return filters
+}
+
+func parseJournalScalarValue(value string) (any, bool) {
+	switch value {
+	case "true":
+		return true, true
+	case "false":
+		return false, true
+	}
+
+	if integerValue, err := strconv.ParseInt(value, 10, 64); err == nil {
+		return integerValue, true
+	}
+	if floatValue, err := strconv.ParseFloat(value, 64); err == nil {
+		return floatValue, true
+	}
+	return nil, false
 }
 
 func cloneAnyMap(input map[string]any) map[string]any {

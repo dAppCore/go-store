@@ -153,6 +153,54 @@ func TestJournal_QueryJournal_Good_TagFilter(t *testing.T) {
 	assert.Equal(t, "session-b", tags["workspace"])
 }
 
+func TestJournal_QueryJournal_Good_NumericFieldFilter(t *testing.T) {
+	storeInstance, err := New(":memory:", WithJournal("http://127.0.0.1:8086", "core", "events"))
+	require.NoError(t, err)
+	defer storeInstance.Close()
+
+	require.True(t,
+		storeInstance.CommitToJournal("session-a", map[string]any{"like": 1}, map[string]string{"workspace": "session-a"}).OK,
+	)
+	require.True(t,
+		storeInstance.CommitToJournal("session-b", map[string]any{"like": 2}, map[string]string{"workspace": "session-b"}).OK,
+	)
+
+	rows := requireResultRows(
+		t,
+		storeInstance.QueryJournal(`from(bucket: "events") |> range(start: -24h) |> filter(fn: (r) => r.like == 2)`),
+	)
+	require.Len(t, rows, 1)
+	assert.Equal(t, "session-b", rows[0]["measurement"])
+
+	fields, ok := rows[0]["fields"].(map[string]any)
+	require.True(t, ok, "unexpected fields type: %T", rows[0]["fields"])
+	assert.Equal(t, float64(2), fields["like"])
+}
+
+func TestJournal_QueryJournal_Good_BooleanFieldFilter(t *testing.T) {
+	storeInstance, err := New(":memory:", WithJournal("http://127.0.0.1:8086", "core", "events"))
+	require.NoError(t, err)
+	defer storeInstance.Close()
+
+	require.True(t,
+		storeInstance.CommitToJournal("session-a", map[string]any{"complete": false}, map[string]string{"workspace": "session-a"}).OK,
+	)
+	require.True(t,
+		storeInstance.CommitToJournal("session-b", map[string]any{"complete": true}, map[string]string{"workspace": "session-b"}).OK,
+	)
+
+	rows := requireResultRows(
+		t,
+		storeInstance.QueryJournal(`from(bucket: "events") |> range(start: -24h) |> filter(fn: (r) => r["complete"] == true)`),
+	)
+	require.Len(t, rows, 1)
+	assert.Equal(t, "session-b", rows[0]["measurement"])
+
+	fields, ok := rows[0]["fields"].(map[string]any)
+	require.True(t, ok, "unexpected fields type: %T", rows[0]["fields"])
+	assert.Equal(t, true, fields["complete"])
+}
+
 func TestJournal_QueryJournal_Good_BucketFilter(t *testing.T) {
 	storeInstance, err := New(":memory:")
 	require.NoError(t, err)
