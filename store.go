@@ -13,12 +13,10 @@ import (
 	_ "modernc.org/sqlite"
 )
 
-// NotFoundError is returned when Get cannot find a live key.
-// Usage example: `if core.Is(err, store.NotFoundError) { return }`
+// Usage example: `if core.Is(err, store.NotFoundError) { fmt.Println("config/colour is missing") }`
 var NotFoundError = core.E("store", "not found", nil)
 
-// QuotaExceededError is returned when a scoped write would exceed quota.
-// Usage example: `if core.Is(err, store.QuotaExceededError) { return }`
+// Usage example: `if core.Is(err, store.QuotaExceededError) { fmt.Println("tenant-a is at quota") }`
 var QuotaExceededError = core.E("store", "quota exceeded", nil)
 
 const (
@@ -737,8 +735,9 @@ func (storeInstance *Store) PurgeExpired() (int64, error) {
 	return removedRows, nil
 }
 
-// New(":memory:") starts a background goroutine that calls PurgeExpired every
-// 60 seconds until Close stops the store.
+// New(":memory:", store.WithPurgeInterval(20*time.Millisecond)) starts a
+// background goroutine that calls PurgeExpired on that interval until Close
+// stops the store.
 func (storeInstance *Store) startBackgroundPurge() {
 	if storeInstance == nil {
 		return

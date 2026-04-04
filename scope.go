@@ -22,7 +22,7 @@ type QuotaConfig struct {
 	MaxGroups int
 }
 
-// Usage example: `scopedStore := store.NewScoped(storeInstance, "tenant-a"); if scopedStore == nil { return }; if err := scopedStore.Set("config", "colour", "blue"); err != nil { return }`
+// Usage example: `scopedStore := store.NewScoped(storeInstance, "tenant-a"); if scopedStore == nil { return }; if err := scopedStore.Set("colour", "blue"); err != nil { return }; if err := scopedStore.SetIn("config", "language", "en-GB"); err != nil { return }`
 type ScopedStore struct {
 	backingStore *Store
 	namespace    string
@@ -54,7 +54,7 @@ func (scopedStore *ScopedStore) resolvedStore(operation string) (*Store, error) 
 	return scopedStore.backingStore, nil
 }
 
-// Usage example: `scopedStore := store.NewScoped(storeInstance, "tenant-a")`
+// Usage example: `scopedStore := store.NewScoped(storeInstance, "tenant-a"); if scopedStore == nil { return }`
 func NewScoped(storeInstance *Store, namespace string) *ScopedStore {
 	if storeInstance == nil {
 		return nil
@@ -99,7 +99,7 @@ func (scopedStore *ScopedStore) trimNamespacePrefix(groupName string) string {
 	return core.TrimPrefix(groupName, scopedStore.namespacePrefix())
 }
 
-// Usage example: `scopedStore := store.NewScoped(storeInstance, "tenant-a"); if scopedStore == nil { return }; namespace := scopedStore.Namespace(); fmt.Println(namespace)`
+// Usage example: `scopedStore := store.NewScoped(storeInstance, "tenant-a"); if scopedStore == nil { return }; fmt.Println(scopedStore.Namespace())`
 func (scopedStore *ScopedStore) Namespace() string {
 	if scopedStore == nil {
 		return ""
