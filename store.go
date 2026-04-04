@@ -147,6 +147,18 @@ func (storeInstance *Store) DatabasePath() string {
 	return storeInstance.databasePath
 }
 
+// Usage example: `if storeInstance.IsClosed() { return }`
+func (storeInstance *Store) IsClosed() bool {
+	if storeInstance == nil {
+		return true
+	}
+
+	storeInstance.closeLock.Lock()
+	closed := storeInstance.closed
+	storeInstance.closeLock.Unlock()
+	return closed
+}
+
 // Usage example: `storeInstance, err := store.New(":memory:", store.WithPurgeInterval(20*time.Millisecond))`
 func WithPurgeInterval(interval time.Duration) StoreOption {
 	return func(config *StoreConfig) {

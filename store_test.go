@@ -155,6 +155,16 @@ func TestStore_DatabasePath_Good(t *testing.T) {
 	assert.Equal(t, databasePath, storeInstance.DatabasePath())
 }
 
+func TestStore_IsClosed_Good(t *testing.T) {
+	storeInstance, err := New(":memory:")
+	require.NoError(t, err)
+
+	assert.False(t, storeInstance.IsClosed())
+	require.NoError(t, storeInstance.Close())
+	assert.True(t, storeInstance.IsClosed())
+	assert.True(t, (*Store)(nil).IsClosed())
+}
+
 func TestStore_NewConfigured_Good(t *testing.T) {
 	storeInstance, err := NewConfigured(StoreConfig{
 		DatabasePath: ":memory:",
