@@ -35,7 +35,7 @@ var defaultWorkspaceStateDirectory = ".core/state"
 // Workspace buffers mutable work-in-progress in `.core/state/scroll-session.duckdb`
 // until Commit or Discard removes the file.
 //
-// Usage example: `workspace, err := storeInstance.NewWorkspace("scroll-session-2026-03-30"); if err != nil { return }; defer workspace.Discard()`
+// Usage example: `workspace, err := storeInstance.NewWorkspace("scroll-session-2026-03-30"); if err != nil { return }; defer workspace.Discard(); _ = workspace.Put("like", map[string]any{"user": "@alice"})`
 type Workspace struct {
 	name         string
 	backingStore *Store
@@ -63,9 +63,10 @@ func (workspace *Workspace) DatabasePath() string {
 	return workspace.databasePath
 }
 
-// Usage example: `if err := workspace.Close(); err != nil { return }`
-// Close releases the workspace database handle but keeps the on-disk file so a
+// Close leaves `.core/state/scroll-session-2026-03-30.duckdb` on disk so a
 // later store instance can recover it as an orphan.
+//
+// Usage example: `if err := workspace.Close(); err != nil { return }; orphans := storeInstance.RecoverOrphans(".core/state"); _ = orphans`
 func (workspace *Workspace) Close() error {
 	return workspace.closeWithoutRemovingFiles()
 }
@@ -97,9 +98,10 @@ func (workspace *Workspace) ensureReady(operation string) error {
 	return nil
 }
 
-// Usage example: `workspace, err := storeInstance.NewWorkspace("scroll-session-2026-03-30")`
-// The workspace database file lives at `.core/state/scroll-session-2026-03-30.duckdb`
-// and is removed when the workspace is committed or discarded.
+// NewWorkspace creates `.core/state/scroll-session-2026-03-30.duckdb` and
+// removes it when the workspace is committed or discarded.
+//
+// Usage example: `workspace, err := storeInstance.NewWorkspace("scroll-session-2026-03-30"); if err != nil { return }; defer workspace.Discard()`
 func (storeInstance *Store) NewWorkspace(name string) (*Workspace, error) {
 	if err := storeInstance.ensureReady("store.NewWorkspace"); err != nil {
 		return nil, err
@@ -206,9 +208,11 @@ func workspaceNameFromPath(stateDirectory, databasePath string) string {
 	return core.TrimSuffix(relativePath, ".duckdb")
 }
 
-// RecoverOrphans(".core/state/") returns orphaned workspaces such as
-// `scroll-session.duckdb` so callers can inspect Aggregate() and then Discard().
-// Usage example: `orphans := storeInstance.RecoverOrphans(".core/state/")`
+// RecoverOrphans(".core/state") returns orphaned workspaces such as
+// `scroll-session-2026-03-30.duckdb` so callers can inspect Aggregate() and
+// choose Commit() or Discard().
+//
+// Usage example: `orphans := storeInstance.RecoverOrphans(".core/state"); for _, orphanWorkspace := range orphans { fmt.Println(orphanWorkspace.Name(), orphanWorkspace.Aggregate()) }`
 func (storeInstance *Store) RecoverOrphans(stateDirectory string) []*Workspace {
 	if storeInstance == nil {
 		return nil
@@ -292,7 +296,8 @@ func (workspace *Workspace) Aggregate() map[string]any {
 
 // Commit writes one journal point for the workspace and upserts the summary
 // row in `workspace:NAME`.
-// Usage example: `result := workspace.Commit()`
+//
+// Usage example: `result := workspace.Commit(); if !result.OK { return }; fmt.Println(result.Value)`
 func (workspace *Workspace) Commit() core.Result {
 	if err := workspace.ensureReady("store.Workspace.Commit"); err != nil {
 		return core.Result{Value: err, OK: false}
