@@ -102,6 +102,30 @@ func TestScope_NewScopedWithQuota_Good_InlineQuotaFields(t *testing.T) {
 	assert.Equal(t, 2, scopedStore.MaxGroups)
 }
 
+func TestScope_NewScopedConfigured_Good(t *testing.T) {
+	storeInstance, _ := New(":memory:")
+	defer storeInstance.Close()
+
+	scopedStore, err := NewScopedConfigured(storeInstance, ScopedStoreConfig{
+		Namespace: "tenant-a",
+		Quota:     QuotaConfig{MaxKeys: 4, MaxGroups: 2},
+	})
+	require.NoError(t, err)
+
+	assert.Equal(t, "tenant-a", scopedStore.Namespace())
+	assert.Equal(t, 4, scopedStore.MaxKeys)
+	assert.Equal(t, 2, scopedStore.MaxGroups)
+}
+
+func TestScope_NewScopedConfigured_Bad_InvalidNamespace(t *testing.T) {
+	storeInstance, _ := New(":memory:")
+	defer storeInstance.Close()
+
+	_, err := NewScopedConfigured(storeInstance, ScopedStoreConfig{Namespace: "tenant_a"})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "namespace")
+}
+
 // ---------------------------------------------------------------------------
 // ScopedStore — basic CRUD
 // ---------------------------------------------------------------------------

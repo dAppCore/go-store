@@ -58,10 +58,12 @@
 //		})
 //		defer unregister()
 //
-//		scopedStore, err := store.NewScopedWithQuota(
+//		scopedStore, err := store.NewScopedConfigured(
 //			configuredStore,
-//			"tenant-a",
-//			store.QuotaConfig{MaxKeys: 100, MaxGroups: 10},
+//			store.ScopedStoreConfig{
+//				Namespace: "tenant-a",
+//				Quota:     store.QuotaConfig{MaxKeys: 100, MaxGroups: 10},
+//			},
 //		)
 //		if err != nil {
 //			return
