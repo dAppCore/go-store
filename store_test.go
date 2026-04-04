@@ -136,6 +136,18 @@ func TestStore_JournalConfigured_Good(t *testing.T) {
 	assert.False(t, unconfiguredStore.JournalConfigured())
 }
 
+func TestStore_NewConfigured_Bad_PartialJournalConfiguration(t *testing.T) {
+	_, err := NewConfigured(StoreConfig{
+		DatabasePath: ":memory:",
+		Journal: JournalConfiguration{
+			EndpointURL:  "http://127.0.0.1:8086",
+			Organisation: "core",
+		},
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "journal configuration must include endpoint URL, organisation, and bucket name")
+}
+
 func TestStore_Config_Good(t *testing.T) {
 	storeInstance, err := NewConfigured(StoreConfig{
 		DatabasePath: ":memory:",

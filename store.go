@@ -32,12 +32,6 @@ const (
 // is already known as a struct literal.
 type StoreOption func(*StoreConfig)
 
-type journalConfiguration struct {
-	endpointURL  string
-	organisation string
-	bucketName   string
-}
-
 // Usage example: `config := store.StoreConfig{DatabasePath: ":memory:", PurgeInterval: 30 * time.Second}`
 type StoreConfig struct {
 	// Usage example: `config := store.StoreConfig{DatabasePath: "/tmp/go-store.db"}`
@@ -56,6 +50,24 @@ type JournalConfiguration struct {
 	Organisation string
 	// Usage example: `config := store.JournalConfiguration{BucketName: "events"}`
 	BucketName string
+}
+
+func (journalConfig JournalConfiguration) isConfigured() bool {
+	return journalConfig.EndpointURL != "" &&
+		journalConfig.Organisation != "" &&
+		journalConfig.BucketName != ""
+}
+
+type journalConfiguration struct {
+	endpointURL  string
+	organisation string
+	bucketName   string
+}
+
+func (journalConfig journalConfiguration) isConfigured() bool {
+	return journalConfig.endpointURL != "" &&
+		journalConfig.organisation != "" &&
+		journalConfig.bucketName != ""
 }
 
 // Usage example: `storeInstance, err := store.New(":memory:")`
@@ -125,12 +137,12 @@ func (storeInstance *Store) JournalConfiguration() JournalConfiguration {
 	}
 }
 
-// Usage example: `if storeInstance.JournalConfigured() { fmt.Println("journal is enabled") }`
+// Usage example: `if storeInstance.JournalConfigured() { fmt.Println("journal is fully configured") }`
 func (storeInstance *Store) JournalConfigured() bool {
 	if storeInstance == nil {
 		return false
 	}
-	return storeInstance.journalConfiguration != (journalConfiguration{})
+	return storeInstance.journalConfiguration.isConfigured()
 }
 
 // Usage example: `config := storeInstance.Config(); fmt.Println(config.DatabasePath, config.PurgeInterval)`
@@ -189,6 +201,9 @@ func openConfiguredStore(operation string, config StoreConfig) (*Store, error) {
 	}
 
 	if config.Journal != (JournalConfiguration{}) {
+		if !config.Journal.isConfigured() {
+			return nil, core.E(operation, "journal configuration must include endpoint URL, organisation, and bucket name", nil)
+		}
 		storeInstance.journalConfiguration = journalConfiguration{
 			endpointURL:  config.Journal.EndpointURL,
 			organisation: config.Journal.Organisation,
