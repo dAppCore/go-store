@@ -95,9 +95,8 @@ func (storeInstance *Store) CommitToJournal(measurement string, fields map[strin
 	}
 }
 
-// Usage example: `result := storeInstance.QueryJournal(\`from(bucket: "store") |> range(start: -24h)\`)`
-// The query accepts Flux-shaped filters or a raw SQL statement against the
-// journal tables.
+// Usage example: `result := storeInstance.QueryJournal(\`from(bucket: "events") |> range(start: -24h) |> filter(fn: (r) => r.workspace == "session-a")\`)`
+// Usage example: `result := storeInstance.QueryJournal("SELECT measurement, committed_at FROM journal_entries ORDER BY committed_at")`
 func (storeInstance *Store) QueryJournal(flux string) core.Result {
 	if err := storeInstance.ensureReady("store.QueryJournal"); err != nil {
 		return core.Result{Value: err, OK: false}
