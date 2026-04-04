@@ -16,7 +16,7 @@ func TestTransaction_Transaction_Good_CommitsMultipleWrites(t *testing.T) {
 	events := storeInstance.Watch("*")
 	defer storeInstance.Unwatch("*", events)
 
-	err := storeInstance.Transaction(func(transaction *StoreTx) error {
+	err := storeInstance.Transaction(func(transaction *StoreTransaction) error {
 		if err := transaction.Set("alpha", "first", "1"); err != nil {
 			return err
 		}
@@ -49,7 +49,7 @@ func TestTransaction_Transaction_Good_RollbackOnError(t *testing.T) {
 	storeInstance, _ := New(":memory:")
 	defer storeInstance.Close()
 
-	err := storeInstance.Transaction(func(transaction *StoreTx) error {
+	err := storeInstance.Transaction(func(transaction *StoreTransaction) error {
 		if err := transaction.Set("alpha", "first", "1"); err != nil {
 			return err
 		}
@@ -68,7 +68,7 @@ func TestTransaction_Transaction_Good_DeletesAtomically(t *testing.T) {
 	require.NoError(t, storeInstance.Set("alpha", "first", "1"))
 	require.NoError(t, storeInstance.Set("beta", "second", "2"))
 
-	err := storeInstance.Transaction(func(transaction *StoreTx) error {
+	err := storeInstance.Transaction(func(transaction *StoreTransaction) error {
 		if err := transaction.DeletePrefix(""); err != nil {
 			return err
 		}
