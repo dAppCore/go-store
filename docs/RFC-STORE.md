@@ -40,7 +40,7 @@ SQLite-backed key-value store with TTL, namespace isolation, reactive events, an
 ## 4. Store Struct
 
 ```go
-// Store is the SQLite KV store with optional InfluxDB journal backing.
+// Store is the SQLite KV store with optional SQLite journal backing.
 type Store struct {
     db      *sql.DB            // SQLite connection (single, WAL mode)
     journal influxdb2.Client   // InfluxDB client (nil if no journal configured)
@@ -255,7 +255,7 @@ func (s *Store) Compact(opts CompactOptions) core.Result { }
 
 Output: gzip JSONL files. Each line is a complete unit of work — ready for training data ingestion, CDN publishing, or long-term analytics.
 
-### 7.6 File Lifecycle
+### 8.1 File Lifecycle
 
 Workspace files are ephemeral:
 
@@ -288,5 +288,5 @@ func (s *Store) RecoverOrphans(stateDir string) []*Workspace { }
 
 | Resource | Location |
 |----------|----------|
-| Core Go RFC | `code/core/go/RFC.md` |
-| IO RFC | `code/core/go/io/RFC.md` |
+| Architecture docs | `docs/architecture.md` |
+| Development guide | `docs/development.md` |
