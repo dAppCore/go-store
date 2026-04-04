@@ -323,7 +323,7 @@ func parseFluxTime(value string) (time.Time, error) {
 	if value == "" {
 		return time.Time{}, core.E("store.parseFluxTime", "range value is empty", nil)
 	}
-	value = firstOrEmptyString(core.Split(value, ","))
+	value = firstStringOrEmpty(core.Split(value, ","))
 	value = core.Trim(value)
 	if core.HasPrefix(value, "time(v:") && core.HasSuffix(value, ")") {
 		value = core.Trim(core.TrimSuffix(core.TrimPrefix(value, "time(v:"), ")"))

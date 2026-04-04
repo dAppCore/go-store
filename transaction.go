@@ -386,7 +386,7 @@ func (storeTransaction *StoreTransaction) Groups(groupPrefix ...string) ([]strin
 // Usage example: `for groupName, err := range transaction.GroupsSeq("tenant-a:") { if err != nil { break }; fmt.Println(groupName) }`
 // Usage example: `for groupName, err := range transaction.GroupsSeq() { if err != nil { break }; fmt.Println(groupName) }`
 func (storeTransaction *StoreTransaction) GroupsSeq(groupPrefix ...string) iter.Seq2[string, error] {
-	actualGroupPrefix := firstOrEmptyString(groupPrefix)
+	actualGroupPrefix := firstStringOrEmpty(groupPrefix)
 	return func(yield func(string, error) bool) {
 		if err := storeTransaction.ensureReady("store.Transaction.GroupsSeq"); err != nil {
 			yield("", err)

@@ -60,10 +60,9 @@ func (scopedConfig ScopedStoreConfig) Validate() error {
 	return nil
 }
 
-// ScopedStore prefixes group names with namespace + ":" before delegating to Store.
-// Usage example: `scopedStore, err := store.NewScoped(storeInstance, "tenant-a"); if err != nil { return }; if err := scopedStore.Set("colour", "blue"); err != nil { return }`
-//
-// Usage example: `scopedStore, err := store.NewScoped(storeInstance, "tenant-a"); if err != nil { return }; if err := scopedStore.SetIn("config", "colour", "blue"); err != nil { return }`
+// Usage example: `scopedStore, err := store.NewScoped(storeInstance, "tenant-a"); if err != nil { return }`
+// Usage example: `if err := scopedStore.Set("colour", "blue"); err != nil { return } // writes tenant-a:default/colour`
+// Usage example: `if err := scopedStore.SetIn("config", "colour", "blue"); err != nil { return } // writes tenant-a:config/colour`
 type ScopedStore struct {
 	store     *Store
 	namespace string
@@ -82,10 +81,9 @@ type scopedWatcherBridge struct {
 	done         chan struct{}
 }
 
-// NewScoped validates a namespace and prefixes groups with namespace + ":".
 // Usage example: `scopedStore, err := store.NewScoped(storeInstance, "tenant-a"); if err != nil { return }`
-// Prefer `NewScopedConfigured` when the namespace and quota are already known
-// as a struct literal.
+// Prefer `NewScopedConfigured(storeInstance, store.ScopedStoreConfig{Namespace: "tenant-a"})`
+// when the namespace and quota are already known at the call site.
 func NewScoped(storeInstance *Store, namespace string) (*ScopedStore, error) {
 	if storeInstance == nil {
 		return nil, core.E("store.NewScoped", "store instance is nil", nil)
@@ -101,8 +99,9 @@ func NewScoped(storeInstance *Store, namespace string) (*ScopedStore, error) {
 	return scopedStore, nil
 }
 
-// NewScopedConfigured validates the namespace and optional quota settings before constructing a ScopedStore.
 // Usage example: `scopedStore, err := store.NewScopedConfigured(storeInstance, store.ScopedStoreConfig{Namespace: "tenant-a", Quota: store.QuotaConfig{MaxKeys: 100, MaxGroups: 10}}); if err != nil { return }`
+// This keeps the namespace and quota in one declarative literal instead of an
+// option chain.
 func NewScopedConfigured(storeInstance *Store, scopedConfig ScopedStoreConfig) (*ScopedStore, error) {
 	if storeInstance == nil {
 		return nil, core.E("store.NewScopedConfigured", "store instance is nil", nil)
@@ -291,7 +290,7 @@ func (scopedStore *ScopedStore) CountAll(groupPrefix ...string) (int, error) {
 	if err := scopedStore.ensureReady("store.CountAll"); err != nil {
 		return 0, err
 	}
-	return scopedStore.store.CountAll(scopedStore.namespacedGroup(firstOrEmptyString(groupPrefix)))
+	return scopedStore.store.CountAll(scopedStore.namespacedGroup(firstStringOrEmpty(groupPrefix)))
 }
 
 // Usage example: `groupNames, err := scopedStore.Groups("config")`
@@ -300,7 +299,7 @@ func (scopedStore *ScopedStore) Groups(groupPrefix ...string) ([]string, error) 
 	if err := scopedStore.ensureReady("store.Groups"); err != nil {
 		return nil, err
 	}
-	groupNames, err := scopedStore.store.Groups(scopedStore.namespacedGroup(firstOrEmptyString(groupPrefix)))
+	groupNames, err := scopedStore.store.Groups(scopedStore.namespacedGroup(firstStringOrEmpty(groupPrefix)))
 	if err != nil {
 		return nil, err
 	}
@@ -319,7 +318,7 @@ func (scopedStore *ScopedStore) GroupsSeq(groupPrefix ...string) iter.Seq2[strin
 			return
 		}
 		namespacePrefix := scopedStore.namespacePrefix()
-		for groupName, err := range scopedStore.store.GroupsSeq(scopedStore.namespacedGroup(firstOrEmptyString(groupPrefix))) {
+		for groupName, err := range scopedStore.store.GroupsSeq(scopedStore.namespacedGroup(firstStringOrEmpty(groupPrefix))) {
 			if err != nil {
 				if !yield("", err) {
 					return
@@ -372,8 +371,8 @@ func (scopedStore *ScopedStore) PurgeExpired() (int64, error) {
 
 // Usage example: `events := scopedStore.Watch("config")`
 // Usage example: `events := scopedStore.Watch("*")`
-// The returned events always use namespace-local group names, so a write to
-// `tenant-a:config` is delivered as `config`.
+// A write to `tenant-a:config` is delivered back to this scoped watcher as
+// `config`, so callers never have to strip the namespace themselves.
 func (scopedStore *ScopedStore) Watch(group string) <-chan Event {
 	if scopedStore == nil || scopedStore.store == nil {
 		return closedEventChannel()
@@ -479,8 +478,8 @@ func (scopedStore *ScopedStore) localiseWatchedEvent(event Event) (Event, bool) 
 }
 
 // Usage example: `unregister := scopedStore.OnChange(func(event store.Event) { fmt.Println(event.Group, event.Key, event.Value) })`
-// The callback receives the namespace-local group name, so a write to
-// `tenant-a:config` is reported as `config`.
+// A callback registered on `tenant-a` receives `config` rather than
+// `tenant-a:config`.
 func (scopedStore *ScopedStore) OnChange(callback func(Event)) func() {
 	if scopedStore == nil || callback == nil {
 		return func() {}
@@ -668,7 +667,7 @@ func (scopedStoreTransaction *ScopedStoreTransaction) CountAll(groupPrefix ...st
 	if err := scopedStoreTransaction.ensureReady("store.ScopedStoreTransaction.CountAll"); err != nil {
 		return 0, err
 	}
-	return scopedStoreTransaction.storeTransaction.CountAll(scopedStoreTransaction.scopedStore.namespacedGroup(firstOrEmptyString(groupPrefix)))
+	return scopedStoreTransaction.storeTransaction.CountAll(scopedStoreTransaction.scopedStore.namespacedGroup(firstStringOrEmpty(groupPrefix)))
 }
 
 // Usage example: `groupNames, err := scopedStoreTransaction.Groups("config")`
@@ -678,7 +677,7 @@ func (scopedStoreTransaction *ScopedStoreTransaction) Groups(groupPrefix ...stri
 		return nil, err
 	}
 
-	groupNames, err := scopedStoreTransaction.storeTransaction.Groups(scopedStoreTransaction.scopedStore.namespacedGroup(firstOrEmptyString(groupPrefix)))
+	groupNames, err := scopedStoreTransaction.storeTransaction.Groups(scopedStoreTransaction.scopedStore.namespacedGroup(firstStringOrEmpty(groupPrefix)))
 	if err != nil {
 		return nil, err
 	}
@@ -698,7 +697,7 @@ func (scopedStoreTransaction *ScopedStoreTransaction) GroupsSeq(groupPrefix ...s
 		}
 
 		namespacePrefix := scopedStoreTransaction.scopedStore.namespacePrefix()
-		for groupName, err := range scopedStoreTransaction.storeTransaction.GroupsSeq(scopedStoreTransaction.scopedStore.namespacedGroup(firstOrEmptyString(groupPrefix))) {
+		for groupName, err := range scopedStoreTransaction.storeTransaction.GroupsSeq(scopedStoreTransaction.scopedStore.namespacedGroup(firstStringOrEmpty(groupPrefix))) {
 			if err != nil {
 				if !yield("", err) {
 					return

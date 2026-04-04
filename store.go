@@ -763,7 +763,7 @@ func (storeInstance *Store) Groups(groupPrefix ...string) ([]string, error) {
 // Usage example: `for tenantGroupName, err := range storeInstance.GroupsSeq("tenant-a:") { if err != nil { break }; fmt.Println(tenantGroupName) }`
 // Usage example: `for groupName, err := range storeInstance.GroupsSeq() { if err != nil { break }; fmt.Println(groupName) }`
 func (storeInstance *Store) GroupsSeq(groupPrefix ...string) iter.Seq2[string, error] {
-	actualGroupPrefix := firstOrEmptyString(groupPrefix)
+	actualGroupPrefix := firstStringOrEmpty(groupPrefix)
 	return func(yield func(string, error) bool) {
 		if err := storeInstance.ensureReady("store.GroupsSeq"); err != nil {
 			yield("", err)
@@ -808,7 +808,7 @@ func (storeInstance *Store) GroupsSeq(groupPrefix ...string) iter.Seq2[string, e
 	}
 }
 
-func firstOrEmptyString(values []string) string {
+func firstStringOrEmpty(values []string) string {
 	if len(values) == 0 {
 		return ""
 	}

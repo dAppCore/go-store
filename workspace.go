@@ -33,12 +33,11 @@ FROM workspace_entries`
 
 var defaultWorkspaceStateDirectory = ".core/state/"
 
-// Workspace keeps mutable work-in-progress in a SQLite file such as
-// `.core/state/scroll-session.duckdb` until Commit() or Discard() removes it.
-//
 // Usage example: `workspace, err := storeInstance.NewWorkspace("scroll-session"); if err != nil { return }; defer workspace.Discard()`
-//
 // Usage example: `workspace, err := storeInstance.NewWorkspace("scroll-session-2026-03-30"); if err != nil { return }; defer workspace.Discard(); _ = workspace.Put("like", map[string]any{"user": "@alice"})`
+// Each workspace keeps mutable work-in-progress in a SQLite file such as
+// `.core/state/scroll-session.duckdb` until `Commit()` or `Discard()` removes
+// it.
 type Workspace struct {
 	name                  string
 	store                 *Store
@@ -67,11 +66,10 @@ func (workspace *Workspace) DatabasePath() string {
 	return workspace.databasePath
 }
 
-// Close keeps the workspace file on disk so `RecoverOrphans(".core/state/")`
-// can reopen it later.
-//
 // Usage example: `if err := workspace.Close(); err != nil { return }`
 // Usage example: `if err := workspace.Close(); err != nil { return }; orphans := storeInstance.RecoverOrphans(".core/state"); _ = orphans`
+// `Close()` keeps the `.duckdb` file on disk so `RecoverOrphans(".core/state")`
+// can reopen it after a crash or interrupted agent run.
 func (workspace *Workspace) Close() error {
 	return workspace.closeWithoutRemovingFiles()
 }
@@ -103,11 +101,9 @@ func (workspace *Workspace) ensureReady(operation string) error {
 	return nil
 }
 
-// NewWorkspace opens a SQLite workspace file such as
-// `.core/state/scroll-session-2026-03-30.duckdb` and removes it when the
-// workspace is committed or discarded.
-//
 // Usage example: `workspace, err := storeInstance.NewWorkspace("scroll-session-2026-03-30"); if err != nil { return }; defer workspace.Discard()`
+// This creates `.core/state/scroll-session-2026-03-30.duckdb` by default and
+// removes it when the workspace is committed or discarded.
 func (storeInstance *Store) NewWorkspace(name string) (*Workspace, error) {
 	if err := storeInstance.ensureReady("store.NewWorkspace"); err != nil {
 		return nil, err
@@ -218,11 +214,9 @@ func workspaceNameFromPath(stateDirectory, databasePath string) string {
 	return core.TrimSuffix(relativePath, ".duckdb")
 }
 
-// RecoverOrphans(".core/state") returns orphaned workspaces such as
-// `scroll-session-2026-03-30.duckdb` so callers can inspect Aggregate() and
-// choose Commit() or Discard().
-//
 // Usage example: `orphans := storeInstance.RecoverOrphans(".core/state"); for _, orphanWorkspace := range orphans { fmt.Println(orphanWorkspace.Name(), orphanWorkspace.Aggregate()) }`
+// This reopens leftover `.duckdb` files such as `scroll-session-2026-03-30`
+// so callers can inspect `Aggregate()` and choose `Commit()` or `Discard()`.
 func (storeInstance *Store) RecoverOrphans(stateDirectory string) []*Workspace {
 	if storeInstance == nil {
 		return nil
@@ -291,10 +285,9 @@ func (workspace *Workspace) Aggregate() map[string]any {
 	return fields
 }
 
-// Commit writes one completed workspace row to the journal and upserts the
-// summary entry in `workspace:NAME`.
-//
 // Usage example: `result := workspace.Commit(); if !result.OK { return }; fmt.Println(result.Value)`
+// `Commit()` writes one completed workspace row to the journal, upserts the
+// `workspace:NAME/summary` entry, and removes the workspace file.
 func (workspace *Workspace) Commit() core.Result {
 	if err := workspace.ensureReady("store.Workspace.Commit"); err != nil {
 		return core.Result{Value: err, OK: false}
@@ -321,10 +314,9 @@ func (workspace *Workspace) Discard() {
 	_ = workspace.closeAndRemoveFiles()
 }
 
-// Query runs SQL against the workspace buffer and returns rows as
-// `[]map[string]any` for ad-hoc inspection.
-//
 // Usage example: `result := workspace.Query("SELECT entry_kind, COUNT(*) AS count FROM workspace_entries GROUP BY entry_kind")`
+// `result.Value` contains `[]map[string]any`, which lets an agent inspect the
+// current buffer state without defining extra result types.
 func (workspace *Workspace) Query(query string) core.Result {
 	if err := workspace.ensureReady("store.Workspace.Query"); err != nil {
 		return core.Result{Value: err, OK: false}

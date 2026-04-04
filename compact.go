@@ -12,12 +12,10 @@ import (
 
 var defaultArchiveOutputDirectory = ".core/archive/"
 
-// CompactOptions archives completed journal rows before a cutoff time to a
-// compressed JSONL file.
-//
 // Usage example: `options := store.CompactOptions{Before: time.Date(2026, 3, 30, 0, 0, 0, 0, time.UTC), Output: "/tmp/archive", Format: "gzip"}`
-// The default output directory is `.core/archive/`; the default format is
-// `gzip`, and `zstd` is also supported.
+// Usage example: `result := storeInstance.Compact(store.CompactOptions{Before: time.Now().Add(-90 * 24 * time.Hour)})`
+// Leave `Output` empty to write gzip JSONL archives under `.core/archive/`, or
+// set `Format` to `zstd` when downstream tooling expects `.jsonl.zst`.
 type CompactOptions struct {
 	// Usage example: `options := store.CompactOptions{Before: time.Now().Add(-90 * 24 * time.Hour)}`
 	Before time.Time
@@ -32,7 +30,7 @@ func (compactOptions CompactOptions) Normalised() CompactOptions {
 	if compactOptions.Output == "" {
 		compactOptions.Output = defaultArchiveOutputDirectory
 	}
-	compactOptions.Format = lowerText(core.Trim(compactOptions.Format))
+	compactOptions.Format = lowercaseText(core.Trim(compactOptions.Format))
 	if compactOptions.Format == "" {
 		compactOptions.Format = "gzip"
 	}
@@ -48,7 +46,7 @@ func (compactOptions CompactOptions) Validate() error {
 			nil,
 		)
 	}
-	switch lowerText(core.Trim(compactOptions.Format)) {
+	switch lowercaseText(core.Trim(compactOptions.Format)) {
 	case "", "gzip", "zstd":
 		return nil
 	default:
@@ -60,7 +58,7 @@ func (compactOptions CompactOptions) Validate() error {
 	}
 }
 
-func lowerText(text string) string {
+func lowercaseText(text string) string {
 	builder := core.NewBuilder()
 	for _, r := range text {
 		builder.WriteRune(unicode.ToLower(r))
