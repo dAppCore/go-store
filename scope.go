@@ -1,6 +1,7 @@
 package store
 
 import (
+	"database/sql"
 	"iter"
 	"regexp"
 	"time"
@@ -537,12 +538,12 @@ func (scopedStoreTransaction *ScopedStoreTransaction) checkQuota(operation, grou
 	namespacedGroup := scopedStoreTransaction.scopedStore.namespacedGroup(group)
 	namespacePrefix := scopedStoreTransaction.scopedStore.namespacePrefix()
 
-	_, err := scopedStoreTransaction.storeTransaction.Get(namespacedGroup, key)
-	if err == nil {
-		return nil
-	}
-	if !core.Is(err, NotFoundError) {
+	exists, err := liveEntryExists(scopedStoreTransaction.storeTransaction.sqliteTransaction, namespacedGroup, key)
+	if err != nil {
 		return core.E(operation, "quota check", err)
+	}
+	if exists {
+		return nil
 	}
 
 	if scopedStoreTransaction.scopedStore.MaxKeys > 0 {
@@ -589,15 +590,14 @@ func (scopedStore *ScopedStore) checkQuota(operation, group, key string) error {
 	namespacedGroup := scopedStore.namespacedGroup(group)
 	namespacePrefix := scopedStore.namespacePrefix()
 
-	// Check if this is an upsert (key already exists) — upserts never exceed quota.
-	_, err := scopedStore.storeInstance.Get(namespacedGroup, key)
-	if err == nil {
-		// Key exists — this is an upsert, no quota check needed.
-		return nil
-	}
-	if !core.Is(err, NotFoundError) {
+	exists, err := liveEntryExists(scopedStore.storeInstance.sqliteDatabase, namespacedGroup, key)
+	if err != nil {
 		// A database error occurred, not just a "not found" result.
 		return core.E(operation, "quota check", err)
+	}
+	if exists {
+		// Key exists — this is an upsert, no quota check needed.
+		return nil
 	}
 
 	// Check MaxKeys quota.
@@ -633,4 +633,25 @@ func (scopedStore *ScopedStore) checkQuota(operation, group, key string) error {
 	}
 
 	return nil
+}
+
+func liveEntryExists(queryable keyExistenceQuery, group, key string) (bool, error) {
+	var exists int
+	err := queryable.QueryRow(
+		"SELECT 1 FROM "+entriesTableName+" WHERE "+entryGroupColumn+" = ? AND "+entryKeyColumn+" = ? AND (expires_at IS NULL OR expires_at > ?) LIMIT 1",
+		group,
+		key,
+		time.Now().UnixMilli(),
+	).Scan(&exists)
+	if err == nil {
+		return true, nil
+	}
+	if err == sql.ErrNoRows {
+		return false, nil
+	}
+	return false, err
+}
+
+type keyExistenceQuery interface {
+	QueryRow(query string, args ...any) *sql.Row
 }

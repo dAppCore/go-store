@@ -608,6 +608,42 @@ func TestScope_Quota_Good_UpsertDoesNotCount(t *testing.T) {
 	assert.Equal(t, "updated", value)
 }
 
+func TestScope_Quota_Good_ExpiredUpsertDoesNotEmitDeleteEvent(t *testing.T) {
+	storeInstance, _ := New(":memory:")
+	defer storeInstance.Close()
+
+	scopedStore, _ := NewScopedWithQuota(storeInstance, "tenant-a", QuotaConfig{MaxKeys: 1})
+
+	events := storeInstance.Watch("tenant-a:g")
+	defer storeInstance.Unwatch("tenant-a:g", events)
+
+	require.NoError(t, scopedStore.SetWithTTL("g", "token", "old", 1*time.Millisecond))
+	select {
+	case event := <-events:
+		assert.Equal(t, EventSet, event.Type)
+		assert.Equal(t, "old", event.Value)
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for initial set event")
+	}
+	time.Sleep(5 * time.Millisecond)
+
+	require.NoError(t, scopedStore.SetIn("g", "token", "new"))
+
+	select {
+	case event := <-events:
+		assert.Equal(t, EventSet, event.Type)
+		assert.Equal(t, "new", event.Value)
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for upsert event")
+	}
+
+	select {
+	case event := <-events:
+		t.Fatalf("unexpected extra event: %#v", event)
+	case <-time.After(50 * time.Millisecond):
+	}
+}
+
 func TestScope_Quota_Good_DeleteAndReInsert(t *testing.T) {
 	storeInstance, _ := New(":memory:")
 	defer storeInstance.Close()
