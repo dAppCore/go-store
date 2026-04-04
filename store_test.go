@@ -148,6 +148,38 @@ func TestStore_NewConfigured_Bad_PartialJournalConfiguration(t *testing.T) {
 	assert.Contains(t, err.Error(), "journal configuration must include endpoint URL, organisation, and bucket name")
 }
 
+func TestStore_StoreConfig_Good_Validate(t *testing.T) {
+	err := (StoreConfig{
+		DatabasePath: ":memory:",
+		Journal: JournalConfiguration{
+			EndpointURL:  "http://127.0.0.1:8086",
+			Organisation: "core",
+			BucketName:   "events",
+		},
+		PurgeInterval: 20 * time.Millisecond,
+	}).Validate()
+	require.NoError(t, err)
+}
+
+func TestStore_StoreConfig_Bad_NegativePurgeInterval(t *testing.T) {
+	err := (StoreConfig{
+		DatabasePath:  ":memory:",
+		PurgeInterval: -time.Second,
+	}).Validate()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "purge interval must be zero or positive")
+}
+
+func TestStore_NewConfigured_Bad_NegativePurgeInterval(t *testing.T) {
+	_, err := NewConfigured(StoreConfig{
+		DatabasePath:  ":memory:",
+		PurgeInterval: -time.Second,
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "validate config")
+	assert.Contains(t, err.Error(), "purge interval must be zero or positive")
+}
+
 func TestStore_Config_Good(t *testing.T) {
 	storeInstance, err := NewConfigured(StoreConfig{
 		DatabasePath: ":memory:",

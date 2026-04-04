@@ -49,6 +49,25 @@ type ScopedStoreConfig struct {
 	Quota QuotaConfig
 }
 
+// Usage example: `if err := (store.ScopedStoreConfig{Namespace: "tenant-a", Quota: store.QuotaConfig{MaxKeys: 100, MaxGroups: 10}}).Validate(); err != nil { return }`
+func (config ScopedStoreConfig) Validate() error {
+	if !validNamespace.MatchString(config.Namespace) {
+		return core.E(
+			"store.ScopedStoreConfig.Validate",
+			core.Sprintf("namespace %q is invalid; use names like %q or %q", config.Namespace, "tenant-a", "tenant-42"),
+			nil,
+		)
+	}
+	if config.Quota.MaxKeys < 0 || config.Quota.MaxGroups < 0 {
+		return core.E(
+			"store.ScopedStoreConfig.Validate",
+			core.Sprintf("quota values must be zero or positive; got MaxKeys=%d MaxGroups=%d", config.Quota.MaxKeys, config.Quota.MaxGroups),
+			nil,
+		)
+	}
+	return nil
+}
+
 type scopedWatcherBinding struct {
 	backingStore     *Store
 	underlyingEvents <-chan Event
@@ -84,20 +103,13 @@ func NewScoped(storeInstance *Store, namespace string) *ScopedStore {
 
 // Usage example: `scopedStore, err := store.NewScopedConfigured(storeInstance, store.ScopedStoreConfig{Namespace: "tenant-a", Quota: store.QuotaConfig{MaxKeys: 100, MaxGroups: 10}}); if err != nil { return }`
 func NewScopedConfigured(storeInstance *Store, config ScopedStoreConfig) (*ScopedStore, error) {
+	if storeInstance == nil {
+		return nil, core.E("store.NewScopedConfigured", "store instance is nil", nil)
+	}
+	if err := config.Validate(); err != nil {
+		return nil, core.E("store.NewScopedConfigured", "validate config", err)
+	}
 	scopedStore := NewScoped(storeInstance, config.Namespace)
-	if scopedStore == nil {
-		if storeInstance == nil {
-			return nil, core.E("store.NewScopedConfigured", "store instance is nil", nil)
-		}
-		return nil, core.E("store.NewScopedConfigured", core.Sprintf("namespace %q is invalid; use names like %q or %q", config.Namespace, "tenant-a", "tenant-42"), nil)
-	}
-	if config.Quota.MaxKeys < 0 || config.Quota.MaxGroups < 0 {
-		return nil, core.E(
-			"store.NewScopedConfigured",
-			core.Sprintf("quota values must be zero or positive; got MaxKeys=%d MaxGroups=%d", config.Quota.MaxKeys, config.Quota.MaxGroups),
-			nil,
-		)
-	}
 	scopedStore.MaxKeys = config.Quota.MaxKeys
 	scopedStore.MaxGroups = config.Quota.MaxGroups
 	return scopedStore, nil
@@ -267,7 +279,7 @@ func (scopedStore *ScopedStore) CountAll(groupPrefix ...string) (int, error) {
 // Usage example: `groupNames, err := scopedStore.Groups("config")`
 // Usage example: `groupNames, err := scopedStore.Groups()`
 func (scopedStore *ScopedStore) Groups(groupPrefix ...string) ([]string, error) {
-	backingStore, err := scopedStore.resolvedStore("store.Groups")
+	backingStore, err := scopedStore.resolvedStore("store.ScopedStore.Groups")
 	if err != nil {
 		return nil, err
 	}
