@@ -109,7 +109,7 @@ func (storeInstance *Store) QueryJournal(flux string) core.Result {
 	trimmedQuery := core.Trim(flux)
 	if trimmedQuery == "" {
 		return storeInstance.queryJournalRows(
-			"SELECT bucket_name, measurement, fields_json, tags_json, committed_at, archived_at FROM " + journalEntriesTableName + " WHERE archived_at IS NULL ORDER BY committed_at",
+			"SELECT bucket_name, measurement, fields_json, tags_json, committed_at, archived_at FROM " + journalEntriesTableName + " WHERE archived_at IS NULL ORDER BY committed_at, entry_id",
 		)
 	}
 	if isRawSQLJournalQuery(trimmedQuery) {
@@ -206,7 +206,7 @@ func (storeInstance *Store) queryJournalFlux(flux string) (string, []any, error)
 		}
 	}
 
-	queryBuilder.WriteString(" ORDER BY committed_at")
+	queryBuilder.WriteString(" ORDER BY committed_at, entry_id")
 	return queryBuilder.String(), queryArguments, nil
 }
 

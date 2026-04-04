@@ -153,6 +153,39 @@ func TestJournal_QueryJournal_Good_BucketFilter(t *testing.T) {
 	assert.Equal(t, "events", rows[0]["bucket_name"])
 }
 
+func TestJournal_QueryJournal_Good_DeterministicOrderingForSameTimestamp(t *testing.T) {
+	storeInstance, err := New(":memory:")
+	require.NoError(t, err)
+	defer storeInstance.Close()
+	require.NoError(t, ensureJournalSchema(storeInstance.sqliteDatabase))
+
+	committedAt := time.Date(2026, 3, 30, 12, 0, 0, 0, time.UTC).UnixMilli()
+	require.NoError(t, insertJournalEntry(
+		storeInstance.sqliteDatabase,
+		"events",
+		"session-b",
+		`{"like":2}`,
+		`{"workspace":"session-b"}`,
+		committedAt,
+	))
+	require.NoError(t, insertJournalEntry(
+		storeInstance.sqliteDatabase,
+		"events",
+		"session-a",
+		`{"like":1}`,
+		`{"workspace":"session-a"}`,
+		committedAt,
+	))
+
+	rows := requireResultRows(
+		t,
+		storeInstance.QueryJournal(""),
+	)
+	require.Len(t, rows, 2)
+	assert.Equal(t, "session-b", rows[0]["measurement"])
+	assert.Equal(t, "session-a", rows[1]["measurement"])
+}
+
 func TestJournal_QueryJournal_Good_AbsoluteRangeWithStop(t *testing.T) {
 	storeInstance, err := New(":memory:", WithJournal("http://127.0.0.1:8086", "core", "events"))
 	require.NoError(t, err)

@@ -57,7 +57,7 @@ func (storeInstance *Store) Compact(options CompactOptions) core.Result {
 	}
 
 	rows, err := storeInstance.sqliteDatabase.Query(
-		"SELECT entry_id, bucket_name, measurement, fields_json, tags_json, committed_at FROM "+journalEntriesTableName+" WHERE archived_at IS NULL AND committed_at < ? ORDER BY committed_at",
+		"SELECT entry_id, bucket_name, measurement, fields_json, tags_json, committed_at FROM "+journalEntriesTableName+" WHERE archived_at IS NULL AND committed_at < ? ORDER BY committed_at, entry_id",
 		options.Before.UnixMilli(),
 	)
 	if err != nil {
