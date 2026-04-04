@@ -215,6 +215,7 @@ func compactOutputPath(outputDirectory, format string) string {
 	if format == "zstd" {
 		extension = ".jsonl.zst"
 	}
-	filename := core.Concat("journal-", time.Now().UTC().Format("20060102-150405"), extension)
+	// Include nanoseconds so two compactions in the same second never collide.
+	filename := core.Concat("journal-", time.Now().UTC().Format("20060102-150405.000000000"), extension)
 	return joinPath(outputDirectory, filename)
 }
