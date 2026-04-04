@@ -30,7 +30,7 @@ SELECT
 	created_at
 FROM workspace_entries`
 
-var defaultWorkspaceStateDirectory = ".core/state"
+var defaultWorkspaceStateDirectory = ".core/state/"
 
 // Workspace buffers mutable work-in-progress in `.core/state/scroll-session.duckdb`
 // until Commit or Discard removes the file.
@@ -197,10 +197,7 @@ func discoverOrphanWorkspaces(stateDirectory string, backingStore *Store) []*Wor
 }
 
 func normaliseWorkspaceStateDirectory(stateDirectory string) string {
-	for stateDirectory != "" && core.HasSuffix(stateDirectory, "/") {
-		stateDirectory = core.TrimSuffix(stateDirectory, "/")
-	}
-	return stateDirectory
+	return normaliseDirectoryPath(stateDirectory)
 }
 
 func workspaceNameFromPath(stateDirectory, databasePath string) string {
@@ -514,5 +511,12 @@ func joinPath(base, name string) string {
 	if base == "" {
 		return name
 	}
-	return core.Concat(core.TrimSuffix(base, "/"), "/", name)
+	return core.Concat(normaliseDirectoryPath(base), "/", name)
+}
+
+func normaliseDirectoryPath(directory string) string {
+	for directory != "" && core.HasSuffix(directory, "/") {
+		directory = core.TrimSuffix(directory, "/")
+	}
+	return directory
 }

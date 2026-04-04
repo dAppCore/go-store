@@ -9,7 +9,7 @@ import (
 	"github.com/klauspost/compress/zstd"
 )
 
-var defaultArchiveOutputDirectory = ".core/archive"
+var defaultArchiveOutputDirectory = ".core/archive/"
 
 // Usage example: `options := store.CompactOptions{Before: time.Now().Add(-90 * 24 * time.Hour), Output: "/tmp/archive", Format: "gzip"}`
 type CompactOptions struct {
