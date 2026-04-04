@@ -204,8 +204,6 @@ These tests exercise correct defensive code. They must continue to pass but are 
 
 **`GetAll` memory usage.** Fetching a group with 10,000 keys allocates approximately 2.3 MB per call. Use `GetPage()` when you need offset/limit pagination over a large group. Applications with very large groups should still prefer smaller groups or selective queries.
 
-**No cross-group transactions.** There is no API for atomic multi-group operations. Each method is individually atomic at the SQLite level, but there is no `Begin`/`Commit` exposed to callers.
-
 **No persistence of watcher registrations.** Watchers and callbacks are in-memory only. They are not persisted across `Close`/`New` cycles.
 
 ---
@@ -215,4 +213,3 @@ These tests exercise correct defensive code. They must continue to pass but are 
 These are design notes, not committed work:
 
 - **Indexed prefix keys.** An additional index on `(group_name, entry_key)` prefix would accelerate prefix scans without a full-table scan.
-- **Cross-group atomic operations.** Exposing a `Transaction(func(tx *StoreTx) error)` API would allow callers to compose atomic multi-group operations.

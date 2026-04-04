@@ -239,11 +239,18 @@ All SQLite access is serialised through a single connection (`SetMaxOpenConns(1)
 
 All operations are safe to call from multiple goroutines concurrently. The race detector is clean under the project's standard test suite (`go test -race ./...`).
 
+## Transaction API
+
+`Store.Transaction(func(tx *StoreTx) error)` opens a SQLite transaction and hands a `StoreTx` helper to the callback. The helper exposes transaction-scoped write methods such as `Set`, `SetWithTTL`, `Delete`, `DeleteGroup`, and `DeletePrefix`. If the callback returns an error, the transaction rolls back. If the callback succeeds, the transaction commits and the staged events are published after commit.
+
+This API is the supported way to perform atomic multi-group operations without exposing raw `Begin`/`Commit` control to callers.
+
 ## File Layout
 
 ```
 doc.go            Package comment with concrete usage examples
 store.go          Core Store type, CRUD, prefix cleanup, TTL, background purge, iterators, rendering
+transaction.go    Store.Transaction and transaction-scoped mutation helpers
 events.go         EventType, Event, Watch, Unwatch, OnChange, notify
 scope.go          ScopedStore, QuotaConfig, namespace-local helper delegation, quota enforcement
 journal.go        Journal persistence, Flux-like querying, JSON row inflation

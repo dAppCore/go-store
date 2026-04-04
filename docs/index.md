@@ -117,7 +117,8 @@ The entire package lives in a single Go package (`package store`) with the follo
 | File | Purpose |
 |------|---------|
 | `doc.go` | Package comment with concrete usage examples |
-| `store.go` | Core `Store` type, CRUD operations (`Get`, `Set`, `SetWithTTL`, `Delete`, `DeleteGroup`, `DeletePrefix`), bulk queries (`GetAll`, `GetPage`, `All`, `Count`, `CountAll`, `Groups`, `GroupsSeq`), string splitting helpers (`GetSplit`, `GetFields`), template rendering (`Render`), TTL expiry, background purge goroutine |
+| `store.go` | Core `Store` type, CRUD operations (`Get`, `Set`, `SetWithTTL`, `Delete`, `DeleteGroup`, `DeletePrefix`), bulk queries (`GetAll`, `GetPage`, `All`, `Count`, `CountAll`, `Groups`, `GroupsSeq`), string splitting helpers (`GetSplit`, `GetFields`), template rendering (`Render`), TTL expiry, background purge goroutine, transaction support |
+| `transaction.go` | `Store.Transaction`, transaction-scoped write helpers, staged event dispatch |
 | `events.go` | `EventType` constants, `Event` struct, `Watch`/`Unwatch` channel subscriptions, `OnChange` callback registration, internal `notify` dispatch |
 | `scope.go` | `ScopedStore` wrapper for namespace isolation, `QuotaConfig` struct, `NewScoped`/`NewScopedWithQuota` constructors, namespace-local helper delegation, quota enforcement logic |
 | `journal.go` | Journal persistence, Flux-like querying, JSON row inflation, journal schema helpers |
