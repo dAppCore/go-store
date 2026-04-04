@@ -12,9 +12,9 @@ import (
 // Usage example: `err := storeInstance.Transaction(func(transaction *store.StoreTransaction) error { return transaction.Set("config", "colour", "blue") })`
 // Usage example: `if err := transaction.Delete("config", "colour"); err != nil { return err }`
 type StoreTransaction struct {
-	store         *Store
-	transaction   *sql.Tx
-	pendingEvents []Event
+	storeInstance     *Store
+	sqliteTransaction *sql.Tx
+	pendingEvents     []Event
 }
 
 // Usage example: `err := storeInstance.Transaction(func(transaction *store.StoreTransaction) error { if err := transaction.Set("tenant-a:config", "colour", "blue"); err != nil { return err }; return transaction.Set("tenant-b:config", "language", "en-GB") })`
@@ -32,8 +32,8 @@ func (storeInstance *Store) Transaction(operation func(*StoreTransaction) error)
 	}
 
 	storeTransaction := &StoreTransaction{
-		store:       storeInstance,
-		transaction: transaction,
+		storeInstance:     storeInstance,
+		sqliteTransaction: transaction,
 	}
 
 	committed := false
@@ -61,13 +61,13 @@ func (storeTransaction *StoreTransaction) ensureReady(operation string) error {
 	if storeTransaction == nil {
 		return core.E(operation, "transaction is nil", nil)
 	}
-	if storeTransaction.store == nil {
+	if storeTransaction.storeInstance == nil {
 		return core.E(operation, "transaction store is nil", nil)
 	}
-	if storeTransaction.transaction == nil {
+	if storeTransaction.sqliteTransaction == nil {
 		return core.E(operation, "transaction database is nil", nil)
 	}
-	if err := storeTransaction.store.ensureReady(operation); err != nil {
+	if err := storeTransaction.storeInstance.ensureReady(operation); err != nil {
 		return err
 	}
 	return nil
@@ -88,7 +88,7 @@ func (storeTransaction *StoreTransaction) Get(group, key string) (string, error)
 
 	var value string
 	var expiresAt sql.NullInt64
-	err := storeTransaction.transaction.QueryRow(
+	err := storeTransaction.sqliteTransaction.QueryRow(
 		"SELECT "+entryValueColumn+", expires_at FROM "+entriesTableName+" WHERE "+entryGroupColumn+" = ? AND "+entryKeyColumn+" = ?",
 		group, key,
 	).Scan(&value, &expiresAt)
@@ -113,7 +113,7 @@ func (storeTransaction *StoreTransaction) Set(group, key, value string) error {
 		return err
 	}
 
-	_, err := storeTransaction.transaction.Exec(
+	_, err := storeTransaction.sqliteTransaction.Exec(
 		"INSERT INTO "+entriesTableName+" ("+entryGroupColumn+", "+entryKeyColumn+", "+entryValueColumn+", expires_at) VALUES (?, ?, ?, NULL) "+
 			"ON CONFLICT("+entryGroupColumn+", "+entryKeyColumn+") DO UPDATE SET "+entryValueColumn+" = excluded."+entryValueColumn+", expires_at = NULL",
 		group, key, value,
@@ -132,7 +132,7 @@ func (storeTransaction *StoreTransaction) SetWithTTL(group, key, value string, t
 	}
 
 	expiresAt := time.Now().Add(timeToLive).UnixMilli()
-	_, err := storeTransaction.transaction.Exec(
+	_, err := storeTransaction.sqliteTransaction.Exec(
 		"INSERT INTO "+entriesTableName+" ("+entryGroupColumn+", "+entryKeyColumn+", "+entryValueColumn+", expires_at) VALUES (?, ?, ?, ?) "+
 			"ON CONFLICT("+entryGroupColumn+", "+entryKeyColumn+") DO UPDATE SET "+entryValueColumn+" = excluded."+entryValueColumn+", expires_at = excluded.expires_at",
 		group, key, value, expiresAt,
@@ -150,7 +150,7 @@ func (storeTransaction *StoreTransaction) Delete(group, key string) error {
 		return err
 	}
 
-	deleteResult, err := storeTransaction.transaction.Exec(
+	deleteResult, err := storeTransaction.sqliteTransaction.Exec(
 		"DELETE FROM "+entriesTableName+" WHERE "+entryGroupColumn+" = ? AND "+entryKeyColumn+" = ?",
 		group, key,
 	)
@@ -173,7 +173,7 @@ func (storeTransaction *StoreTransaction) DeleteGroup(group string) error {
 		return err
 	}
 
-	deleteResult, err := storeTransaction.transaction.Exec(
+	deleteResult, err := storeTransaction.sqliteTransaction.Exec(
 		"DELETE FROM "+entriesTableName+" WHERE "+entryGroupColumn+" = ?",
 		group,
 	)
@@ -199,11 +199,11 @@ func (storeTransaction *StoreTransaction) DeletePrefix(groupPrefix string) error
 	var rows *sql.Rows
 	var err error
 	if groupPrefix == "" {
-		rows, err = storeTransaction.transaction.Query(
+		rows, err = storeTransaction.sqliteTransaction.Query(
 			"SELECT DISTINCT " + entryGroupColumn + " FROM " + entriesTableName + " ORDER BY " + entryGroupColumn,
 		)
 	} else {
-		rows, err = storeTransaction.transaction.Query(
+		rows, err = storeTransaction.sqliteTransaction.Query(
 			"SELECT DISTINCT "+entryGroupColumn+" FROM "+entriesTableName+" WHERE "+entryGroupColumn+" LIKE ? ESCAPE '^' ORDER BY "+entryGroupColumn,
 			escapeLike(groupPrefix)+"%",
 		)
@@ -239,7 +239,7 @@ func (storeTransaction *StoreTransaction) Count(group string) (int, error) {
 	}
 
 	var count int
-	err := storeTransaction.transaction.QueryRow(
+	err := storeTransaction.sqliteTransaction.QueryRow(
 		"SELECT COUNT(*) FROM "+entriesTableName+" WHERE "+entryGroupColumn+" = ? AND (expires_at IS NULL OR expires_at > ?)",
 		group, time.Now().UnixMilli(),
 	).Scan(&count)
@@ -277,7 +277,7 @@ func (storeTransaction *StoreTransaction) GetPage(group string, offset, limit in
 		return nil, core.E("store.Transaction.GetPage", "limit must be zero or positive", nil)
 	}
 
-	rows, err := storeTransaction.transaction.Query(
+	rows, err := storeTransaction.sqliteTransaction.Query(
 		"SELECT "+entryKeyColumn+", "+entryValueColumn+" FROM "+entriesTableName+" WHERE "+entryGroupColumn+" = ? AND (expires_at IS NULL OR expires_at > ?) ORDER BY "+entryKeyColumn+" LIMIT ? OFFSET ?",
 		group, time.Now().UnixMilli(), limit, offset,
 	)
@@ -313,7 +313,7 @@ func (storeTransaction *StoreTransaction) AllSeq(group string) iter.Seq2[KeyValu
 			return
 		}
 
-		rows, err := storeTransaction.transaction.Query(
+		rows, err := storeTransaction.sqliteTransaction.Query(
 			"SELECT "+entryKeyColumn+", "+entryValueColumn+" FROM "+entriesTableName+" WHERE "+entryGroupColumn+" = ? AND (expires_at IS NULL OR expires_at > ?) ORDER BY "+entryKeyColumn,
 			group, time.Now().UnixMilli(),
 		)
@@ -350,12 +350,12 @@ func (storeTransaction *StoreTransaction) CountAll(groupPrefix string) (int, err
 	var count int
 	var err error
 	if groupPrefix == "" {
-		err = storeTransaction.transaction.QueryRow(
+		err = storeTransaction.sqliteTransaction.QueryRow(
 			"SELECT COUNT(*) FROM "+entriesTableName+" WHERE (expires_at IS NULL OR expires_at > ?)",
 			time.Now().UnixMilli(),
 		).Scan(&count)
 	} else {
-		err = storeTransaction.transaction.QueryRow(
+		err = storeTransaction.sqliteTransaction.QueryRow(
 			"SELECT COUNT(*) FROM "+entriesTableName+" WHERE "+entryGroupColumn+" LIKE ? ESCAPE '^' AND (expires_at IS NULL OR expires_at > ?)",
 			escapeLike(groupPrefix)+"%", time.Now().UnixMilli(),
 		).Scan(&count)
@@ -397,12 +397,12 @@ func (storeTransaction *StoreTransaction) GroupsSeq(groupPrefix ...string) iter.
 		var err error
 		now := time.Now().UnixMilli()
 		if actualGroupPrefix == "" {
-			rows, err = storeTransaction.transaction.Query(
+			rows, err = storeTransaction.sqliteTransaction.Query(
 				"SELECT DISTINCT "+entryGroupColumn+" FROM "+entriesTableName+" WHERE (expires_at IS NULL OR expires_at > ?) ORDER BY "+entryGroupColumn,
 				now,
 			)
 		} else {
-			rows, err = storeTransaction.transaction.Query(
+			rows, err = storeTransaction.sqliteTransaction.Query(
 				"SELECT DISTINCT "+entryGroupColumn+" FROM "+entriesTableName+" WHERE "+entryGroupColumn+" LIKE ? ESCAPE '^' AND (expires_at IS NULL OR expires_at > ?) ORDER BY "+entryGroupColumn,
 				escapeLike(actualGroupPrefix)+"%", now,
 			)
