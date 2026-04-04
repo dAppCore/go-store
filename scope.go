@@ -213,13 +213,13 @@ func (scopedStore *ScopedStore) Count(group string) (int, error) {
 // Usage example: `keyCount, err := scopedStore.CountAll("config")`
 // Usage example: `keyCount, err := scopedStore.CountAll()`
 func (scopedStore *ScopedStore) CountAll(groupPrefix ...string) (int, error) {
-	return scopedStore.storeInstance.CountAll(scopedStore.namespacedGroup(firstScopedString(groupPrefix)))
+	return scopedStore.storeInstance.CountAll(scopedStore.namespacedGroup(firstOrEmptyString(groupPrefix)))
 }
 
 // Usage example: `groupNames, err := scopedStore.Groups("config")`
 // Usage example: `groupNames, err := scopedStore.Groups()`
 func (scopedStore *ScopedStore) Groups(groupPrefix ...string) ([]string, error) {
-	groupNames, err := scopedStore.storeInstance.Groups(scopedStore.namespacedGroup(firstScopedString(groupPrefix)))
+	groupNames, err := scopedStore.storeInstance.Groups(scopedStore.namespacedGroup(firstOrEmptyString(groupPrefix)))
 	if err != nil {
 		return nil, err
 	}
@@ -234,7 +234,7 @@ func (scopedStore *ScopedStore) Groups(groupPrefix ...string) ([]string, error) 
 func (scopedStore *ScopedStore) GroupsSeq(groupPrefix ...string) iter.Seq2[string, error] {
 	return func(yield func(string, error) bool) {
 		namespacePrefix := scopedStore.namespacePrefix()
-		for groupName, err := range scopedStore.storeInstance.GroupsSeq(scopedStore.namespacedGroup(firstScopedString(groupPrefix))) {
+		for groupName, err := range scopedStore.storeInstance.GroupsSeq(scopedStore.namespacedGroup(firstOrEmptyString(groupPrefix))) {
 			if err != nil {
 				if !yield("", err) {
 					return
@@ -448,7 +448,7 @@ func (scopedStoreTransaction *ScopedStoreTransaction) CountAll(groupPrefix ...st
 	if err := scopedStoreTransaction.ensureReady("store.ScopedStoreTransaction.CountAll"); err != nil {
 		return 0, err
 	}
-	return scopedStoreTransaction.storeTransaction.CountAll(scopedStoreTransaction.scopedStore.namespacedGroup(firstScopedString(groupPrefix)))
+	return scopedStoreTransaction.storeTransaction.CountAll(scopedStoreTransaction.scopedStore.namespacedGroup(firstOrEmptyString(groupPrefix)))
 }
 
 // Usage example: `groupNames, err := scopedStoreTransaction.Groups("config")`
@@ -458,7 +458,7 @@ func (scopedStoreTransaction *ScopedStoreTransaction) Groups(groupPrefix ...stri
 		return nil, err
 	}
 
-	groupNames, err := scopedStoreTransaction.storeTransaction.Groups(scopedStoreTransaction.scopedStore.namespacedGroup(firstScopedString(groupPrefix)))
+	groupNames, err := scopedStoreTransaction.storeTransaction.Groups(scopedStoreTransaction.scopedStore.namespacedGroup(firstOrEmptyString(groupPrefix)))
 	if err != nil {
 		return nil, err
 	}
@@ -478,7 +478,7 @@ func (scopedStoreTransaction *ScopedStoreTransaction) GroupsSeq(groupPrefix ...s
 		}
 
 		namespacePrefix := scopedStoreTransaction.scopedStore.namespacePrefix()
-		for groupName, err := range scopedStoreTransaction.storeTransaction.GroupsSeq(scopedStoreTransaction.scopedStore.namespacedGroup(firstScopedString(groupPrefix))) {
+		for groupName, err := range scopedStoreTransaction.storeTransaction.GroupsSeq(scopedStoreTransaction.scopedStore.namespacedGroup(firstOrEmptyString(groupPrefix))) {
 			if err != nil {
 				if !yield("", err) {
 					return
@@ -633,11 +633,4 @@ func (scopedStore *ScopedStore) checkQuota(operation, group, key string) error {
 	}
 
 	return nil
-}
-
-func firstScopedString(values []string) string {
-	if len(values) == 0 {
-		return ""
-	}
-	return values[0]
 }
