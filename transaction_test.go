@@ -127,6 +127,102 @@ func TestTransaction_Transaction_Good_ReadHelpersSeePendingWrites(t *testing.T) 
 	require.NoError(t, err)
 }
 
+func TestTransaction_ScopedStoreTransaction_Good_CommitsNamespacedWrites(t *testing.T) {
+	storeInstance, _ := New(":memory:")
+	defer storeInstance.Close()
+
+	scopedStore, err := NewScopedWithQuota(storeInstance, "tenant-a", QuotaConfig{MaxKeys: 4, MaxGroups: 2})
+	require.NoError(t, err)
+
+	err = scopedStore.Transaction(func(transaction *ScopedStoreTransaction) error {
+		if err := transaction.Set("theme", "dark"); err != nil {
+			return err
+		}
+		if err := transaction.SetIn("preferences", "locale", "en-GB"); err != nil {
+			return err
+		}
+
+		themeValue, err := transaction.Get("theme")
+		require.NoError(t, err)
+		assert.Equal(t, "dark", themeValue)
+
+		localeValue, err := transaction.GetFrom("preferences", "locale")
+		require.NoError(t, err)
+		assert.Equal(t, "en-GB", localeValue)
+
+		groupNames, err := transaction.Groups()
+		require.NoError(t, err)
+		assert.Equal(t, []string{"default", "preferences"}, groupNames)
+
+		return nil
+	})
+	require.NoError(t, err)
+
+	themeValue, err := storeInstance.Get("tenant-a:default", "theme")
+	require.NoError(t, err)
+	assert.Equal(t, "dark", themeValue)
+
+	localeValue, err := storeInstance.Get("tenant-a:preferences", "locale")
+	require.NoError(t, err)
+	assert.Equal(t, "en-GB", localeValue)
+}
+
+func TestTransaction_ScopedStoreTransaction_Good_QuotaUsesPendingWrites(t *testing.T) {
+	storeInstance, _ := New(":memory:")
+	defer storeInstance.Close()
+
+	scopedStore, err := NewScopedWithQuota(storeInstance, "tenant-a", QuotaConfig{MaxKeys: 2, MaxGroups: 2})
+	require.NoError(t, err)
+
+	err = scopedStore.Transaction(func(transaction *ScopedStoreTransaction) error {
+		require.NoError(t, transaction.SetIn("group-1", "first", "1"))
+		require.NoError(t, transaction.SetIn("group-2", "second", "2"))
+
+		err := transaction.SetIn("group-2", "third", "3")
+		require.Error(t, err)
+		assert.True(t, core.Is(err, QuotaExceededError))
+		return err
+	})
+	require.Error(t, err)
+	assert.True(t, core.Is(err, QuotaExceededError))
+
+	_, getErr := storeInstance.Get("tenant-a:group-1", "first")
+	assert.True(t, core.Is(getErr, NotFoundError))
+}
+
+func TestTransaction_ScopedStoreTransaction_Good_DeletePrefix(t *testing.T) {
+	storeInstance, _ := New(":memory:")
+	defer storeInstance.Close()
+
+	scopedStore, err := NewScoped(storeInstance, "tenant-a")
+	require.NoError(t, err)
+	otherScopedStore, err := NewScoped(storeInstance, "tenant-b")
+	require.NoError(t, err)
+
+	require.NoError(t, scopedStore.SetIn("cache", "theme", "dark"))
+	require.NoError(t, scopedStore.SetIn("cache-warm", "status", "ready"))
+	require.NoError(t, scopedStore.SetIn("config", "colour", "blue"))
+	require.NoError(t, otherScopedStore.SetIn("cache", "theme", "keep"))
+
+	err = scopedStore.Transaction(func(transaction *ScopedStoreTransaction) error {
+		return transaction.DeletePrefix("cache")
+	})
+	require.NoError(t, err)
+
+	_, getErr := scopedStore.GetFrom("cache", "theme")
+	assert.True(t, core.Is(getErr, NotFoundError))
+	_, getErr = scopedStore.GetFrom("cache-warm", "status")
+	assert.True(t, core.Is(getErr, NotFoundError))
+
+	colourValue, getErr := scopedStore.GetFrom("config", "colour")
+	require.NoError(t, getErr)
+	assert.Equal(t, "blue", colourValue)
+
+	otherValue, getErr := otherScopedStore.GetFrom("cache", "theme")
+	require.NoError(t, getErr)
+	assert.Equal(t, "keep", otherValue)
+}
+
 func collectSeq[T any](t *testing.T, sequence iter.Seq[T]) []T {
 	t.Helper()
 

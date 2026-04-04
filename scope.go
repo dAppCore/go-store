@@ -184,6 +184,12 @@ func (scopedStore *ScopedStore) DeleteGroup(group string) error {
 	return scopedStore.storeInstance.DeleteGroup(scopedStore.namespacedGroup(group))
 }
 
+// Usage example: `if err := scopedStore.DeletePrefix("cache"); err != nil { return }`
+// Usage example: `if err := scopedStore.DeletePrefix(""); err != nil { return }`
+func (scopedStore *ScopedStore) DeletePrefix(groupPrefix string) error {
+	return scopedStore.storeInstance.DeletePrefix(scopedStore.namespacedGroup(groupPrefix))
+}
+
 // Usage example: `colourEntries, err := scopedStore.GetAll("config")`
 func (scopedStore *ScopedStore) GetAll(group string) (map[string]string, error) {
 	return scopedStore.storeInstance.GetAll(scopedStore.namespacedGroup(group))
@@ -264,6 +270,278 @@ func (scopedStore *ScopedStore) PurgeExpired() (int64, error) {
 		return 0, core.E("store.ScopedStore.PurgeExpired", "delete expired rows", err)
 	}
 	return removedRows, nil
+}
+
+// ScopedStoreTransaction exposes namespace-local transaction helpers so callers
+// can work inside a scoped namespace without manually prefixing group names.
+//
+// Usage example: `err := scopedStore.Transaction(func(transaction *store.ScopedStoreTransaction) error { return transaction.Set("theme", "dark") })`
+type ScopedStoreTransaction struct {
+	scopedStore      *ScopedStore
+	storeTransaction *StoreTransaction
+}
+
+// Usage example: `err := scopedStore.Transaction(func(transaction *store.ScopedStoreTransaction) error { return transaction.Set("theme", "dark") })`
+func (scopedStore *ScopedStore) Transaction(operation func(*ScopedStoreTransaction) error) error {
+	if scopedStore == nil {
+		return core.E("store.ScopedStore.Transaction", "scoped store is nil", nil)
+	}
+	if operation == nil {
+		return core.E("store.ScopedStore.Transaction", "operation is nil", nil)
+	}
+
+	return scopedStore.storeInstance.Transaction(func(storeTransaction *StoreTransaction) error {
+		return operation(&ScopedStoreTransaction{
+			scopedStore:      scopedStore,
+			storeTransaction: storeTransaction,
+		})
+	})
+}
+
+func (scopedStoreTransaction *ScopedStoreTransaction) ensureReady(operation string) error {
+	if scopedStoreTransaction == nil {
+		return core.E(operation, "scoped transaction is nil", nil)
+	}
+	if scopedStoreTransaction.scopedStore == nil {
+		return core.E(operation, "scoped transaction store is nil", nil)
+	}
+	if scopedStoreTransaction.storeTransaction == nil {
+		return core.E(operation, "scoped transaction database is nil", nil)
+	}
+	if err := scopedStoreTransaction.scopedStore.storeInstance.ensureReady(operation); err != nil {
+		return err
+	}
+	return scopedStoreTransaction.storeTransaction.ensureReady(operation)
+}
+
+// Usage example: `colourValue, err := scopedStoreTransaction.Get("colour")`
+// Usage example: `colourValue, err := scopedStoreTransaction.Get("config", "colour")`
+func (scopedStoreTransaction *ScopedStoreTransaction) Get(arguments ...string) (string, error) {
+	if err := scopedStoreTransaction.ensureReady("store.ScopedStoreTransaction.Get"); err != nil {
+		return "", err
+	}
+
+	group, key, err := scopedStoreTransaction.scopedStore.getArguments(arguments)
+	if err != nil {
+		return "", core.E("store.ScopedStoreTransaction.Get", "arguments", err)
+	}
+	return scopedStoreTransaction.storeTransaction.Get(scopedStoreTransaction.scopedStore.namespacedGroup(group), key)
+}
+
+// Usage example: `colourValue, err := scopedStoreTransaction.GetFrom("config", "colour")`
+func (scopedStoreTransaction *ScopedStoreTransaction) GetFrom(group, key string) (string, error) {
+	return scopedStoreTransaction.Get(group, key)
+}
+
+// Usage example: `if err := scopedStoreTransaction.Set("theme", "dark"); err != nil { return err }`
+// Usage example: `if err := scopedStoreTransaction.Set("config", "colour", "blue"); err != nil { return err }`
+func (scopedStoreTransaction *ScopedStoreTransaction) Set(arguments ...string) error {
+	if err := scopedStoreTransaction.ensureReady("store.ScopedStoreTransaction.Set"); err != nil {
+		return err
+	}
+
+	group, key, value, err := scopedStoreTransaction.scopedStore.setArguments(arguments)
+	if err != nil {
+		return core.E("store.ScopedStoreTransaction.Set", "arguments", err)
+	}
+	if err := scopedStoreTransaction.checkQuota("store.ScopedStoreTransaction.Set", group, key); err != nil {
+		return err
+	}
+	return scopedStoreTransaction.storeTransaction.Set(scopedStoreTransaction.scopedStore.namespacedGroup(group), key, value)
+}
+
+// Usage example: `if err := scopedStoreTransaction.SetIn("config", "colour", "blue"); err != nil { return err }`
+func (scopedStoreTransaction *ScopedStoreTransaction) SetIn(group, key, value string) error {
+	return scopedStoreTransaction.Set(group, key, value)
+}
+
+// Usage example: `if err := scopedStoreTransaction.SetWithTTL("sessions", "token", "abc123", time.Hour); err != nil { return err }`
+func (scopedStoreTransaction *ScopedStoreTransaction) SetWithTTL(group, key, value string, timeToLive time.Duration) error {
+	if err := scopedStoreTransaction.ensureReady("store.ScopedStoreTransaction.SetWithTTL"); err != nil {
+		return err
+	}
+	if err := scopedStoreTransaction.checkQuota("store.ScopedStoreTransaction.SetWithTTL", group, key); err != nil {
+		return err
+	}
+	return scopedStoreTransaction.storeTransaction.SetWithTTL(scopedStoreTransaction.scopedStore.namespacedGroup(group), key, value, timeToLive)
+}
+
+// Usage example: `if err := scopedStoreTransaction.Delete("config", "colour"); err != nil { return err }`
+func (scopedStoreTransaction *ScopedStoreTransaction) Delete(group, key string) error {
+	if err := scopedStoreTransaction.ensureReady("store.ScopedStoreTransaction.Delete"); err != nil {
+		return err
+	}
+	return scopedStoreTransaction.storeTransaction.Delete(scopedStoreTransaction.scopedStore.namespacedGroup(group), key)
+}
+
+// Usage example: `if err := scopedStoreTransaction.DeleteGroup("cache"); err != nil { return err }`
+func (scopedStoreTransaction *ScopedStoreTransaction) DeleteGroup(group string) error {
+	if err := scopedStoreTransaction.ensureReady("store.ScopedStoreTransaction.DeleteGroup"); err != nil {
+		return err
+	}
+	return scopedStoreTransaction.storeTransaction.DeleteGroup(scopedStoreTransaction.scopedStore.namespacedGroup(group))
+}
+
+// Usage example: `if err := scopedStoreTransaction.DeletePrefix("cache"); err != nil { return err }`
+// Usage example: `if err := scopedStoreTransaction.DeletePrefix(""); err != nil { return err }`
+func (scopedStoreTransaction *ScopedStoreTransaction) DeletePrefix(groupPrefix string) error {
+	if err := scopedStoreTransaction.ensureReady("store.ScopedStoreTransaction.DeletePrefix"); err != nil {
+		return err
+	}
+	return scopedStoreTransaction.storeTransaction.DeletePrefix(scopedStoreTransaction.scopedStore.namespacedGroup(groupPrefix))
+}
+
+// Usage example: `colourEntries, err := scopedStoreTransaction.GetAll("config")`
+func (scopedStoreTransaction *ScopedStoreTransaction) GetAll(group string) (map[string]string, error) {
+	if err := scopedStoreTransaction.ensureReady("store.ScopedStoreTransaction.GetAll"); err != nil {
+		return nil, err
+	}
+	return scopedStoreTransaction.storeTransaction.GetAll(scopedStoreTransaction.scopedStore.namespacedGroup(group))
+}
+
+// Usage example: `for entry, err := range scopedStoreTransaction.All("config") { if err != nil { break }; fmt.Println(entry.Key, entry.Value) }`
+func (scopedStoreTransaction *ScopedStoreTransaction) All(group string) iter.Seq2[KeyValue, error] {
+	if err := scopedStoreTransaction.ensureReady("store.ScopedStoreTransaction.All"); err != nil {
+		return func(yield func(KeyValue, error) bool) {
+			yield(KeyValue{}, err)
+		}
+	}
+	return scopedStoreTransaction.storeTransaction.All(scopedStoreTransaction.scopedStore.namespacedGroup(group))
+}
+
+// Usage example: `for entry, err := range scopedStoreTransaction.AllSeq("config") { if err != nil { break }; fmt.Println(entry.Key, entry.Value) }`
+func (scopedStoreTransaction *ScopedStoreTransaction) AllSeq(group string) iter.Seq2[KeyValue, error] {
+	return scopedStoreTransaction.All(group)
+}
+
+// Usage example: `keyCount, err := scopedStoreTransaction.Count("config")`
+func (scopedStoreTransaction *ScopedStoreTransaction) Count(group string) (int, error) {
+	if err := scopedStoreTransaction.ensureReady("store.ScopedStoreTransaction.Count"); err != nil {
+		return 0, err
+	}
+	return scopedStoreTransaction.storeTransaction.Count(scopedStoreTransaction.scopedStore.namespacedGroup(group))
+}
+
+// Usage example: `keyCount, err := scopedStoreTransaction.CountAll("config")`
+// Usage example: `keyCount, err := scopedStoreTransaction.CountAll()`
+func (scopedStoreTransaction *ScopedStoreTransaction) CountAll(groupPrefix ...string) (int, error) {
+	if err := scopedStoreTransaction.ensureReady("store.ScopedStoreTransaction.CountAll"); err != nil {
+		return 0, err
+	}
+	return scopedStoreTransaction.storeTransaction.CountAll(scopedStoreTransaction.scopedStore.namespacedGroup(firstString(groupPrefix)))
+}
+
+// Usage example: `groupNames, err := scopedStoreTransaction.Groups("config")`
+// Usage example: `groupNames, err := scopedStoreTransaction.Groups()`
+func (scopedStoreTransaction *ScopedStoreTransaction) Groups(groupPrefix ...string) ([]string, error) {
+	if err := scopedStoreTransaction.ensureReady("store.ScopedStoreTransaction.Groups"); err != nil {
+		return nil, err
+	}
+
+	groupNames, err := scopedStoreTransaction.storeTransaction.Groups(scopedStoreTransaction.scopedStore.namespacedGroup(firstString(groupPrefix)))
+	if err != nil {
+		return nil, err
+	}
+	for i, groupName := range groupNames {
+		groupNames[i] = scopedStoreTransaction.scopedStore.trimNamespacePrefix(groupName)
+	}
+	return groupNames, nil
+}
+
+// Usage example: `for groupName, err := range scopedStoreTransaction.GroupsSeq("config") { if err != nil { break }; fmt.Println(groupName) }`
+// Usage example: `for groupName, err := range scopedStoreTransaction.GroupsSeq() { if err != nil { break }; fmt.Println(groupName) }`
+func (scopedStoreTransaction *ScopedStoreTransaction) GroupsSeq(groupPrefix ...string) iter.Seq2[string, error] {
+	return func(yield func(string, error) bool) {
+		if err := scopedStoreTransaction.ensureReady("store.ScopedStoreTransaction.GroupsSeq"); err != nil {
+			yield("", err)
+			return
+		}
+
+		namespacePrefix := scopedStoreTransaction.scopedStore.namespacePrefix()
+		for groupName, err := range scopedStoreTransaction.storeTransaction.GroupsSeq(scopedStoreTransaction.scopedStore.namespacedGroup(firstString(groupPrefix))) {
+			if err != nil {
+				if !yield("", err) {
+					return
+				}
+				continue
+			}
+			if !yield(core.TrimPrefix(groupName, namespacePrefix), nil) {
+				return
+			}
+		}
+	}
+}
+
+// Usage example: `renderedTemplate, err := scopedStoreTransaction.Render("Hello {{ .name }}", "user")`
+func (scopedStoreTransaction *ScopedStoreTransaction) Render(templateSource, group string) (string, error) {
+	if err := scopedStoreTransaction.ensureReady("store.ScopedStoreTransaction.Render"); err != nil {
+		return "", err
+	}
+	return scopedStoreTransaction.storeTransaction.Render(templateSource, scopedStoreTransaction.scopedStore.namespacedGroup(group))
+}
+
+// Usage example: `parts, err := scopedStoreTransaction.GetSplit("config", "hosts", ","); if err != nil { return }; for part := range parts { fmt.Println(part) }`
+func (scopedStoreTransaction *ScopedStoreTransaction) GetSplit(group, key, separator string) (iter.Seq[string], error) {
+	if err := scopedStoreTransaction.ensureReady("store.ScopedStoreTransaction.GetSplit"); err != nil {
+		return nil, err
+	}
+	return scopedStoreTransaction.storeTransaction.GetSplit(scopedStoreTransaction.scopedStore.namespacedGroup(group), key, separator)
+}
+
+// Usage example: `fields, err := scopedStoreTransaction.GetFields("config", "flags"); if err != nil { return }; for field := range fields { fmt.Println(field) }`
+func (scopedStoreTransaction *ScopedStoreTransaction) GetFields(group, key string) (iter.Seq[string], error) {
+	if err := scopedStoreTransaction.ensureReady("store.ScopedStoreTransaction.GetFields"); err != nil {
+		return nil, err
+	}
+	return scopedStoreTransaction.storeTransaction.GetFields(scopedStoreTransaction.scopedStore.namespacedGroup(group), key)
+}
+
+func (scopedStoreTransaction *ScopedStoreTransaction) checkQuota(operation, group, key string) error {
+	if scopedStoreTransaction.scopedStore.MaxKeys == 0 && scopedStoreTransaction.scopedStore.MaxGroups == 0 {
+		return nil
+	}
+
+	namespacedGroup := scopedStoreTransaction.scopedStore.namespacedGroup(group)
+	namespacePrefix := scopedStoreTransaction.scopedStore.namespacePrefix()
+
+	_, err := scopedStoreTransaction.storeTransaction.Get(namespacedGroup, key)
+	if err == nil {
+		return nil
+	}
+	if !core.Is(err, NotFoundError) {
+		return core.E(operation, "quota check", err)
+	}
+
+	if scopedStoreTransaction.scopedStore.MaxKeys > 0 {
+		keyCount, err := scopedStoreTransaction.storeTransaction.CountAll(namespacePrefix)
+		if err != nil {
+			return core.E(operation, "quota check", err)
+		}
+		if keyCount >= scopedStoreTransaction.scopedStore.MaxKeys {
+			return core.E(operation, core.Sprintf("key limit (%d)", scopedStoreTransaction.scopedStore.MaxKeys), QuotaExceededError)
+		}
+	}
+
+	if scopedStoreTransaction.scopedStore.MaxGroups > 0 {
+		existingGroupCount, err := scopedStoreTransaction.storeTransaction.Count(namespacedGroup)
+		if err != nil {
+			return core.E(operation, "quota check", err)
+		}
+		if existingGroupCount == 0 {
+			knownGroupCount := 0
+			for _, iterationErr := range scopedStoreTransaction.storeTransaction.GroupsSeq(namespacePrefix) {
+				if iterationErr != nil {
+					return core.E(operation, "quota check", iterationErr)
+				}
+				knownGroupCount++
+			}
+			if knownGroupCount >= scopedStoreTransaction.scopedStore.MaxGroups {
+				return core.E(operation, core.Sprintf("group limit (%d)", scopedStoreTransaction.scopedStore.MaxGroups), QuotaExceededError)
+			}
+		}
+	}
+
+	return nil
 }
 
 // checkQuota("store.ScopedStore.Set", "config", "colour") returns nil when the
