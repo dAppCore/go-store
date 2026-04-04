@@ -212,10 +212,10 @@ func (storeInstance *Store) queryJournalFromFlux(flux string) (string, []any, er
 }
 
 func (storeInstance *Store) journalBucket() string {
-	if storeInstance.journalConfiguration.bucketName == "" {
+	if storeInstance.journalConfiguration.BucketName == "" {
 		return defaultJournalBucket
 	}
-	return storeInstance.journalConfiguration.bucketName
+	return storeInstance.journalConfiguration.BucketName
 }
 
 func ensureJournalSchema(database schemaDatabase) error {

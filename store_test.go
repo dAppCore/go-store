@@ -103,9 +103,9 @@ func TestStore_New_Good_WithJournalOption(t *testing.T) {
 	require.NoError(t, err)
 	defer storeInstance.Close()
 
-	assert.Equal(t, "events", storeInstance.journalConfiguration.bucketName)
-	assert.Equal(t, "core", storeInstance.journalConfiguration.organisation)
-	assert.Equal(t, "http://127.0.0.1:8086", storeInstance.journalConfiguration.endpointURL)
+	assert.Equal(t, "events", storeInstance.journalConfiguration.BucketName)
+	assert.Equal(t, "core", storeInstance.journalConfiguration.Organisation)
+	assert.Equal(t, "http://127.0.0.1:8086", storeInstance.journalConfiguration.EndpointURL)
 }
 
 func TestStore_JournalConfiguration_Good(t *testing.T) {
