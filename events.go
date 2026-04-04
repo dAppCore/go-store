@@ -1,25 +1,25 @@
 package store
 
 import (
-	"slices"
+	"reflect"
 	"sync"
 	"sync/atomic"
 	"time"
 )
 
-// EventType describes the kind of store mutation that occurred.
+// Usage example: `if event.Type == store.EventSet { return }`
 type EventType int
 
 const (
-	// EventSet indicates a key was created or updated.
+	// Usage example: `if event.Type == store.EventSet { return }`
 	EventSet EventType = iota
-	// EventDelete indicates a single key was removed.
+	// Usage example: `if event.Type == store.EventDelete { return }`
 	EventDelete
-	// EventDeleteGroup indicates all keys in a group were removed.
+	// Usage example: `if event.Type == store.EventDeleteGroup { return }`
 	EventDeleteGroup
 )
 
-// String returns a human-readable label for the event type.
+// Usage example: `label := store.EventDeleteGroup.String()`
 func (t EventType) String() string {
 	switch t {
 	case EventSet:
@@ -33,140 +33,215 @@ func (t EventType) String() string {
 	}
 }
 
-// Event describes a single store mutation. Key is empty for EventDeleteGroup.
-// Value is only populated for EventSet.
+// Usage example: `event := store.Event{Type: store.EventSet, Group: "config", Key: "colour", Value: "blue"}`
+// Usage example: `event := store.Event{Type: store.EventDeleteGroup, Group: "config"}`
 type Event struct {
-	Type      EventType
-	Group     string
-	Key       string
-	Value     string
+	// Usage example: `if event.Type == store.EventDeleteGroup { return }`
+	Type EventType
+	// Usage example: `if event.Group == "config" { return }`
+	Group string
+	// Usage example: `if event.Key == "colour" { return }`
+	Key string
+	// Usage example: `if event.Value == "blue" { return }`
+	Value string
+	// Usage example: `if event.Timestamp.IsZero() { return }`
 	Timestamp time.Time
 }
 
-// Watcher receives events matching a group/key filter. Use Store.Watch to
-// create one and Store.Unwatch to stop delivery.
-type Watcher struct {
-	// Ch is the public read-only channel that consumers select on.
-	Ch <-chan Event
-
-	// ch is the internal write channel (same underlying channel as Ch).
-	ch chan Event
-
-	group string
-	key   string
-	id    uint64
+// changeCallbackRegistration keeps the registration ID so unregister can remove
+// the exact callback later.
+type changeCallbackRegistration struct {
+	registrationID uint64
+	callback       func(Event)
 }
 
-// callbackEntry pairs a change callback with its unique ID for unregistration.
-type callbackEntry struct {
-	id uint64
-	fn func(Event)
+func closedEventChannel() chan Event {
+	eventChannel := make(chan Event)
+	close(eventChannel)
+	return eventChannel
 }
 
-// watcherBufSize is the capacity of each watcher's buffered channel.
-const watcherBufSize = 16
+// Watch("config") can hold 16 pending events before non-blocking sends start
+// dropping new ones.
+const watcherEventBufferCapacity = 16
 
-// Watch creates a new watcher that receives events matching the given group and
-// key. Use "*" as a wildcard: ("mygroup", "*") matches all keys in that group,
-// ("*", "*") matches every mutation. The returned Watcher has a buffered
-// channel (cap 16); events are dropped if the consumer falls behind.
-func (s *Store) Watch(group, key string) *Watcher {
-	ch := make(chan Event, watcherBufSize)
-	w := &Watcher{
-		Ch:    ch,
-		ch:    ch,
-		group: group,
-		key:   key,
-		id:    atomic.AddUint64(&s.nextID, 1),
+// Usage example: `events := storeInstance.Watch("config")`
+// Usage example: `events := storeInstance.Watch("*")`
+func (storeInstance *Store) Watch(group string) <-chan Event {
+	if storeInstance == nil {
+		return closedEventChannel()
 	}
 
-	s.mu.Lock()
-	s.watchers = append(s.watchers, w)
-	s.mu.Unlock()
+	storeInstance.closeLock.Lock()
+	closed := storeInstance.closed
+	storeInstance.closeLock.Unlock()
+	if closed {
+		return closedEventChannel()
+	}
 
-	return w
+	eventChannel := make(chan Event, watcherEventBufferCapacity)
+
+	storeInstance.watchersLock.Lock()
+	defer storeInstance.watchersLock.Unlock()
+	storeInstance.closeLock.Lock()
+	closed = storeInstance.closed
+	storeInstance.closeLock.Unlock()
+	if closed {
+		return closedEventChannel()
+	}
+	if storeInstance.watchers == nil {
+		storeInstance.watchers = make(map[string][]chan Event)
+	}
+	storeInstance.watchers[group] = append(storeInstance.watchers[group], eventChannel)
+
+	return eventChannel
 }
 
-// Unwatch removes a watcher and closes its channel. Safe to call multiple
-// times; subsequent calls are no-ops.
-func (s *Store) Unwatch(w *Watcher) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+// Usage example: `storeInstance.Unwatch("config", events)`
+func (storeInstance *Store) Unwatch(group string, events <-chan Event) {
+	if storeInstance == nil || events == nil {
+		return
+	}
 
-	s.watchers = slices.DeleteFunc(s.watchers, func(existing *Watcher) bool {
-		if existing.id == w.id {
-			close(w.ch)
-			return true
+	storeInstance.closeLock.Lock()
+	closed := storeInstance.closed
+	storeInstance.closeLock.Unlock()
+	if closed {
+		return
+	}
+
+	storeInstance.watchersLock.Lock()
+	defer storeInstance.watchersLock.Unlock()
+
+	registeredEvents := storeInstance.watchers[group]
+	if len(registeredEvents) == 0 {
+		return
+	}
+
+	eventsPointer := channelPointer(events)
+	nextRegisteredEvents := registeredEvents[:0]
+	removed := false
+	for _, registeredChannel := range registeredEvents {
+		if channelPointer(registeredChannel) == eventsPointer {
+			if !removed {
+				close(registeredChannel)
+				removed = true
+			}
+			continue
 		}
-		return false
-	})
+		nextRegisteredEvents = append(nextRegisteredEvents, registeredChannel)
+	}
+	if !removed {
+		return
+	}
+	if len(nextRegisteredEvents) == 0 {
+		delete(storeInstance.watchers, group)
+		return
+	}
+	storeInstance.watchers[group] = nextRegisteredEvents
 }
 
-// OnChange registers a callback that fires on every store mutation. Callbacks
-// are called synchronously in the goroutine that performed the write, so the
-// caller controls concurrency. Returns an unregister function; calling it stops
-// future invocations.
-//
-// This is the integration point for go-ws and similar consumers:
-//
-//	unreg := store.OnChange(func(e store.Event) {
-//	    hub.SendToChannel("store-events", e)
-//	})
-//	defer unreg()
-func (s *Store) OnChange(fn func(Event)) func() {
-	id := atomic.AddUint64(&s.nextID, 1)
-	entry := callbackEntry{id: id, fn: fn}
+// Usage example: `unregister := storeInstance.OnChange(func(event store.Event) { fmt.Println(event.Group, event.Key, event.Value) })`
+func (storeInstance *Store) OnChange(callback func(Event)) func() {
+	if callback == nil {
+		return func() {}
+	}
 
-	s.mu.Lock()
-	s.callbacks = append(s.callbacks, entry)
-	s.mu.Unlock()
+	if storeInstance == nil {
+		return func() {}
+	}
+
+	storeInstance.closeLock.Lock()
+	closed := storeInstance.closed
+	storeInstance.closeLock.Unlock()
+	if closed {
+		return func() {}
+	}
+
+	registrationID := atomic.AddUint64(&storeInstance.nextCallbackRegistrationID, 1)
+	callbackRegistration := changeCallbackRegistration{registrationID: registrationID, callback: callback}
+
+	storeInstance.callbacksLock.Lock()
+	defer storeInstance.callbacksLock.Unlock()
+	storeInstance.closeLock.Lock()
+	closed = storeInstance.closed
+	storeInstance.closeLock.Unlock()
+	if closed {
+		return func() {}
+	}
+	storeInstance.callbacks = append(storeInstance.callbacks, callbackRegistration)
 
 	// Return an idempotent unregister function.
 	var once sync.Once
 	return func() {
 		once.Do(func() {
-			s.mu.Lock()
-			defer s.mu.Unlock()
-			s.callbacks = slices.DeleteFunc(s.callbacks, func(cb callbackEntry) bool {
-				return cb.id == id
-			})
+			storeInstance.callbacksLock.Lock()
+			defer storeInstance.callbacksLock.Unlock()
+			for i := range storeInstance.callbacks {
+				if storeInstance.callbacks[i].registrationID == registrationID {
+					storeInstance.callbacks = append(storeInstance.callbacks[:i], storeInstance.callbacks[i+1:]...)
+					return
+				}
+			}
 		})
 	}
 }
 
-// notify dispatches an event to all matching watchers and callbacks. It must be
-// called after a successful DB write. Watcher sends are non-blocking — if a
-// channel buffer is full the event is silently dropped to avoid blocking the
-// writer.
-func (s *Store) notify(e Event) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
+// notify(Event{Type: EventSet, Group: "config", Key: "colour", Value: "blue"})
+// dispatches matching watchers and callbacks after a successful write. If a
+// watcher buffer is full, the event is dropped instead of blocking the writer.
+// Callbacks are copied under a separate lock and invoked after the lock is
+// released, so they can register or unregister subscriptions without
+// deadlocking.
+func (storeInstance *Store) notify(event Event) {
+	if storeInstance == nil {
+		return
+	}
+	if event.Timestamp.IsZero() {
+		event.Timestamp = time.Now()
+	}
 
-	for _, w := range s.watchers {
-		if !watcherMatches(w, e) {
-			continue
-		}
-		// Non-blocking send: drop the event rather than block the writer.
+	storeInstance.closeLock.Lock()
+	closed := storeInstance.closed
+	storeInstance.closeLock.Unlock()
+	if closed {
+		return
+	}
+
+	storeInstance.watchersLock.RLock()
+	storeInstance.closeLock.Lock()
+	closed = storeInstance.closed
+	storeInstance.closeLock.Unlock()
+	if closed {
+		storeInstance.watchersLock.RUnlock()
+		return
+	}
+	for _, registeredChannel := range storeInstance.watchers["*"] {
 		select {
-		case w.ch <- e:
+		case registeredChannel <- event:
 		default:
 		}
 	}
+	for _, registeredChannel := range storeInstance.watchers[event.Group] {
+		select {
+		case registeredChannel <- event:
+		default:
+		}
+	}
+	storeInstance.watchersLock.RUnlock()
 
-	for _, cb := range s.callbacks {
-		cb.fn(e)
+	storeInstance.callbacksLock.RLock()
+	callbacks := append([]changeCallbackRegistration(nil), storeInstance.callbacks...)
+	storeInstance.callbacksLock.RUnlock()
+
+	for _, callback := range callbacks {
+		callback.callback(event)
 	}
 }
 
-// watcherMatches reports whether a watcher's filter matches the given event.
-func watcherMatches(w *Watcher, e Event) bool {
-	if w.group != "*" && w.group != e.Group {
-		return false
+func channelPointer(eventChannel <-chan Event) uintptr {
+	if eventChannel == nil {
+		return 0
 	}
-	if w.key != "*" && w.key != e.Key {
-		// EventDeleteGroup has an empty Key — only wildcard watchers or
-		// group-level watchers (key="*") should receive it.
-		return false
-	}
-	return true
+	return reflect.ValueOf(eventChannel).Pointer()
 }

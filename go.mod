@@ -3,7 +3,8 @@ module dappco.re/go/core/store
 go 1.26.0
 
 require (
-	dappco.re/go/core/log v0.1.0
+	dappco.re/go/core v0.8.0-alpha.1
+	github.com/klauspost/compress v1.18.5
 	github.com/stretchr/testify v1.11.1
 	modernc.org/sqlite v1.47.0
 )

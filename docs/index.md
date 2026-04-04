@@ -7,6 +7,8 @@ description: Group-namespaced SQLite key-value store with TTL expiry, namespace 
 
 `go-store` is a group-namespaced key-value store backed by SQLite. It provides persistent or in-memory storage with optional TTL expiry, namespace isolation for multi-tenant use, quota enforcement, and a reactive event system for observing mutations.
 
+For declarative setup, `store.NewConfigured(store.StoreConfig{...})` takes a single config struct instead of functional options. Prefer this when the configuration is already known; use `store.New(path, ...)` when you are only varying the database path.
+
 The package has a single runtime dependency -- a pure-Go SQLite driver (`modernc.org/sqlite`). No CGO is required. It compiles and runs on all platforms that Go supports.
 
 **Module path:** `dappco.re/go/core/store`
@@ -26,67 +28,102 @@ import (
 )
 
 func main() {
-    // Open a store. Use ":memory:" for ephemeral data or a file path for persistence.
-    st, err := store.New("/tmp/app.db")
+    // Open /tmp/app.db for persistence, or use ":memory:" for ephemeral data.
+    storeInstance, err := store.NewConfigured(store.StoreConfig{
+        DatabasePath: "/tmp/app.db",
+        PurgeInterval: 30 * time.Second,
+    })
     if err != nil {
-        panic(err)
+        return
     }
-    defer st.Close()
+    defer storeInstance.Close()
 
-    // Basic CRUD
-    st.Set("config", "theme", "dark")
-    val, _ := st.Get("config", "theme")
-    fmt.Println(val) // "dark"
+    // Store "blue" under config/colour and read it back.
+    if err := storeInstance.Set("config", "colour", "blue"); err != nil {
+        return
+    }
+    colourValue, err := storeInstance.Get("config", "colour")
+    if err != nil {
+        return
+    }
+    fmt.Println(colourValue) // "blue"
 
-    // TTL expiry -- key disappears after the duration elapses
-    st.SetWithTTL("session", "token", "abc123", 24*time.Hour)
+    // Store a session token that expires after 24 hours.
+    if err := storeInstance.SetWithTTL("session", "token", "abc123", 24*time.Hour); err != nil {
+        return
+    }
 
-    // Fetch all keys in a group
-    all, _ := st.GetAll("config")
-    fmt.Println(all) // map[theme:dark]
+    // Read config/colour back into a map.
+    configEntries, err := storeInstance.GetAll("config")
+    if err != nil {
+        return
+    }
+    fmt.Println(configEntries) // map[colour:blue]
 
-    // Template rendering from stored values
-    st.Set("mail", "host", "smtp.example.com")
-    st.Set("mail", "port", "587")
-    out, _ := st.Render(`{{ .host }}:{{ .port }}`, "mail")
-    fmt.Println(out) // "smtp.example.com:587"
+    // Render the mail host and port into smtp.example.com:587.
+    if err := storeInstance.Set("mail", "host", "smtp.example.com"); err != nil {
+        return
+    }
+    if err := storeInstance.Set("mail", "port", "587"); err != nil {
+        return
+    }
+    renderedTemplate, err := storeInstance.Render(`{{ .host }}:{{ .port }}`, "mail")
+    if err != nil {
+        return
+    }
+    fmt.Println(renderedTemplate) // "smtp.example.com:587"
 
-    // Namespace isolation for multi-tenant use
-    sc, _ := store.NewScoped(st, "tenant-42")
-    sc.Set("prefs", "locale", "en-GB")
-    // Stored internally as group "tenant-42:prefs", key "locale"
+    // Store tenant-42 preferences under the tenant-42: namespace prefix.
+    scopedStore, err := store.NewScoped(storeInstance, "tenant-42")
+    if err != nil {
+        return
+    }
+    if err := scopedStore.SetIn("preferences", "locale", "en-GB"); err != nil {
+        return
+    }
+    // Stored internally as group "tenant-42:preferences", key "locale"
 
-    // Quota enforcement
-    quota := store.QuotaConfig{MaxKeys: 100, MaxGroups: 5}
-    sq, _ := store.NewScopedWithQuota(st, "tenant-99", quota)
-    err = sq.Set("g", "k", "v") // returns store.ErrQuotaExceeded if limits are hit
+    // Cap tenant-99 at 100 keys and 5 groups.
+    quotaScopedStore, err := store.NewScopedWithQuota(storeInstance, "tenant-99", store.QuotaConfig{MaxKeys: 100, MaxGroups: 5})
+    if err != nil {
+        return
+    }
+    // A write past the limit returns store.QuotaExceededError.
+    if err := quotaScopedStore.SetIn("g", "k", "v"); err != nil {
+        return
+    }
 
-    // Watch for mutations via a buffered channel
-    w := st.Watch("config", "*")
-    defer st.Unwatch(w)
+    // Watch "config" changes and print each event as it arrives.
+    events := storeInstance.Watch("config")
+    defer storeInstance.Unwatch("config", events)
     go func() {
-        for e := range w.Ch {
-            fmt.Printf("event: %s %s/%s\n", e.Type, e.Group, e.Key)
+        for event := range events {
+            fmt.Println("event", event.Type, event.Group, event.Key, event.Value)
         }
     }()
 
-    // Or register a synchronous callback
-    unreg := st.OnChange(func(e store.Event) {
-        fmt.Printf("changed: %s\n", e.Key)
+    // Or register a synchronous callback for the same mutations.
+    unregister := storeInstance.OnChange(func(event store.Event) {
+        fmt.Println("changed", event.Group, event.Key, event.Value)
     })
-    defer unreg()
+    defer unregister()
 }
 ```
 
 ## Package Layout
 
-The entire package lives in a single Go package (`package store`) with three source files:
+The entire package lives in a single Go package (`package store`) with the following implementation files plus `doc.go` for the package comment:
 
 | File | Purpose |
 |------|---------|
-| `store.go` | Core `Store` type, CRUD operations (`Get`, `Set`, `SetWithTTL`, `Delete`, `DeleteGroup`), bulk queries (`GetAll`, `All`, `Count`, `CountAll`, `Groups`, `GroupsSeq`), string splitting helpers (`GetSplit`, `GetFields`), template rendering (`Render`), TTL expiry, background purge goroutine |
-| `events.go` | `EventType` constants, `Event` struct, `Watcher` type, `Watch`/`Unwatch` subscription management, `OnChange` callback registration, internal `notify` dispatch |
-| `scope.go` | `ScopedStore` wrapper for namespace isolation, `QuotaConfig` struct, `NewScoped`/`NewScopedWithQuota` constructors, quota enforcement logic |
+| `doc.go` | Package comment with concrete usage examples |
+| `store.go` | Core `Store` type, CRUD operations (`Get`, `Set`, `SetWithTTL`, `Delete`, `DeleteGroup`, `DeletePrefix`), bulk queries (`GetAll`, `GetPage`, `All`, `Count`, `CountAll`, `Groups`, `GroupsSeq`), string splitting helpers (`GetSplit`, `GetFields`), template rendering (`Render`), TTL expiry, background purge goroutine, transaction support |
+| `transaction.go` | `Store.Transaction`, transaction-scoped write helpers, staged event dispatch |
+| `events.go` | `EventType` constants, `Event` struct, `Watch`/`Unwatch` channel subscriptions, `OnChange` callback registration, internal `notify` dispatch |
+| `scope.go` | `ScopedStore` wrapper for namespace isolation, `QuotaConfig` struct, `NewScoped`/`NewScopedWithQuota` constructors, namespace-local helper delegation, quota enforcement logic |
+| `journal.go` | Journal persistence, Flux-like querying, JSON row inflation, journal schema helpers |
+| `workspace.go` | Workspace buffers, aggregation, query analysis, commit flow, and orphan recovery |
+| `compact.go` | Cold archive generation to JSONL gzip or zstd |
 
 Tests are organised in corresponding files:
 
@@ -112,7 +149,7 @@ Tests are organised in corresponding files:
 |--------|---------|
 | `github.com/stretchr/testify` | Assertion helpers (`assert`, `require`) for tests. |
 
-There are no other direct dependencies. The package uses only the Go standard library (`database/sql`, `context`, `sync`, `time`, `text/template`, `iter`, `errors`, `fmt`, `strings`, `regexp`, `slices`, `sync/atomic`) beyond the SQLite driver.
+There are no other direct dependencies. The package uses the Go standard library plus `dappco.re/go/core` helper primitives for error wrapping, string handling, and filesystem-safe path composition.
 
 ## Key Types
 
@@ -120,15 +157,17 @@ There are no other direct dependencies. The package uses only the Go standard li
 - **`ScopedStore`** -- wraps a `*Store` with an auto-prefixed namespace. Provides the same API surface with group names transparently prefixed.
 - **`QuotaConfig`** -- configures per-namespace limits on total keys and distinct groups.
 - **`Event`** -- describes a single store mutation (type, group, key, value, timestamp).
-- **`Watcher`** -- a channel-based subscription to store events, created by `Watch`.
-- **`KV`** -- a simple key-value pair struct, used by the `All` iterator.
+- **`Watch`** -- returns a buffered channel subscription to store events. Use `Unwatch(group, events)` to stop delivery and close the channel.
+- **`KeyValue`** -- a simple key-value pair struct, used by the `All` iterator.
 
 ## Sentinel Errors
 
-- **`ErrNotFound`** -- returned by `Get` when the requested key does not exist or has expired.
-- **`ErrQuotaExceeded`** -- returned by `ScopedStore.Set`/`SetWithTTL` when a namespace quota limit is reached.
+- **`NotFoundError`** -- returned by `Get` when the requested key does not exist or has expired.
+- **`QuotaExceededError`** -- returned by `ScopedStore.Set`/`SetWithTTL` when a namespace quota limit is reached.
 
 ## Further Reading
 
+- [Agent Conventions](../CODEX.md) -- Codex-facing repo rules and AX notes
+- [AX RFC](RFC-CORE-008-AGENT-EXPERIENCE.md) -- naming, comment, and path conventions for agent consumers
 - [Architecture](architecture.md) -- storage layer internals, TTL model, event system, concurrency design
 - [Development Guide](development.md) -- building, testing, benchmarks, contribution workflow

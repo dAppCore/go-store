@@ -4,6 +4,7 @@ run:
 
 linters:
   enable:
+    - depguard
     - govet
     - errcheck
     - staticcheck
@@ -16,6 +17,17 @@ linters:
   disable:
     - exhaustive
     - wrapcheck
+
+linters-settings:
+  depguard:
+    rules:
+      legacy-module-paths:
+        list-mode: lax
+        files:
+          - $all
+        deny:
+          - pkg: forge.lthn.ai/
+            desc: use dappco.re/ module paths instead
 
 issues:
   exclude-use-default: false

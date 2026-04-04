@@ -23,7 +23,7 @@ go test ./...
 go test -race ./...
 
 # Run a single test by name
-go test -v -run TestWatch_Good_SpecificKey ./...
+go test -v -run TestEvents_Watch_Good_SpecificKey ./...
 
 # Run tests with coverage
 go test -cover ./...
@@ -51,7 +51,7 @@ core go qa              # fmt + vet + lint + test
 
 ## Test Patterns
 
-Tests follow the `_Good`, `_Bad`, `_Ugly` suffix convention used across the Core Go ecosystem:
+Tests follow the `Test<File>_<Function>_<Good|Bad|Ugly>` convention used across the Core Go ecosystem:
 
 - `_Good` -- happy-path behaviour, including edge cases that should succeed
 - `_Bad` -- expected error conditions (closed store, invalid input, quota exceeded)
@@ -64,15 +64,15 @@ Tests are grouped into sections by the method under test, marked with comment ba
 // Watch -- specific key
 // ---------------------------------------------------------------------------
 
-func TestWatch_Good_SpecificKey(t *testing.T) { ... }
-func TestWatch_Good_WildcardKey(t *testing.T) { ... }
+func TestEvents_Watch_Good_SpecificKey(t *testing.T) { ... }
+func TestEvents_Watch_Good_WildcardKey(t *testing.T) { ... }
 ```
 
 ### In-Memory vs File-Backed Stores
 
 Use `New(":memory:")` for all tests that do not require persistence. In-memory stores are faster and leave no filesystem artefacts.
 
-Use `filepath.Join(t.TempDir(), "name.db")` for tests that verify WAL mode, persistence across open/close cycles, or concurrent writes. `t.TempDir()` is cleaned up automatically at the end of the test.
+Use `core.Path(t.TempDir(), "name.db")` for tests that verify WAL mode, persistence across open/close cycles, or concurrent writes. `t.TempDir()` is cleaned up automatically at the end of the test.
 
 ### TTL Tests
 
@@ -144,7 +144,7 @@ The only permitted runtime dependency is `modernc.org/sqlite`. Test-only depende
 ## Adding a New Method
 
 1. Implement the method on `*Store` in `store.go` (or `scope.go` if it is namespace-scoped).
-2. If it is a mutating operation, call `s.notify(Event{...})` after the successful database write.
+2. If it is a mutating operation, call `storeInstance.notify(Event{...})` after the successful database write.
 3. Add a corresponding delegation method to `ScopedStore` in `scope.go` that prefixes the group.
 4. Write tests covering the happy path, error conditions, and closed-store behaviour.
 5. Update quota checks in `checkQuota` if the operation affects key or group counts.
