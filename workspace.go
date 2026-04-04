@@ -354,6 +354,16 @@ func (workspace *Workspace) aggregateFields() (map[string]any, error) {
 }
 
 func (workspace *Workspace) closeAndRemoveFiles() error {
+	return workspace.closeAndCleanup(true)
+}
+
+// closeWithoutRemovingFiles closes the database handle but leaves the orphan
+// file on disk so a later store instance can recover it.
+func (workspace *Workspace) closeWithoutRemovingFiles() error {
+	return workspace.closeAndCleanup(false)
+}
+
+func (workspace *Workspace) closeAndCleanup(removeFiles bool) error {
 	if workspace == nil {
 		return nil
 	}
@@ -371,6 +381,9 @@ func (workspace *Workspace) closeAndRemoveFiles() error {
 
 	if err := workspace.database.Close(); err != nil {
 		return core.E("store.Workspace.closeAndRemoveFiles", "close workspace database", err)
+	}
+	if !removeFiles {
+		return nil
 	}
 	for _, path := range []string{workspace.databasePath, workspace.databasePath + "-wal", workspace.databasePath + "-shm"} {
 		if result := workspace.filesystem.Delete(path); !result.OK && workspace.filesystem.Exists(path) {
