@@ -558,7 +558,7 @@ func (conn *stubSQLiteConn) Begin() (driver.Tx, error) {
 	return conn.BeginTx(context.Background(), driver.TxOptions{})
 }
 
-func (conn *stubSQLiteConn) BeginTx(ctx context.Context, opts driver.TxOptions) (driver.Tx, error) {
+func (conn *stubSQLiteConn) BeginTx(ctx context.Context, options driver.TxOptions) (driver.Tx, error) {
 	if conn.scenario.beginErr != nil {
 		return nil, conn.scenario.beginErr
 	}
@@ -619,16 +619,16 @@ func (conn *stubSQLiteConn) QueryContext(ctx context.Context, query string, args
 	return nil, core.E("stubSQLiteConn.QueryContext", "unexpected query", nil)
 }
 
-func (tx *stubSQLiteTx) Commit() error {
-	if tx.scenario.commitErr != nil {
-		return tx.scenario.commitErr
+func (transaction *stubSQLiteTx) Commit() error {
+	if transaction.scenario.commitErr != nil {
+		return transaction.scenario.commitErr
 	}
 	return nil
 }
 
-func (tx *stubSQLiteTx) Rollback() error {
-	if tx.scenario.rollbackErr != nil {
-		return tx.scenario.rollbackErr
+func (transaction *stubSQLiteTx) Rollback() error {
+	if transaction.scenario.rollbackErr != nil {
+		return transaction.scenario.rollbackErr
 	}
 	return nil
 }
