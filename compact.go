@@ -32,10 +32,10 @@ func (compactOptions CompactOptions) Normalised() CompactOptions {
 	if compactOptions.Output == "" {
 		compactOptions.Output = defaultArchiveOutputDirectory
 	}
+	compactOptions.Format = lowerText(core.Trim(compactOptions.Format))
 	if compactOptions.Format == "" {
 		compactOptions.Format = "gzip"
 	}
-	compactOptions.Format = lowerText(core.Trim(compactOptions.Format))
 	return compactOptions
 }
 

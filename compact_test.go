@@ -223,6 +223,16 @@ func TestCompact_CompactOptions_Good_ValidateNormalisesFormatCase(t *testing.T) 
 	assert.Equal(t, "zstd", options.Format)
 }
 
+func TestCompact_CompactOptions_Good_ValidateWhitespaceFormatDefaultsToGzip(t *testing.T) {
+	options := (CompactOptions{
+		Before: time.Now().Add(-24 * time.Hour),
+		Format: "   ",
+	}).Normalised()
+
+	assert.Equal(t, "gzip", options.Format)
+	require.NoError(t, options.Validate())
+}
+
 func TestCompact_CompactOptions_Bad_ValidateUnsupportedFormat(t *testing.T) {
 	err := (CompactOptions{
 		Before: time.Now().Add(-24 * time.Hour),
