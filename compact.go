@@ -25,12 +25,12 @@ type CompactOptions struct {
 }
 
 type compactArchiveEntry struct {
-	entryID              int64
-	bucketName           string
-	measurementName      string
-	fieldsJSON           string
-	tagsJSON             string
-	committedAtUnixMilli int64
+	journalEntryID              int64
+	journalBucketName           string
+	journalMeasurementName      string
+	journalFieldsJSON           string
+	journalTagsJSON             string
+	journalCommittedAtUnixMilli int64
 }
 
 // Usage example: `result := storeInstance.Compact(store.CompactOptions{Before: time.Now().Add(-30 * 24 * time.Hour), Output: "/tmp/archive", Format: "gzip"})`
@@ -72,12 +72,12 @@ func (storeInstance *Store) Compact(options CompactOptions) core.Result {
 	for rows.Next() {
 		var entry compactArchiveEntry
 		if err := rows.Scan(
-			&entry.entryID,
-			&entry.bucketName,
-			&entry.measurementName,
-			&entry.fieldsJSON,
-			&entry.tagsJSON,
-			&entry.committedAtUnixMilli,
+			&entry.journalEntryID,
+			&entry.journalBucketName,
+			&entry.journalMeasurementName,
+			&entry.journalFieldsJSON,
+			&entry.journalTagsJSON,
+			&entry.journalCommittedAtUnixMilli,
 		); err != nil {
 			return core.Result{Value: core.E("store.Compact", "scan journal row", err), OK: false}
 		}
@@ -157,7 +157,7 @@ func (storeInstance *Store) Compact(options CompactOptions) core.Result {
 		if _, err := transaction.Exec(
 			"UPDATE "+journalEntriesTableName+" SET archived_at = ? WHERE entry_id = ?",
 			archivedAt,
-			entry.entryID,
+			entry.journalEntryID,
 		); err != nil {
 			return core.Result{Value: core.E("store.Compact", "mark journal row archived", err), OK: false}
 		}
@@ -172,23 +172,23 @@ func (storeInstance *Store) Compact(options CompactOptions) core.Result {
 
 func archiveEntryLine(entry compactArchiveEntry) (map[string]any, error) {
 	fields := make(map[string]any)
-	fieldsResult := core.JSONUnmarshalString(entry.fieldsJSON, &fields)
+	fieldsResult := core.JSONUnmarshalString(entry.journalFieldsJSON, &fields)
 	if !fieldsResult.OK {
 		return nil, core.E("store.Compact", "unmarshal fields", fieldsResult.Value.(error))
 	}
 
 	tags := make(map[string]string)
-	tagsResult := core.JSONUnmarshalString(entry.tagsJSON, &tags)
+	tagsResult := core.JSONUnmarshalString(entry.journalTagsJSON, &tags)
 	if !tagsResult.OK {
 		return nil, core.E("store.Compact", "unmarshal tags", tagsResult.Value.(error))
 	}
 
 	return map[string]any{
-		"bucket":       entry.bucketName,
-		"measurement":  entry.measurementName,
+		"bucket":       entry.journalBucketName,
+		"measurement":  entry.journalMeasurementName,
 		"fields":       fields,
 		"tags":         tags,
-		"committed_at": entry.committedAtUnixMilli,
+		"committed_at": entry.journalCommittedAtUnixMilli,
 	}, nil
 }
 
