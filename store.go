@@ -67,7 +67,7 @@ func (storeConfig StoreConfig) Validate() error {
 }
 
 // Usage example: `config := storeInstance.JournalConfiguration(); fmt.Println(config.EndpointURL, config.Organisation, config.BucketName)`
-// Usage example: `store.New(":memory:", store.WithJournal("http://127.0.0.1:8086", "core", "events"))`
+// Usage example: `store.NewConfigured(store.StoreConfig{DatabasePath: ":memory:", Journal: store.JournalConfiguration{EndpointURL: "http://127.0.0.1:8086", Organisation: "core", BucketName: "events"}})`
 type JournalConfiguration struct {
 	// Usage example: `config := store.JournalConfiguration{EndpointURL: "http://127.0.0.1:8086"}`
 	EndpointURL string
@@ -169,7 +169,7 @@ func WithJournal(endpointURL, organisation, bucketName string) StoreOption {
 	}
 }
 
-// Usage example: `storeInstance, err := store.New(":memory:", store.WithWorkspaceStateDirectory("/tmp/core-state"))`
+// Usage example: `storeInstance, err := store.NewConfigured(store.StoreConfig{DatabasePath: ":memory:", WorkspaceStateDirectory: "/tmp/core-state"})`
 func WithWorkspaceStateDirectory(directory string) StoreOption {
 	return func(storeConfig *StoreConfig) {
 		if storeConfig == nil {
