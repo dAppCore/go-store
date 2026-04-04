@@ -426,7 +426,7 @@ func (workspace *Workspace) closeAndCleanup(removeFiles bool) error {
 
 	if !alreadyClosed {
 		if err := workspace.workspaceDatabase.Close(); err != nil {
-			return core.E("store.Workspace.closeAndRemoveFiles", "close workspace database", err)
+			return core.E("store.Workspace.closeAndCleanup", "close workspace database", err)
 		}
 	}
 	if !removeFiles {
@@ -434,7 +434,7 @@ func (workspace *Workspace) closeAndCleanup(removeFiles bool) error {
 	}
 	for _, path := range []string{workspace.databasePath, workspace.databasePath + "-wal", workspace.databasePath + "-shm"} {
 		if result := workspace.filesystem.Delete(path); !result.OK && workspace.filesystem.Exists(path) {
-			return core.E("store.Workspace.closeAndRemoveFiles", "delete workspace file", result.Value.(error))
+			return core.E("store.Workspace.closeAndCleanup", "delete workspace file", result.Value.(error))
 		}
 	}
 	return nil
