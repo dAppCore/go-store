@@ -60,6 +60,25 @@ func TestJournal_QueryJournal_Good_RawSQLWithCTE(t *testing.T) {
 	assert.Equal(t, "session-a", rows[0]["measurement"])
 }
 
+func TestJournal_QueryJournal_Good_PragmaSQL(t *testing.T) {
+	storeInstance, err := New(":memory:", WithJournal("http://127.0.0.1:8086", "core", "events"))
+	require.NoError(t, err)
+	defer storeInstance.Close()
+
+	rows := requireResultRows(
+		t,
+		storeInstance.QueryJournal("PRAGMA table_info(journal_entries)"),
+	)
+	require.NotEmpty(t, rows)
+	var columnNames []string
+	for _, row := range rows {
+		name, ok := row["name"].(string)
+		require.True(t, ok, "unexpected column name type: %T", row["name"])
+		columnNames = append(columnNames, name)
+	}
+	assert.Contains(t, columnNames, "bucket_name")
+}
+
 func TestJournal_QueryJournal_Good_FluxFilters(t *testing.T) {
 	storeInstance, err := New(":memory:", WithJournal("http://127.0.0.1:8086", "core", "events"))
 	require.NoError(t, err)
