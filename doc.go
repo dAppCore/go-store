@@ -1,9 +1,9 @@
-// Package store provides SQLite-backed key-value storage for grouped entries, TTL expiry,
-// namespace isolation, quota enforcement, reactive change notifications,
-// workspace journalling, and explicit orphan recovery.
+// Package store provides SQLite-backed key-value storage for grouped entries,
+// TTL expiry, namespace isolation, quota enforcement, reactive change
+// notifications, workspace journalling, and orphan recovery.
 //
-// Workspace files are created under `.core/state/` and can be recovered with
-// `RecoverOrphans(".core/state")`.
+// Workspace files live under `.core/state/` and can be recovered with
+// `RecoverOrphans(".core/state/")`.
 //
 // Use `store.NewConfigured(store.StoreConfig{...})` when the database path,
 // journal, and purge interval are already known. Prefer the struct literal
