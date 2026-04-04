@@ -419,7 +419,7 @@ func (workspace *Workspace) closeAndCleanup(removeFiles bool) error {
 	if workspace == nil {
 		return nil
 	}
-	if workspace.sqliteDatabase == nil || workspace.filesystem == nil {
+	if workspace.sqliteDatabase == nil {
 		return nil
 	}
 
@@ -435,7 +435,7 @@ func (workspace *Workspace) closeAndCleanup(removeFiles bool) error {
 			return core.E("store.Workspace.closeAndCleanup", "close workspace database", err)
 		}
 	}
-	if !removeFiles {
+	if !removeFiles || workspace.filesystem == nil {
 		return nil
 	}
 	for _, path := range []string{workspace.databasePath, workspace.databasePath + "-wal", workspace.databasePath + "-shm"} {

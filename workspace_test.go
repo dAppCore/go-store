@@ -226,6 +226,30 @@ func TestWorkspace_Close_Good_PreservesFileForRecovery(t *testing.T) {
 	assert.False(t, testFilesystem().Exists(workspace.databasePath))
 }
 
+func TestWorkspace_Close_Good_ClosesDatabaseWithoutFilesystem(t *testing.T) {
+	databasePath := testPath(t, "workspace-no-filesystem.duckdb")
+
+	sqliteDatabase, err := openWorkspaceDatabase(databasePath)
+	require.NoError(t, err)
+
+	workspace := &Workspace{
+		name:           "partial-workspace",
+		sqliteDatabase: sqliteDatabase,
+		databasePath:   databasePath,
+	}
+
+	require.NoError(t, workspace.Close())
+
+	_, execErr := sqliteDatabase.Exec("SELECT 1")
+	require.Error(t, execErr)
+	assert.Contains(t, execErr.Error(), "closed")
+
+	assert.True(t, testFilesystem().Exists(databasePath))
+	requireCoreOK(t, testFilesystem().Delete(databasePath))
+	_ = testFilesystem().Delete(databasePath + "-wal")
+	_ = testFilesystem().Delete(databasePath + "-shm")
+}
+
 func TestWorkspace_RecoverOrphans_Good(t *testing.T) {
 	stateDirectory := useWorkspaceStateDirectory(t)
 
