@@ -12,8 +12,8 @@ import (
 )
 
 const (
-	workspaceEntriesTableName  = "workspace_entries"
-	workspaceIdentityGroupName = "workspace"
+	workspaceEntriesTableName   = "workspace_entries"
+	workspaceSummaryGroupPrefix = "workspace"
 )
 
 const createWorkspaceEntriesTableSQL = `CREATE TABLE IF NOT EXISTS workspace_entries (
@@ -532,7 +532,7 @@ func openWorkspaceDatabase(databasePath string) (*sql.DB, error) {
 }
 
 func workspaceSummaryGroup(workspaceName string) string {
-	return core.Concat(workspaceIdentityGroupName, ":", workspaceName)
+	return core.Concat(workspaceSummaryGroupPrefix, ":", workspaceName)
 }
 
 func workspaceFilePath(stateDirectory, name string) string {
