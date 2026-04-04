@@ -140,6 +140,21 @@ func (scopedStore *ScopedStore) Namespace() string {
 	return scopedStore.namespace
 }
 
+// Config returns the namespace and quota settings as a single declarative struct.
+// Usage example: `config := scopedStore.Config(); fmt.Println(config.Namespace, config.Quota.MaxKeys, config.Quota.MaxGroups)`
+func (scopedStore *ScopedStore) Config() ScopedStoreConfig {
+	if scopedStore == nil {
+		return ScopedStoreConfig{}
+	}
+	return ScopedStoreConfig{
+		Namespace: scopedStore.namespace,
+		Quota: QuotaConfig{
+			MaxKeys:   scopedStore.MaxKeys,
+			MaxGroups: scopedStore.MaxGroups,
+		},
+	}
+}
+
 // Usage example: `colourValue, err := scopedStore.Get("colour")`
 func (scopedStore *ScopedStore) Get(key string) (string, error) {
 	return scopedStore.store.Get(scopedStore.namespacedGroup(scopedStore.defaultGroup()), key)

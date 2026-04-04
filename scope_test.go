@@ -23,6 +23,28 @@ func TestScope_NewScoped_Good(t *testing.T) {
 	assert.Equal(t, "tenant-1", scopedStore.Namespace())
 }
 
+func TestScope_ScopedStore_Good_Config(t *testing.T) {
+	storeInstance, _ := New(":memory:")
+	defer storeInstance.Close()
+
+	scopedStore, err := NewScopedConfigured(storeInstance, ScopedStoreConfig{
+		Namespace: "tenant-a",
+		Quota:     QuotaConfig{MaxKeys: 4, MaxGroups: 2},
+	})
+	require.NoError(t, err)
+
+	assert.Equal(t, ScopedStoreConfig{
+		Namespace: "tenant-a",
+		Quota:     QuotaConfig{MaxKeys: 4, MaxGroups: 2},
+	}, scopedStore.Config())
+}
+
+func TestScope_ScopedStore_Good_ConfigZeroValueFromNil(t *testing.T) {
+	var scopedStore *ScopedStore
+
+	assert.Equal(t, ScopedStoreConfig{}, scopedStore.Config())
+}
+
 func TestScope_NewScoped_Good_AlphanumericHyphens(t *testing.T) {
 	storeInstance, _ := New(":memory:")
 	defer storeInstance.Close()
