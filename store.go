@@ -139,6 +139,14 @@ func (storeInstance *Store) Config() StoreConfig {
 	}
 }
 
+// Usage example: `databasePath := storeInstance.DatabasePath(); fmt.Println(databasePath)`
+func (storeInstance *Store) DatabasePath() string {
+	if storeInstance == nil {
+		return ""
+	}
+	return storeInstance.databasePath
+}
+
 // Usage example: `storeInstance, err := store.New(":memory:", store.WithPurgeInterval(20*time.Millisecond))`
 func WithPurgeInterval(interval time.Duration) StoreOption {
 	return func(config *StoreConfig) {

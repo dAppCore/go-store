@@ -145,6 +145,16 @@ func TestStore_Config_Good(t *testing.T) {
 	}, storeInstance.Config())
 }
 
+func TestStore_DatabasePath_Good(t *testing.T) {
+	databasePath := testPath(t, "database-path.db")
+
+	storeInstance, err := New(databasePath)
+	require.NoError(t, err)
+	defer storeInstance.Close()
+
+	assert.Equal(t, databasePath, storeInstance.DatabasePath())
+}
+
 func TestStore_NewConfigured_Good(t *testing.T) {
 	storeInstance, err := NewConfigured(StoreConfig{
 		DatabasePath: ":memory:",
