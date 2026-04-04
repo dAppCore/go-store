@@ -83,18 +83,6 @@ func (journalConfig JournalConfiguration) isConfigured() bool {
 		journalConfig.BucketName != ""
 }
 
-type journalConfiguration struct {
-	endpointURL  string
-	organisation string
-	bucketName   string
-}
-
-func (journalConfig journalConfiguration) isConfigured() bool {
-	return journalConfig.endpointURL != "" &&
-		journalConfig.organisation != "" &&
-		journalConfig.bucketName != ""
-}
-
 // Usage example: `storeInstance, err := store.NewConfigured(store.StoreConfig{DatabasePath: ":memory:", Journal: store.JournalConfiguration{EndpointURL: "http://127.0.0.1:8086", Organisation: "core", BucketName: "events"}, PurgeInterval: 30 * time.Second})`
 // Store keeps grouped key-value entries in SQLite and can also write completed
 // work summaries to the journal table.
@@ -105,7 +93,7 @@ type Store struct {
 	cancelPurge          context.CancelFunc
 	purgeWaitGroup       sync.WaitGroup
 	purgeInterval        time.Duration // interval between background purge cycles
-	journalConfiguration journalConfiguration
+	journalConfiguration JournalConfiguration
 	closeLock            sync.Mutex
 	closed               bool
 
@@ -157,11 +145,7 @@ func (storeInstance *Store) JournalConfiguration() JournalConfiguration {
 	if storeInstance == nil {
 		return JournalConfiguration{}
 	}
-	return JournalConfiguration{
-		EndpointURL:  storeInstance.journalConfiguration.endpointURL,
-		Organisation: storeInstance.journalConfiguration.organisation,
-		BucketName:   storeInstance.journalConfiguration.bucketName,
-	}
+	return storeInstance.journalConfiguration
 }
 
 // Usage example: `if storeInstance.JournalConfigured() { fmt.Println("journal is fully configured") }`
@@ -232,11 +216,7 @@ func openConfiguredStore(operation string, storeConfig StoreConfig) (*Store, err
 	}
 
 	if storeConfig.Journal != (JournalConfiguration{}) {
-		storeInstance.journalConfiguration = journalConfiguration{
-			endpointURL:  storeConfig.Journal.EndpointURL,
-			organisation: storeConfig.Journal.Organisation,
-			bucketName:   storeConfig.Journal.BucketName,
-		}
+		storeInstance.journalConfiguration = storeConfig.Journal
 	}
 	if storeConfig.PurgeInterval > 0 {
 		storeInstance.purgeInterval = storeConfig.PurgeInterval
