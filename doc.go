@@ -11,10 +11,11 @@
 // `RecoverOrphans(".core/state/")`.
 //
 // Use `store.NewConfigured(store.StoreConfig{...})` when the database path,
-// journal, and purge interval are already known. Prefer the struct literal
-// over `store.New(..., store.WithJournal(...))` when the full configuration is
-// already available, because it reads as data rather than a chain of steps.
-// Use `store.WithWorkspaceStateDirectory("/tmp/core-state")` when the
+// journal, purge interval, or workspace state directory are already known.
+// Prefer the struct literal over `store.New(..., store.WithJournal(...))`
+// when the full configuration is already available, because it reads as data
+// rather than a chain of steps. Use
+// `store.WithWorkspaceStateDirectory("/tmp/core-state")` only when the
 // workspace path is assembled incrementally rather than declared up front.
 //
 // Usage example:

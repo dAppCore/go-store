@@ -174,6 +174,8 @@ func WithJournal(endpointURL, organisation, bucketName string) StoreOption {
 }
 
 // Usage example: `storeInstance, err := store.NewConfigured(store.StoreConfig{DatabasePath: ":memory:", WorkspaceStateDirectory: "/tmp/core-state"})`
+// Use this when the workspace state directory is being assembled
+// incrementally; otherwise prefer a StoreConfig literal.
 func WithWorkspaceStateDirectory(directory string) StoreOption {
 	return func(storeConfig *StoreConfig) {
 		if storeConfig == nil {
@@ -241,6 +243,8 @@ func (storeInstance *Store) IsClosed() bool {
 }
 
 // Usage example: `storeInstance, err := store.NewConfigured(store.StoreConfig{DatabasePath: ":memory:", PurgeInterval: 20 * time.Millisecond})`
+// Use this when the purge interval is being assembled incrementally; otherwise
+// prefer a StoreConfig literal.
 func WithPurgeInterval(interval time.Duration) StoreOption {
 	return func(storeConfig *StoreConfig) {
 		if storeConfig == nil {

@@ -113,9 +113,9 @@ func (storeInstance *Store) NewWorkspace(name string) (*Workspace, error) {
 		return nil, err
 	}
 
-	validation := core.ValidateName(name)
-	if !validation.OK {
-		return nil, core.E("store.NewWorkspace", "validate workspace name", validation.Value.(error))
+	workspaceNameValidation := core.ValidateName(name)
+	if !workspaceNameValidation.OK {
+		return nil, core.E("store.NewWorkspace", "validate workspace name", workspaceNameValidation.Value.(error))
 	}
 
 	filesystem := (&core.Fs{}).NewUnrestricted()
