@@ -471,7 +471,7 @@ func (storeInstance *Store) commitWorkspaceAggregate(workspaceName string, field
 		return err
 	}
 
-	if err := insertJournalEntry(
+	if err := commitJournalEntry(
 		transaction,
 		storeInstance.journalBucket(),
 		workspaceName,

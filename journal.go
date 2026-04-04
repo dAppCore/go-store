@@ -72,7 +72,7 @@ func (storeInstance *Store) CommitToJournal(measurement string, fields map[strin
 	}
 
 	committedAt := time.Now().UnixMilli()
-	if err := insertJournalEntry(
+	if err := commitJournalEntry(
 		storeInstance.sqliteDatabase,
 		storeInstance.journalBucket(),
 		measurement,
@@ -228,7 +228,7 @@ func ensureJournalSchema(database schemaDatabase) error {
 	return nil
 }
 
-func insertJournalEntry(
+func commitJournalEntry(
 	executor journalExecutor,
 	bucket, measurement, fieldsJSON, tagsJSON string,
 	committedAt int64,
