@@ -432,6 +432,94 @@ func TestStore_Set_Bad_ClosedStore(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
+// Exists
+// ---------------------------------------------------------------------------
+
+func TestStore_Exists_Good_Present(t *testing.T) {
+	storeInstance, _ := New(":memory:")
+	defer storeInstance.Close()
+
+	_ = storeInstance.Set("config", "colour", "blue")
+
+	exists, err := storeInstance.Exists("config", "colour")
+	require.NoError(t, err)
+	assert.True(t, exists)
+}
+
+func TestStore_Exists_Good_Absent(t *testing.T) {
+	storeInstance, _ := New(":memory:")
+	defer storeInstance.Close()
+
+	exists, err := storeInstance.Exists("config", "colour")
+	require.NoError(t, err)
+	assert.False(t, exists)
+}
+
+func TestStore_Exists_Good_ExpiredKeyReturnsFalse(t *testing.T) {
+	storeInstance, _ := New(":memory:")
+	defer storeInstance.Close()
+
+	_ = storeInstance.SetWithTTL("session", "token", "abc123", 1*time.Millisecond)
+	time.Sleep(5 * time.Millisecond)
+
+	exists, err := storeInstance.Exists("session", "token")
+	require.NoError(t, err)
+	assert.False(t, exists)
+}
+
+func TestStore_Exists_Bad_ClosedStore(t *testing.T) {
+	storeInstance, _ := New(":memory:")
+	storeInstance.Close()
+
+	_, err := storeInstance.Exists("g", "k")
+	require.Error(t, err)
+}
+
+// ---------------------------------------------------------------------------
+// GroupExists
+// ---------------------------------------------------------------------------
+
+func TestStore_GroupExists_Good_Present(t *testing.T) {
+	storeInstance, _ := New(":memory:")
+	defer storeInstance.Close()
+
+	_ = storeInstance.Set("config", "colour", "blue")
+
+	exists, err := storeInstance.GroupExists("config")
+	require.NoError(t, err)
+	assert.True(t, exists)
+}
+
+func TestStore_GroupExists_Good_Absent(t *testing.T) {
+	storeInstance, _ := New(":memory:")
+	defer storeInstance.Close()
+
+	exists, err := storeInstance.GroupExists("config")
+	require.NoError(t, err)
+	assert.False(t, exists)
+}
+
+func TestStore_GroupExists_Good_EmptyAfterDelete(t *testing.T) {
+	storeInstance, _ := New(":memory:")
+	defer storeInstance.Close()
+
+	_ = storeInstance.Set("config", "colour", "blue")
+	_ = storeInstance.DeleteGroup("config")
+
+	exists, err := storeInstance.GroupExists("config")
+	require.NoError(t, err)
+	assert.False(t, exists)
+}
+
+func TestStore_GroupExists_Bad_ClosedStore(t *testing.T) {
+	storeInstance, _ := New(":memory:")
+	storeInstance.Close()
+
+	_, err := storeInstance.GroupExists("config")
+	require.Error(t, err)
+}
+
+// ---------------------------------------------------------------------------
 // Delete
 // ---------------------------------------------------------------------------
 

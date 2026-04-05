@@ -80,6 +80,29 @@ func (storeTransaction *StoreTransaction) recordEvent(event Event) {
 	storeTransaction.pendingEvents = append(storeTransaction.pendingEvents, event)
 }
 
+// Usage example: `exists, err := transaction.Exists("config", "colour")`
+// Usage example: `if exists, _ := transaction.Exists("session", "token"); !exists { return core.E("auth", "session expired", nil) }`
+func (storeTransaction *StoreTransaction) Exists(group, key string) (bool, error) {
+	if err := storeTransaction.ensureReady("store.Transaction.Exists"); err != nil {
+		return false, err
+	}
+
+	return liveEntryExists(storeTransaction.sqliteTransaction, group, key)
+}
+
+// Usage example: `exists, err := transaction.GroupExists("config")`
+func (storeTransaction *StoreTransaction) GroupExists(group string) (bool, error) {
+	if err := storeTransaction.ensureReady("store.Transaction.GroupExists"); err != nil {
+		return false, err
+	}
+
+	count, err := storeTransaction.Count(group)
+	if err != nil {
+		return false, err
+	}
+	return count > 0, nil
+}
+
 // Usage example: `value, err := transaction.Get("config", "colour")`
 func (storeTransaction *StoreTransaction) Get(group, key string) (string, error) {
 	if err := storeTransaction.ensureReady("store.Transaction.Get"); err != nil {

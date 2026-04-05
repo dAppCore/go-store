@@ -54,6 +54,57 @@ func TestWorkspace_DatabasePath_Good(t *testing.T) {
 	assert.Equal(t, workspaceFilePath(stateDirectory, "scroll-session"), workspace.DatabasePath())
 }
 
+func TestWorkspace_Count_Good_Empty(t *testing.T) {
+	useWorkspaceStateDirectory(t)
+
+	storeInstance, err := New(":memory:")
+	require.NoError(t, err)
+	defer storeInstance.Close()
+
+	workspace, err := storeInstance.NewWorkspace("count-empty")
+	require.NoError(t, err)
+	defer workspace.Discard()
+
+	count, err := workspace.Count()
+	require.NoError(t, err)
+	assert.Equal(t, 0, count)
+}
+
+func TestWorkspace_Count_Good_AfterPuts(t *testing.T) {
+	useWorkspaceStateDirectory(t)
+
+	storeInstance, err := New(":memory:")
+	require.NoError(t, err)
+	defer storeInstance.Close()
+
+	workspace, err := storeInstance.NewWorkspace("count-puts")
+	require.NoError(t, err)
+	defer workspace.Discard()
+
+	require.NoError(t, workspace.Put("like", map[string]any{"user": "@alice"}))
+	require.NoError(t, workspace.Put("like", map[string]any{"user": "@bob"}))
+	require.NoError(t, workspace.Put("profile_match", map[string]any{"user": "@charlie"}))
+
+	count, err := workspace.Count()
+	require.NoError(t, err)
+	assert.Equal(t, 3, count)
+}
+
+func TestWorkspace_Count_Bad_ClosedWorkspace(t *testing.T) {
+	useWorkspaceStateDirectory(t)
+
+	storeInstance, err := New(":memory:")
+	require.NoError(t, err)
+	defer storeInstance.Close()
+
+	workspace, err := storeInstance.NewWorkspace("count-closed")
+	require.NoError(t, err)
+	workspace.Discard()
+
+	_, err = workspace.Count()
+	require.Error(t, err)
+}
+
 func TestWorkspace_Query_Good_RFCEntriesView(t *testing.T) {
 	useWorkspaceStateDirectory(t)
 

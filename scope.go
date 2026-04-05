@@ -168,6 +168,33 @@ func (scopedStore *ScopedStore) Config() ScopedStoreConfig {
 	}
 }
 
+// Usage example: `exists, err := scopedStore.Exists("colour")`
+// Usage example: `if exists, _ := scopedStore.Exists("token"); !exists { fmt.Println("session expired") }`
+func (scopedStore *ScopedStore) Exists(key string) (bool, error) {
+	if err := scopedStore.ensureReady("store.Exists"); err != nil {
+		return false, err
+	}
+	return scopedStore.store.Exists(scopedStore.namespacedGroup(scopedStore.defaultGroup()), key)
+}
+
+// Usage example: `exists, err := scopedStore.ExistsIn("config", "colour")`
+// Usage example: `if exists, _ := scopedStore.ExistsIn("session", "token"); !exists { fmt.Println("session expired") }`
+func (scopedStore *ScopedStore) ExistsIn(group, key string) (bool, error) {
+	if err := scopedStore.ensureReady("store.Exists"); err != nil {
+		return false, err
+	}
+	return scopedStore.store.Exists(scopedStore.namespacedGroup(group), key)
+}
+
+// Usage example: `exists, err := scopedStore.GroupExists("config")`
+// Usage example: `if exists, _ := scopedStore.GroupExists("cache"); !exists { fmt.Println("group is empty") }`
+func (scopedStore *ScopedStore) GroupExists(group string) (bool, error) {
+	if err := scopedStore.ensureReady("store.GroupExists"); err != nil {
+		return false, err
+	}
+	return scopedStore.store.GroupExists(scopedStore.namespacedGroup(group))
+}
+
 // Usage example: `colourValue, err := scopedStore.Get("colour")`
 func (scopedStore *ScopedStore) Get(key string) (string, error) {
 	if err := scopedStore.ensureReady("store.Get"); err != nil {
@@ -538,6 +565,33 @@ func (scopedStoreTransaction *ScopedStoreTransaction) ensureReady(operation stri
 		return err
 	}
 	return scopedStoreTransaction.storeTransaction.ensureReady(operation)
+}
+
+// Usage example: `exists, err := scopedStoreTransaction.Exists("colour")`
+func (scopedStoreTransaction *ScopedStoreTransaction) Exists(key string) (bool, error) {
+	if err := scopedStoreTransaction.ensureReady("store.ScopedStoreTransaction.Exists"); err != nil {
+		return false, err
+	}
+	return scopedStoreTransaction.storeTransaction.Exists(
+		scopedStoreTransaction.scopedStore.namespacedGroup(scopedStoreTransaction.scopedStore.defaultGroup()),
+		key,
+	)
+}
+
+// Usage example: `exists, err := scopedStoreTransaction.ExistsIn("config", "colour")`
+func (scopedStoreTransaction *ScopedStoreTransaction) ExistsIn(group, key string) (bool, error) {
+	if err := scopedStoreTransaction.ensureReady("store.ScopedStoreTransaction.ExistsIn"); err != nil {
+		return false, err
+	}
+	return scopedStoreTransaction.storeTransaction.Exists(scopedStoreTransaction.scopedStore.namespacedGroup(group), key)
+}
+
+// Usage example: `exists, err := scopedStoreTransaction.GroupExists("config")`
+func (scopedStoreTransaction *ScopedStoreTransaction) GroupExists(group string) (bool, error) {
+	if err := scopedStoreTransaction.ensureReady("store.ScopedStoreTransaction.GroupExists"); err != nil {
+		return false, err
+	}
+	return scopedStoreTransaction.storeTransaction.GroupExists(scopedStoreTransaction.scopedStore.namespacedGroup(group))
 }
 
 // Usage example: `colourValue, err := scopedStoreTransaction.Get("colour")`

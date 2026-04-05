@@ -269,6 +269,22 @@ func (workspace *Workspace) Put(kind string, data map[string]any) error {
 	return nil
 }
 
+// Usage example: `entryCount, err := workspace.Count(); if err != nil { return }; fmt.Println(entryCount)`
+func (workspace *Workspace) Count() (int, error) {
+	if err := workspace.ensureReady("store.Workspace.Count"); err != nil {
+		return 0, err
+	}
+
+	var count int
+	err := workspace.sqliteDatabase.QueryRow(
+		"SELECT COUNT(*) FROM " + workspaceEntriesTableName,
+	).Scan(&count)
+	if err != nil {
+		return 0, core.E("store.Workspace.Count", "count entries", err)
+	}
+	return count, nil
+}
+
 // Usage example: `summary := workspace.Aggregate(); fmt.Println(summary["like"])`
 func (workspace *Workspace) Aggregate() map[string]any {
 	if workspace.shouldUseOrphanAggregate() {

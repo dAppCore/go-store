@@ -290,6 +290,104 @@ func TestScope_ScopedStore_Good_NamespaceIsolation(t *testing.T) {
 	assert.Equal(t, "red", betaValue)
 }
 
+// ---------------------------------------------------------------------------
+// ScopedStore — Exists / ExistsIn / GroupExists
+// ---------------------------------------------------------------------------
+
+func TestScope_ScopedStore_Good_ExistsInDefaultGroup(t *testing.T) {
+	storeInstance, _ := New(":memory:")
+	defer storeInstance.Close()
+
+	scopedStore, _ := NewScoped(storeInstance, "tenant-a")
+	require.NoError(t, scopedStore.Set("colour", "blue"))
+
+	exists, err := scopedStore.Exists("colour")
+	require.NoError(t, err)
+	assert.True(t, exists)
+
+	exists, err = scopedStore.Exists("missing")
+	require.NoError(t, err)
+	assert.False(t, exists)
+}
+
+func TestScope_ScopedStore_Good_ExistsInExplicitGroup(t *testing.T) {
+	storeInstance, _ := New(":memory:")
+	defer storeInstance.Close()
+
+	scopedStore, _ := NewScoped(storeInstance, "tenant-a")
+	require.NoError(t, scopedStore.SetIn("config", "colour", "blue"))
+
+	exists, err := scopedStore.ExistsIn("config", "colour")
+	require.NoError(t, err)
+	assert.True(t, exists)
+
+	exists, err = scopedStore.ExistsIn("config", "missing")
+	require.NoError(t, err)
+	assert.False(t, exists)
+
+	exists, err = scopedStore.ExistsIn("other-group", "colour")
+	require.NoError(t, err)
+	assert.False(t, exists)
+}
+
+func TestScope_ScopedStore_Good_ExistsExpiredKeyReturnsFalse(t *testing.T) {
+	storeInstance, _ := New(":memory:")
+	defer storeInstance.Close()
+
+	scopedStore, _ := NewScoped(storeInstance, "tenant-a")
+	require.NoError(t, scopedStore.SetWithTTL("session", "token", "abc123", 1*time.Millisecond))
+	time.Sleep(5 * time.Millisecond)
+
+	exists, err := scopedStore.ExistsIn("session", "token")
+	require.NoError(t, err)
+	assert.False(t, exists)
+}
+
+func TestScope_ScopedStore_Good_GroupExists(t *testing.T) {
+	storeInstance, _ := New(":memory:")
+	defer storeInstance.Close()
+
+	scopedStore, _ := NewScoped(storeInstance, "tenant-a")
+	require.NoError(t, scopedStore.SetIn("config", "colour", "blue"))
+
+	exists, err := scopedStore.GroupExists("config")
+	require.NoError(t, err)
+	assert.True(t, exists)
+
+	exists, err = scopedStore.GroupExists("missing-group")
+	require.NoError(t, err)
+	assert.False(t, exists)
+}
+
+func TestScope_ScopedStore_Good_GroupExistsAfterDelete(t *testing.T) {
+	storeInstance, _ := New(":memory:")
+	defer storeInstance.Close()
+
+	scopedStore, _ := NewScoped(storeInstance, "tenant-a")
+	require.NoError(t, scopedStore.SetIn("config", "colour", "blue"))
+	require.NoError(t, scopedStore.DeleteGroup("config"))
+
+	exists, err := scopedStore.GroupExists("config")
+	require.NoError(t, err)
+	assert.False(t, exists)
+}
+
+func TestScope_ScopedStore_Bad_ExistsClosedStore(t *testing.T) {
+	storeInstance, _ := New(":memory:")
+	storeInstance.Close()
+
+	scopedStore, _ := NewScoped(storeInstance, "tenant-a")
+
+	_, err := scopedStore.Exists("colour")
+	require.Error(t, err)
+
+	_, err = scopedStore.ExistsIn("config", "colour")
+	require.Error(t, err)
+
+	_, err = scopedStore.GroupExists("config")
+	require.Error(t, err)
+}
+
 func TestScope_ScopedStore_Good_Delete(t *testing.T) {
 	storeInstance, _ := New(":memory:")
 	defer storeInstance.Close()

@@ -146,6 +146,111 @@ func TestTransaction_Transaction_Good_PurgeExpired(t *testing.T) {
 	assert.ErrorIs(t, err, NotFoundError)
 }
 
+func TestTransaction_Transaction_Good_Exists(t *testing.T) {
+	storeInstance, _ := New(":memory:")
+	defer storeInstance.Close()
+
+	require.NoError(t, storeInstance.Set("config", "colour", "blue"))
+
+	err := storeInstance.Transaction(func(transaction *StoreTransaction) error {
+		exists, err := transaction.Exists("config", "colour")
+		require.NoError(t, err)
+		assert.True(t, exists)
+
+		exists, err = transaction.Exists("config", "missing")
+		require.NoError(t, err)
+		assert.False(t, exists)
+
+		return nil
+	})
+	require.NoError(t, err)
+}
+
+func TestTransaction_Transaction_Good_ExistsSeesPendingWrites(t *testing.T) {
+	storeInstance, _ := New(":memory:")
+	defer storeInstance.Close()
+
+	err := storeInstance.Transaction(func(transaction *StoreTransaction) error {
+		exists, err := transaction.Exists("config", "colour")
+		require.NoError(t, err)
+		assert.False(t, exists)
+
+		if err := transaction.Set("config", "colour", "blue"); err != nil {
+			return err
+		}
+
+		exists, err = transaction.Exists("config", "colour")
+		require.NoError(t, err)
+		assert.True(t, exists)
+
+		return nil
+	})
+	require.NoError(t, err)
+}
+
+func TestTransaction_Transaction_Good_GroupExists(t *testing.T) {
+	storeInstance, _ := New(":memory:")
+	defer storeInstance.Close()
+
+	err := storeInstance.Transaction(func(transaction *StoreTransaction) error {
+		exists, err := transaction.GroupExists("config")
+		require.NoError(t, err)
+		assert.False(t, exists)
+
+		if err := transaction.Set("config", "colour", "blue"); err != nil {
+			return err
+		}
+
+		exists, err = transaction.GroupExists("config")
+		require.NoError(t, err)
+		assert.True(t, exists)
+
+		return nil
+	})
+	require.NoError(t, err)
+}
+
+func TestTransaction_ScopedStoreTransaction_Good_ExistsAndGroupExists(t *testing.T) {
+	storeInstance, _ := New(":memory:")
+	defer storeInstance.Close()
+
+	scopedStore, err := NewScoped(storeInstance, "tenant-a")
+	require.NoError(t, err)
+
+	err = scopedStore.Transaction(func(transaction *ScopedStoreTransaction) error {
+		exists, err := transaction.Exists("colour")
+		require.NoError(t, err)
+		assert.False(t, exists)
+
+		if err := transaction.Set("colour", "blue"); err != nil {
+			return err
+		}
+
+		exists, err = transaction.Exists("colour")
+		require.NoError(t, err)
+		assert.True(t, exists)
+
+		exists, err = transaction.ExistsIn("other", "colour")
+		require.NoError(t, err)
+		assert.False(t, exists)
+
+		if err := transaction.SetIn("config", "theme", "dark"); err != nil {
+			return err
+		}
+
+		groupExists, err := transaction.GroupExists("config")
+		require.NoError(t, err)
+		assert.True(t, groupExists)
+
+		groupExists, err = transaction.GroupExists("missing-group")
+		require.NoError(t, err)
+		assert.False(t, groupExists)
+
+		return nil
+	})
+	require.NoError(t, err)
+}
+
 func TestTransaction_ScopedStoreTransaction_Good_GetPage(t *testing.T) {
 	storeInstance, _ := New(":memory:")
 	defer storeInstance.Close()

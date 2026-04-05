@@ -488,6 +488,30 @@ func (storeInstance *Store) Delete(group, key string) error {
 	return nil
 }
 
+// Usage example: `exists, err := storeInstance.Exists("config", "colour")`
+// Usage example: `if exists, _ := storeInstance.Exists("session", "token"); !exists { fmt.Println("session expired") }`
+func (storeInstance *Store) Exists(group, key string) (bool, error) {
+	if err := storeInstance.ensureReady("store.Exists"); err != nil {
+		return false, err
+	}
+
+	return liveEntryExists(storeInstance.sqliteDatabase, group, key)
+}
+
+// Usage example: `exists, err := storeInstance.GroupExists("config")`
+// Usage example: `if exists, _ := storeInstance.GroupExists("tenant-a:config"); !exists { fmt.Println("group is empty") }`
+func (storeInstance *Store) GroupExists(group string) (bool, error) {
+	if err := storeInstance.ensureReady("store.GroupExists"); err != nil {
+		return false, err
+	}
+
+	count, err := storeInstance.Count(group)
+	if err != nil {
+		return false, err
+	}
+	return count > 0, nil
+}
+
 // Usage example: `keyCount, err := storeInstance.Count("config")`
 func (storeInstance *Store) Count(group string) (int, error) {
 	if err := storeInstance.ensureReady("store.Count"); err != nil {
