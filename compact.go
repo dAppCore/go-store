@@ -23,6 +23,12 @@ type CompactOptions struct {
 	Output string
 	// Usage example: `options := store.CompactOptions{Format: "zstd"}`
 	Format string
+	// Usage example: `medium, _ := s3.New(s3.Options{Bucket: "archive"}); options := store.CompactOptions{Before: time.Now().Add(-90 * 24 * time.Hour), Medium: medium}`
+	// Medium routes the archive write through an io.Medium instead of the raw
+	// filesystem. When set, Output is the path inside the medium; leave empty
+	// to use `.core/archive/`. When nil, Compact falls back to the store-level
+	// medium (if configured via WithMedium), then to the local filesystem.
+	Medium Medium
 }
 
 // Usage example: `normalisedOptions := (store.CompactOptions{Before: time.Date(2026, 3, 30, 0, 0, 0, 0, time.UTC)}).Normalised()`
@@ -89,17 +95,26 @@ func (storeInstance *Store) Compact(options CompactOptions) core.Result {
 		return core.Result{Value: core.E("store.Compact", "validate options", err), OK: false}
 	}
 
-	filesystem := (&core.Fs{}).NewUnrestricted()
-	if result := filesystem.EnsureDir(options.Output); !result.OK {
-		return core.Result{Value: core.E("store.Compact", "ensure archive directory", result.Value.(error)), OK: false}
+	medium := options.Medium
+	if medium == nil {
+		medium = storeInstance.medium
 	}
 
-	rows, err := storeInstance.sqliteDatabase.Query(
+	filesystem := (&core.Fs{}).NewUnrestricted()
+	if medium == nil {
+		if result := filesystem.EnsureDir(options.Output); !result.OK {
+			return core.Result{Value: core.E("store.Compact", "ensure archive directory", result.Value.(error)), OK: false}
+		}
+	} else if err := ensureMediumDir(medium, options.Output); err != nil {
+		return core.Result{Value: core.E("store.Compact", "ensure medium archive directory", err), OK: false}
+	}
+
+	rows, queryErr := storeInstance.sqliteDatabase.Query(
 		"SELECT entry_id, bucket_name, measurement, fields_json, tags_json, committed_at FROM "+journalEntriesTableName+" WHERE archived_at IS NULL AND committed_at < ? ORDER BY committed_at, entry_id",
 		options.Before.UnixMilli(),
 	)
-	if err != nil {
-		return core.Result{Value: core.E("store.Compact", "query journal rows", err), OK: false}
+	if queryErr != nil {
+		return core.Result{Value: core.E("store.Compact", "query journal rows", queryErr), OK: false}
 	}
 	defer rows.Close()
 
@@ -126,14 +141,25 @@ func (storeInstance *Store) Compact(options CompactOptions) core.Result {
 	}
 
 	outputPath := compactOutputPath(options.Output, options.Format)
-	archiveFileResult := filesystem.Create(outputPath)
-	if !archiveFileResult.OK {
-		return core.Result{Value: core.E("store.Compact", "create archive file", archiveFileResult.Value.(error)), OK: false}
-	}
-
-	file, ok := archiveFileResult.Value.(io.WriteCloser)
-	if !ok {
-		return core.Result{Value: core.E("store.Compact", "archive file is not writable", nil), OK: false}
+	var (
+		file       io.WriteCloser
+		createErr  error
+	)
+	if medium != nil {
+		file, createErr = medium.Create(outputPath)
+		if createErr != nil {
+			return core.Result{Value: core.E("store.Compact", "create archive via medium", createErr), OK: false}
+		}
+	} else {
+		archiveFileResult := filesystem.Create(outputPath)
+		if !archiveFileResult.OK {
+			return core.Result{Value: core.E("store.Compact", "create archive file", archiveFileResult.Value.(error)), OK: false}
+		}
+		existingFile, ok := archiveFileResult.Value.(io.WriteCloser)
+		if !ok {
+			return core.Result{Value: core.E("store.Compact", "archive file is not writable", nil), OK: false}
+		}
+		file = existingFile
 	}
 	archiveFileClosed := false
 	defer func() {

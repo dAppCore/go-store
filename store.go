@@ -45,6 +45,11 @@ type StoreConfig struct {
 	PurgeInterval time.Duration
 	// Usage example: `config := store.StoreConfig{WorkspaceStateDirectory: "/tmp/core-state"}`
 	WorkspaceStateDirectory string
+	// Usage example: `medium, _ := local.New("/srv/core"); config := store.StoreConfig{DatabasePath: ":memory:", Medium: medium}`
+	// Medium overrides the raw filesystem for Compact archives and Import /
+	// Export helpers, letting tests and production swap the backing transport
+	// (memory, S3, cube) without touching the store API.
+	Medium Medium
 }
 
 // Usage example: `config := (store.StoreConfig{DatabasePath: ":memory:"}).Normalised(); fmt.Println(config.PurgeInterval, config.WorkspaceStateDirectory)`
@@ -139,6 +144,7 @@ type Store struct {
 	purgeWaitGroup          sync.WaitGroup
 	purgeInterval           time.Duration // interval between background purge cycles
 	journalConfiguration    JournalConfiguration
+	medium                  Medium
 	lifecycleLock           sync.Mutex
 	isClosed                bool
 
@@ -223,6 +229,7 @@ func (storeInstance *Store) Config() StoreConfig {
 		Journal:                 storeInstance.JournalConfiguration(),
 		PurgeInterval:           storeInstance.purgeInterval,
 		WorkspaceStateDirectory: storeInstance.WorkspaceStateDirectory(),
+		Medium:                  storeInstance.medium,
 	}
 }
 
@@ -289,6 +296,7 @@ func openConfiguredStore(operation string, storeConfig StoreConfig) (*Store, err
 	}
 	storeInstance.purgeInterval = storeConfig.PurgeInterval
 	storeInstance.workspaceStateDirectory = storeConfig.WorkspaceStateDirectory
+	storeInstance.medium = storeConfig.Medium
 
 	// New() performs a non-destructive orphan scan so callers can discover
 	// leftover workspaces via RecoverOrphans().
