@@ -98,6 +98,17 @@ func (db *DuckDB) Path() string {
 	return db.path
 }
 
+// Conn returns the underlying *sql.DB connection. Prefer the typed helpers
+// (Exec, QueryRowScan, QueryRows) when possible; this accessor exists for
+// callers that need streaming row iteration or transaction control.
+//
+// Usage example:
+//
+//	rows, err := db.Conn().Query("SELECT id, name FROM models WHERE kind = ?", "lem")
+func (db *DuckDB) Conn() *sql.DB {
+	return db.conn
+}
+
 // Exec executes a query without returning rows.
 //
 // Usage example:
