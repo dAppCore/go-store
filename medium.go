@@ -37,11 +37,11 @@ var _ Medium = io.Medium(nil)
 // Compact archives and Import/Export helpers route through the medium instead
 // of the raw filesystem.
 func WithMedium(medium Medium) StoreOption {
-	return func(storeConfig *StoreConfig) {
-		if storeConfig == nil {
+	return func(storeInstance *Store) {
+		if storeInstance == nil {
 			return
 		}
-		storeConfig.Medium = medium
+		storeInstance.medium = medium
 	}
 }
 

@@ -31,10 +31,10 @@ const (
 
 // Usage example: `storeInstance, err := store.NewConfigured(store.StoreConfig{DatabasePath: "/tmp/go-store.db", Journal: store.JournalConfiguration{EndpointURL: "http://127.0.0.1:8086", Organisation: "core", BucketName: "events"}, PurgeInterval: 30 * time.Second})`
 // Prefer `store.NewConfigured(store.StoreConfig{...})` when the full
-// configuration is already known. Use `StoreOption` only when values need to
-// be assembled incrementally, such as when a caller receives them from
+// configuration is already known. Use `StoreOption` when values need to be
+// assembled incrementally, such as when a caller receives them from
 // different sources.
-type StoreOption func(*StoreConfig)
+type StoreOption func(*Store)
 
 // Usage example: `config := store.StoreConfig{DatabasePath: ":memory:", PurgeInterval: 30 * time.Second}`
 type StoreConfig struct {
@@ -191,15 +191,18 @@ func (storeInstance *Store) ensureReady(operation string) error {
 
 // Usage example: `storeInstance, err := store.NewConfigured(store.StoreConfig{DatabasePath: "/tmp/go-store.db", Journal: store.JournalConfiguration{EndpointURL: "http://127.0.0.1:8086", Organisation: "core", BucketName: "events"}})`
 func WithJournal(endpointURL, organisation, bucketName string) StoreOption {
-	return func(storeConfig *StoreConfig) {
-		if storeConfig == nil {
+	return func(storeInstance *Store) {
+		if storeInstance == nil {
 			return
 		}
-		storeConfig.Journal = JournalConfiguration{
+		storeInstance.journalConfiguration = JournalConfiguration{
 			EndpointURL:  endpointURL,
 			Organisation: organisation,
 			BucketName:   bucketName,
 		}
+		storeInstance.org = organisation
+		storeInstance.bucket = bucketName
+		storeInstance.journal = influxdb2.NewClient(endpointURL, "")
 	}
 }
 
@@ -207,11 +210,11 @@ func WithJournal(endpointURL, organisation, bucketName string) StoreOption {
 // Use this when the workspace state directory is being assembled
 // incrementally; otherwise prefer a StoreConfig literal.
 func WithWorkspaceStateDirectory(directory string) StoreOption {
-	return func(storeConfig *StoreConfig) {
-		if storeConfig == nil {
+	return func(storeInstance *Store) {
+		if storeInstance == nil {
 			return
 		}
-		storeConfig.WorkspaceStateDirectory = directory
+		storeInstance.workspaceStateDirectory = directory
 	}
 }
 
@@ -277,12 +280,12 @@ func (storeInstance *Store) IsClosed() bool {
 // Use this when the purge interval is being assembled incrementally; otherwise
 // prefer a StoreConfig literal.
 func WithPurgeInterval(interval time.Duration) StoreOption {
-	return func(storeConfig *StoreConfig) {
-		if storeConfig == nil {
+	return func(storeInstance *Store) {
+		if storeInstance == nil {
 			return
 		}
 		if interval > 0 {
-			storeConfig.PurgeInterval = interval
+			storeInstance.purgeInterval = interval
 		}
 	}
 }
@@ -322,13 +325,18 @@ func openConfiguredStore(operation string, storeConfig StoreConfig) (*Store, err
 
 // Usage example: `storeInstance, err := store.NewConfigured(store.StoreConfig{DatabasePath: "/tmp/go-store.db", Journal: store.JournalConfiguration{EndpointURL: "http://127.0.0.1:8086", Organisation: "core", BucketName: "events"}})`
 func New(databasePath string, options ...StoreOption) (*Store, error) {
-	storeConfig := StoreConfig{DatabasePath: databasePath}
+	storeInstance, err := openSQLiteStore("store.New", databasePath)
+	if err != nil {
+		return nil, err
+	}
 	for _, option := range options {
 		if option != nil {
-			option(&storeConfig)
+			option(storeInstance)
 		}
 	}
-	return openConfiguredStore("store.New", storeConfig)
+	storeInstance.cachedOrphanWorkspaces = discoverOrphanWorkspaces(storeInstance.workspaceStateDirectoryPath(), storeInstance)
+	storeInstance.startBackgroundPurge()
+	return storeInstance, nil
 }
 
 func openSQLiteStore(operation, databasePath string) (*Store, error) {
