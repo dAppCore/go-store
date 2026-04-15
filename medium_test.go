@@ -112,6 +112,27 @@ func TestMedium_WithMedium_Bad_NilKeepsFilesystemBackend(t *testing.T) {
 	assert.Nil(t, storeInstance.Medium())
 }
 
+func TestMedium_WithMedium_Good_PersistsDatabaseThroughMedium(t *testing.T) {
+	useWorkspaceStateDirectory(t)
+
+	medium := newMemoryMedium()
+
+	storeInstance, err := New("app.db", WithMedium(medium))
+	require.NoError(t, err)
+
+	require.NoError(t, storeInstance.Set("g", "k", "v"))
+	require.NoError(t, storeInstance.Close())
+
+	reopenedStore, err := New("app.db", WithMedium(medium))
+	require.NoError(t, err)
+	defer reopenedStore.Close()
+
+	value, err := reopenedStore.Get("g", "k")
+	require.NoError(t, err)
+	assert.Equal(t, "v", value)
+	assert.True(t, medium.Exists("app.db"))
+}
+
 func TestMedium_Import_Good_JSONL(t *testing.T) {
 	useWorkspaceStateDirectory(t)
 

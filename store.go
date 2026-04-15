@@ -145,6 +145,9 @@ type Store struct {
 	cancelPurge             context.CancelFunc
 	purgeWaitGroup          sync.WaitGroup
 	purgeInterval           time.Duration // interval between background purge cycles
+	sqliteStoragePath       string
+	sqliteStorageDirectory  string
+	mediumBacked            bool
 	journal                 influxdb2.Client
 	bucket                  string
 	org                     string
@@ -202,7 +205,6 @@ func WithJournal(endpointURL, organisation, bucketName string) StoreOption {
 		}
 		storeInstance.org = organisation
 		storeInstance.bucket = bucketName
-		storeInstance.journal = influxdb2.NewClient(endpointURL, "")
 	}
 }
 
@@ -301,7 +303,7 @@ func openConfiguredStore(operation string, storeConfig StoreConfig) (*Store, err
 	}
 	storeConfig = storeConfig.Normalised()
 
-	storeInstance, err := openSQLiteStore(operation, storeConfig.DatabasePath)
+	storeInstance, err := openSQLiteStore(operation, storeConfig.DatabasePath, storeConfig.Medium)
 	if err != nil {
 		return nil, err
 	}
@@ -325,22 +327,52 @@ func openConfiguredStore(operation string, storeConfig StoreConfig) (*Store, err
 
 // Usage example: `storeInstance, err := store.NewConfigured(store.StoreConfig{DatabasePath: "/tmp/go-store.db", Journal: store.JournalConfiguration{EndpointURL: "http://127.0.0.1:8086", Organisation: "core", BucketName: "events"}})`
 func New(databasePath string, options ...StoreOption) (*Store, error) {
-	storeInstance, err := openSQLiteStore("store.New", databasePath)
-	if err != nil {
-		return nil, err
+	scratch := &Store{
+		databasePath:            databasePath,
+		workspaceStateDirectory: normaliseWorkspaceStateDirectory(defaultWorkspaceStateDirectory),
+		purgeInterval:           defaultPurgeInterval,
+		watchers:                make(map[string][]chan Event),
 	}
 	for _, option := range options {
 		if option != nil {
-			option(storeInstance)
+			option(scratch)
 		}
 	}
-	storeInstance.cachedOrphanWorkspaces = discoverOrphanWorkspaces(storeInstance.workspaceStateDirectoryPath(), storeInstance)
-	storeInstance.startBackgroundPurge()
+
+	storeConfig := scratch.Config()
+	storeConfig.DatabasePath = databasePath
+	storeConfig.Journal = scratch.JournalConfiguration()
+	storeConfig.PurgeInterval = scratch.purgeInterval
+	storeConfig.WorkspaceStateDirectory = scratch.WorkspaceStateDirectory()
+	storeConfig.Medium = scratch.medium
+
+	storeInstance, err := openConfiguredStore("store.New", storeConfig)
+	if err != nil {
+		return nil, err
+	}
 	return storeInstance, nil
 }
 
-func openSQLiteStore(operation, databasePath string) (*Store, error) {
-	sqliteDatabase, err := sql.Open("sqlite", databasePath)
+func openSQLiteStore(operation, databasePath string, medium Medium) (*Store, error) {
+	sqliteStoragePath := databasePath
+	sqliteStorageDirectory := ""
+	mediumBacked := medium != nil && databasePath != "" && databasePath != ":memory:"
+	if mediumBacked {
+		filesystem := (&core.Fs{}).NewUnrestricted()
+		sqliteStorageDirectory = filesystem.TempDir("go-store")
+		sqliteStoragePath = core.Path(sqliteStorageDirectory, "store.db")
+		if medium.Exists(databasePath) {
+			content, err := medium.Read(databasePath)
+			if err != nil {
+				return nil, core.E(operation, "read database from medium", err)
+			}
+			if result := filesystem.Write(sqliteStoragePath, content); !result.OK {
+				return nil, core.E(operation, "seed sqlite file from medium", result.Value.(error))
+			}
+		}
+	}
+
+	sqliteDatabase, err := sql.Open("sqlite", sqliteStoragePath)
 	if err != nil {
 		return nil, core.E(operation, "open database", err)
 	}
@@ -371,6 +403,10 @@ func openSQLiteStore(operation, databasePath string) (*Store, error) {
 		purgeContext:            purgeContext,
 		cancelPurge:             cancel,
 		purgeInterval:           defaultPurgeInterval,
+		sqliteStoragePath:       sqliteStoragePath,
+		sqliteStorageDirectory:  sqliteStorageDirectory,
+		mediumBacked:            mediumBacked,
+		medium:                  medium,
 		watchers:                make(map[string][]chan Event),
 	}, nil
 }
@@ -434,10 +470,43 @@ func (storeInstance *Store) Close() error {
 	if err := storeInstance.sqliteDatabase.Close(); err != nil {
 		return core.E("store.Close", "database close", err)
 	}
+	if err := storeInstance.syncMediumBackedDatabase(); err != nil {
+		return core.E("store.Close", "sync medium-backed database", err)
+	}
 	if orphanCleanupErr != nil {
 		return core.E("store.Close", "close orphan workspaces", orphanCleanupErr)
 	}
 	return orphanCleanupErr
+}
+
+func (storeInstance *Store) syncMediumBackedDatabase() error {
+	if storeInstance == nil || !storeInstance.mediumBacked || storeInstance.medium == nil {
+		return nil
+	}
+	if storeInstance.databasePath == "" || storeInstance.databasePath == ":memory:" {
+		return nil
+	}
+	if storeInstance.sqliteStoragePath == "" {
+		return nil
+	}
+
+	filesystem := (&core.Fs{}).NewUnrestricted()
+	readResult := filesystem.Read(storeInstance.sqliteStoragePath)
+	if !readResult.OK {
+		return readResult.Value.(error)
+	}
+	if err := storeInstance.medium.Write(storeInstance.databasePath, readResult.Value.(string)); err != nil {
+		return err
+	}
+
+	if storeInstance.sqliteStorageDirectory != "" {
+		_ = filesystem.DeleteAll(storeInstance.sqliteStorageDirectory)
+		return nil
+	}
+	for _, path := range []string{storeInstance.sqliteStoragePath + "-wal", storeInstance.sqliteStoragePath + "-shm"} {
+		_ = filesystem.Delete(path)
+	}
+	return nil
 }
 
 // Usage example: `colourValue, err := storeInstance.Get("config", "colour")`
