@@ -43,10 +43,30 @@ func (medium *memoryMedium) Write(path, content string) error {
 	return nil
 }
 
+func (medium *memoryMedium) WriteMode(path, content string, _ fs.FileMode) error {
+	return medium.Write(path, content)
+}
+
 func (medium *memoryMedium) EnsureDir(string) error { return nil }
 
 func (medium *memoryMedium) Create(path string) (goio.WriteCloser, error) {
 	return &memoryWriter{medium: medium, path: path}, nil
+}
+
+func (medium *memoryMedium) Append(path string) (goio.WriteCloser, error) {
+	medium.lock.Lock()
+	defer medium.lock.Unlock()
+	return &memoryWriter{medium: medium, path: path, buffer: *bytes.NewBufferString(medium.files[path])}, nil
+}
+
+func (medium *memoryMedium) ReadStream(path string) (goio.ReadCloser, error) {
+	medium.lock.Lock()
+	defer medium.lock.Unlock()
+	return goio.NopCloser(bytes.NewReader([]byte(medium.files[path]))), nil
+}
+
+func (medium *memoryMedium) WriteStream(path string) (goio.WriteCloser, error) {
+	return medium.Create(path)
 }
 
 func (medium *memoryMedium) Exists(path string) bool {
@@ -55,6 +75,56 @@ func (medium *memoryMedium) Exists(path string) bool {
 	_, ok := medium.files[path]
 	return ok
 }
+
+func (medium *memoryMedium) IsFile(path string) bool { return medium.Exists(path) }
+
+func (medium *memoryMedium) Delete(path string) error {
+	medium.lock.Lock()
+	defer medium.lock.Unlock()
+	delete(medium.files, path)
+	return nil
+}
+
+func (medium *memoryMedium) DeleteAll(path string) error {
+	medium.lock.Lock()
+	defer medium.lock.Unlock()
+	for key := range medium.files {
+		if key == path || core.HasPrefix(key, path+"/") {
+			delete(medium.files, key)
+		}
+	}
+	return nil
+}
+
+func (medium *memoryMedium) Rename(oldPath, newPath string) error {
+	medium.lock.Lock()
+	defer medium.lock.Unlock()
+	content, ok := medium.files[oldPath]
+	if !ok {
+		return core.E("memoryMedium.Rename", "file not found: "+oldPath, nil)
+	}
+	medium.files[newPath] = content
+	delete(medium.files, oldPath)
+	return nil
+}
+
+func (medium *memoryMedium) List(path string) ([]fs.DirEntry, error) { return nil, nil }
+
+func (medium *memoryMedium) Stat(path string) (fs.FileInfo, error) {
+	if !medium.Exists(path) {
+		return nil, core.E("memoryMedium.Stat", "file not found: "+path, nil)
+	}
+	return fileInfoStub{name: core.PathBase(path)}, nil
+}
+
+func (medium *memoryMedium) Open(path string) (fs.File, error) {
+	if !medium.Exists(path) {
+		return nil, core.E("memoryMedium.Open", "file not found: "+path, nil)
+	}
+	return newMemoryFile(path, medium.files[path]), nil
+}
+
+func (medium *memoryMedium) IsDir(string) bool { return false }
 
 type memoryWriter struct {
 	medium *memoryMedium
@@ -74,6 +144,31 @@ func (writer *memoryWriter) Close() error {
 	writer.closed = true
 	return writer.medium.Write(writer.path, writer.buffer.String())
 }
+
+type fileInfoStub struct {
+	name string
+}
+
+func (fileInfoStub) Size() int64        { return 0 }
+func (fileInfoStub) Mode() fs.FileMode  { return 0 }
+func (fileInfoStub) ModTime() time.Time { return time.Time{} }
+func (fileInfoStub) IsDir() bool        { return false }
+func (fileInfoStub) Sys() any           { return nil }
+func (info fileInfoStub) Name() string  { return info.name }
+
+type memoryFile struct {
+	*bytes.Reader
+	name string
+}
+
+func newMemoryFile(name, content string) *memoryFile {
+	return &memoryFile{Reader: bytes.NewReader([]byte(content)), name: name}
+}
+
+func (file *memoryFile) Stat() (fs.FileInfo, error) {
+	return fileInfoStub{name: core.PathBase(file.name)}, nil
+}
+func (file *memoryFile) Close() error { return nil }
 
 // Ensure memoryMedium still satisfies the internal Medium contract.
 var _ Medium = (*memoryMedium)(nil)

@@ -4,7 +4,6 @@ package store
 
 import (
 	"bytes"
-	goio "io"
 
 	core "dappco.re/go/core"
 	"dappco.re/go/core/io"
@@ -13,24 +12,11 @@ import (
 // Medium is the minimal storage transport used by the go-store workspace
 // import and export helpers and by Compact when writing cold archives.
 //
-// Any `dappco.re/go/core/io.Medium` implementation (local, memory, S3, cube,
-// sftp) satisfies this interface by structural typing — go-store only needs a
-// handful of methods to ferry bytes between the workspace buffer and the
-// underlying medium.
+// This is an alias of `dappco.re/go/core/io.Medium`, so callers can pass any
+// upstream medium implementation directly without an adapter.
 //
 // Usage example: `medium, _ := local.New("/tmp/exports"); storeInstance, err := store.New(":memory:", store.WithMedium(medium))`
-type Medium interface {
-	Read(path string) (string, error)
-	Write(path, content string) error
-	EnsureDir(path string) error
-	Create(path string) (goio.WriteCloser, error)
-	Exists(path string) bool
-}
-
-// staticMediumCheck documents that `dappco.re/go/core/io.Medium` satisfies the
-// in-package `store.Medium` interface — agents pass an `io.Medium` directly to
-// `store.WithMedium` without an adapter.
-var _ Medium = io.Medium(nil)
+type Medium = io.Medium
 
 // Usage example: `medium, _ := local.New("/srv/core"); storeInstance, err := store.NewConfigured(store.StoreConfig{DatabasePath: ":memory:", Medium: medium})`
 // WithMedium installs an io.Medium-compatible transport on the Store so that
