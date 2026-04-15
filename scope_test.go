@@ -157,6 +157,19 @@ func TestScope_NewScopedConfigured_Good(t *testing.T) {
 	assert.Equal(t, 2, scopedStore.MaxGroups)
 }
 
+func TestScope_NewScopedWithQuota_Good(t *testing.T) {
+	storeInstance, _ := New(":memory:")
+	defer storeInstance.Close()
+
+	scopedStore, err := NewScopedWithQuota(storeInstance, "tenant-a", QuotaConfig{MaxKeys: 4, MaxGroups: 2})
+	require.NoError(t, err)
+	require.NotNil(t, scopedStore)
+
+	assert.Equal(t, "tenant-a", scopedStore.Namespace())
+	assert.Equal(t, 4, scopedStore.MaxKeys)
+	assert.Equal(t, 2, scopedStore.MaxGroups)
+}
+
 func TestScope_NewScopedConfigured_Bad_InvalidNamespace(t *testing.T) {
 	storeInstance, _ := New(":memory:")
 	defer storeInstance.Close()
