@@ -10,6 +10,7 @@ import (
 	"unicode"
 
 	core "dappco.re/go/core"
+	influxdb2 "github.com/influxdata/influxdb-client-go/v2"
 	_ "modernc.org/sqlite"
 )
 
@@ -136,6 +137,7 @@ func (journalConfig JournalConfiguration) isConfigured() bool {
 // Usage example: `storeInstance, err := store.NewConfigured(store.StoreConfig{DatabasePath: ":memory:", Journal: store.JournalConfiguration{EndpointURL: "http://127.0.0.1:8086", Organisation: "core", BucketName: "events"}, PurgeInterval: 30 * time.Second})`
 // Usage example: `value, err := storeInstance.Get("config", "colour")`
 type Store struct {
+	db                      *sql.DB
 	sqliteDatabase          *sql.DB
 	databasePath            string
 	workspaceStateDirectory string
@@ -143,6 +145,10 @@ type Store struct {
 	cancelPurge             context.CancelFunc
 	purgeWaitGroup          sync.WaitGroup
 	purgeInterval           time.Duration // interval between background purge cycles
+	journal                 influxdb2.Client
+	bucket                  string
+	org                     string
+	mu                      sync.RWMutex
 	journalConfiguration    JournalConfiguration
 	medium                  Medium
 	lifecycleLock           sync.Mutex
@@ -163,7 +169,13 @@ func (storeInstance *Store) ensureReady(operation string) error {
 	if storeInstance == nil {
 		return core.E(operation, "store is nil", nil)
 	}
+	if storeInstance.db == nil {
+		storeInstance.db = storeInstance.sqliteDatabase
+	}
 	if storeInstance.sqliteDatabase == nil {
+		storeInstance.sqliteDatabase = storeInstance.db
+	}
+	if storeInstance.db == nil || storeInstance.sqliteDatabase == nil {
 		return core.E(operation, "store is not initialised", nil)
 	}
 
@@ -293,6 +305,9 @@ func openConfiguredStore(operation string, storeConfig StoreConfig) (*Store, err
 
 	if storeConfig.Journal != (JournalConfiguration{}) {
 		storeInstance.journalConfiguration = storeConfig.Journal
+		storeInstance.org = storeConfig.Journal.Organisation
+		storeInstance.bucket = storeConfig.Journal.BucketName
+		storeInstance.journal = influxdb2.NewClient(storeConfig.Journal.EndpointURL, "")
 	}
 	storeInstance.purgeInterval = storeConfig.PurgeInterval
 	storeInstance.workspaceStateDirectory = storeConfig.WorkspaceStateDirectory
@@ -341,6 +356,7 @@ func openSQLiteStore(operation, databasePath string) (*Store, error) {
 
 	purgeContext, cancel := context.WithCancel(context.Background())
 	return &Store{
+		db:                      sqliteDatabase,
 		sqliteDatabase:          sqliteDatabase,
 		databasePath:            databasePath,
 		workspaceStateDirectory: normaliseWorkspaceStateDirectory(defaultWorkspaceStateDirectory),
@@ -376,6 +392,10 @@ func (storeInstance *Store) Close() error {
 		storeInstance.cancelPurge()
 	}
 	storeInstance.purgeWaitGroup.Wait()
+
+	if storeInstance.journal != nil {
+		storeInstance.journal.Close()
+	}
 
 	storeInstance.watcherLock.Lock()
 	for groupName, registeredEvents := range storeInstance.watchers {

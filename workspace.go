@@ -41,6 +41,7 @@ var defaultWorkspaceStateDirectory = ".core/state/"
 type Workspace struct {
 	name                  string
 	store                 *Store
+	db                    *sql.DB
 	sqliteDatabase        *sql.DB
 	databasePath          string
 	filesystem            *core.Fs
@@ -80,6 +81,15 @@ func (workspace *Workspace) ensureReady(operation string) error {
 	}
 	if workspace.store == nil {
 		return core.E(operation, "workspace store is nil", nil)
+	}
+	if workspace.db == nil {
+		workspace.db = workspace.sqliteDatabase
+	}
+	if workspace.sqliteDatabase == nil {
+		workspace.sqliteDatabase = workspace.db
+	}
+	if workspace.db == nil {
+		return core.E(operation, "workspace database is nil", nil)
 	}
 	if workspace.sqliteDatabase == nil {
 		return core.E(operation, "workspace database is nil", nil)
@@ -132,6 +142,7 @@ func (storeInstance *Store) NewWorkspace(name string) (*Workspace, error) {
 	return &Workspace{
 		name:           name,
 		store:          storeInstance,
+		db:             sqliteDatabase,
 		sqliteDatabase: sqliteDatabase,
 		databasePath:   databasePath,
 		filesystem:     filesystem,
@@ -195,6 +206,7 @@ func loadRecoveredWorkspaces(stateDirectory string, store *Store) []*Workspace {
 		orphanWorkspace := &Workspace{
 			name:           workspaceNameFromPath(stateDirectory, databasePath),
 			store:          store,
+			db:             sqliteDatabase,
 			sqliteDatabase: sqliteDatabase,
 			databasePath:   databasePath,
 			filesystem:     filesystem,
