@@ -60,7 +60,7 @@ func (scopedConfig ScopedStoreConfig) Validate() error {
 	return nil
 }
 
-// Usage example: `scopedStore, err := store.NewScoped(storeInstance, "tenant-a"); if err != nil { return }`
+// Usage example: `scopedStore := store.NewScoped(storeInstance, "tenant-a")`
 // Usage example: `if err := scopedStore.Set("colour", "blue"); err != nil { return } // writes tenant-a:default/colour`
 // Usage example: `if err := scopedStore.SetIn("config", "colour", "blue"); err != nil { return } // writes tenant-a:config/colour`
 type ScopedStore struct {
@@ -81,22 +81,19 @@ type scopedWatcherBridge struct {
 	done         chan struct{}
 }
 
-// Usage example: `scopedStore, err := store.NewScoped(storeInstance, "tenant-a"); if err != nil { return }`
+// Usage example: `scopedStore := store.NewScoped(storeInstance, "tenant-a")`
 // Prefer `NewScopedConfigured(storeInstance, store.ScopedStoreConfig{Namespace: "tenant-a"})`
 // when the namespace and quota are already known at the call site.
-func NewScoped(storeInstance *Store, namespace string) (*ScopedStore, error) {
-	if storeInstance == nil {
-		return nil, core.E("store.NewScoped", "store instance is nil", nil)
-	}
-	if !validNamespace.MatchString(namespace) {
-		return nil, core.E("store.NewScoped", core.Sprintf("namespace %q is invalid; use names like %q or %q", namespace, "tenant-a", "tenant-42"), nil)
+func NewScoped(storeInstance *Store, namespace string) *ScopedStore {
+	if storeInstance == nil || !validNamespace.MatchString(namespace) {
+		return nil
 	}
 	scopedStore := &ScopedStore{
 		store:          storeInstance,
 		namespace:      namespace,
 		watcherBridges: make(map[uintptr]scopedWatcherBridge),
 	}
-	return scopedStore, nil
+	return scopedStore
 }
 
 // Usage example: `scopedStore, err := store.NewScopedConfigured(storeInstance, store.ScopedStoreConfig{Namespace: "tenant-a", Quota: store.QuotaConfig{MaxKeys: 100, MaxGroups: 10}}); if err != nil { return }`
@@ -109,9 +106,9 @@ func NewScopedConfigured(storeInstance *Store, scopedConfig ScopedStoreConfig) (
 	if err := scopedConfig.Validate(); err != nil {
 		return nil, core.E("store.NewScopedConfigured", "validate config", err)
 	}
-	scopedStore, err := NewScoped(storeInstance, scopedConfig.Namespace)
-	if err != nil {
-		return nil, err
+	scopedStore := NewScoped(storeInstance, scopedConfig.Namespace)
+	if scopedStore == nil {
+		return nil, core.E("store.NewScopedConfigured", "construct scoped store", nil)
 	}
 	scopedStore.MaxKeys = scopedConfig.Quota.MaxKeys
 	scopedStore.MaxGroups = scopedConfig.Quota.MaxGroups
@@ -148,7 +145,7 @@ func (scopedStore *ScopedStore) ensureReady(operation string) error {
 }
 
 // Namespace returns the namespace string.
-// Usage example: `scopedStore, err := store.NewScoped(storeInstance, "tenant-a"); if err != nil { return }; namespace := scopedStore.Namespace(); fmt.Println(namespace)`
+// Usage example: `scopedStore := store.NewScoped(storeInstance, "tenant-a"); namespace := scopedStore.Namespace(); fmt.Println(namespace)`
 func (scopedStore *ScopedStore) Namespace() string {
 	return scopedStore.namespace
 }

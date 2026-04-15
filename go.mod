@@ -1,4 +1,4 @@
-module dappco.re/go/core/store
+module dappco.re/go/store
 
 go 1.26.0
 

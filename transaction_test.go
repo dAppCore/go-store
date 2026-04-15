@@ -214,10 +214,9 @@ func TestTransaction_ScopedStoreTransaction_Good_ExistsAndGroupExists(t *testing
 	storeInstance, _ := New(":memory:")
 	defer storeInstance.Close()
 
-	scopedStore, err := NewScoped(storeInstance, "tenant-a")
-	require.NoError(t, err)
+	scopedStore := NewScoped(storeInstance, "tenant-a")
 
-	err = scopedStore.Transaction(func(transaction *ScopedStoreTransaction) error {
+	err := scopedStore.Transaction(func(transaction *ScopedStoreTransaction) error {
 		exists, err := transaction.Exists("colour")
 		require.NoError(t, err)
 		assert.False(t, exists)
@@ -255,10 +254,9 @@ func TestTransaction_ScopedStoreTransaction_Good_GetPage(t *testing.T) {
 	storeInstance, _ := New(":memory:")
 	defer storeInstance.Close()
 
-	scopedStore, err := NewScoped(storeInstance, "tenant-a")
-	require.NoError(t, err)
+	scopedStore := NewScoped(storeInstance, "tenant-a")
 
-	err = scopedStore.Transaction(func(transaction *ScopedStoreTransaction) error {
+	err := scopedStore.Transaction(func(transaction *ScopedStoreTransaction) error {
 		if err := transaction.SetIn("items", "charlie", "3"); err != nil {
 			return err
 		}
@@ -325,13 +323,12 @@ func TestTransaction_ScopedStoreTransaction_Good_PurgeExpired(t *testing.T) {
 	storeInstance, _ := New(":memory:")
 	defer storeInstance.Close()
 
-	scopedStore, err := NewScoped(storeInstance, "tenant-a")
-	require.NoError(t, err)
+	scopedStore := NewScoped(storeInstance, "tenant-a")
 
 	require.NoError(t, scopedStore.SetWithTTL("session", "token", "abc123", 1*time.Millisecond))
 	time.Sleep(5 * time.Millisecond)
 
-	err = scopedStore.Transaction(func(transaction *ScopedStoreTransaction) error {
+	err := scopedStore.Transaction(func(transaction *ScopedStoreTransaction) error {
 		removedRows, err := transaction.PurgeExpired()
 		require.NoError(t, err)
 		assert.Equal(t, int64(1), removedRows)
@@ -373,17 +370,15 @@ func TestTransaction_ScopedStoreTransaction_Good_DeletePrefix(t *testing.T) {
 	storeInstance, _ := New(":memory:")
 	defer storeInstance.Close()
 
-	scopedStore, err := NewScoped(storeInstance, "tenant-a")
-	require.NoError(t, err)
-	otherScopedStore, err := NewScoped(storeInstance, "tenant-b")
-	require.NoError(t, err)
+	scopedStore := NewScoped(storeInstance, "tenant-a")
+	otherScopedStore := NewScoped(storeInstance, "tenant-b")
 
 	require.NoError(t, scopedStore.SetIn("cache", "theme", "dark"))
 	require.NoError(t, scopedStore.SetIn("cache-warm", "status", "ready"))
 	require.NoError(t, scopedStore.SetIn("config", "colour", "blue"))
 	require.NoError(t, otherScopedStore.SetIn("cache", "theme", "keep"))
 
-	err = scopedStore.Transaction(func(transaction *ScopedStoreTransaction) error {
+	err := scopedStore.Transaction(func(transaction *ScopedStoreTransaction) error {
 		return transaction.DeletePrefix("cache")
 	})
 	require.NoError(t, err)

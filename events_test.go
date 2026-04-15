@@ -293,8 +293,7 @@ func TestEvents_Watch_Good_ScopedStoreEventGroup(t *testing.T) {
 	storeInstance, _ := New(":memory:")
 	defer storeInstance.Close()
 
-	scopedStore, err := NewScoped(storeInstance, "tenant-a")
-	require.NoError(t, err)
+	scopedStore := NewScoped(storeInstance, "tenant-a")
 	require.NotNil(t, scopedStore)
 
 	events := storeInstance.Watch("tenant-a:config")
@@ -332,7 +331,7 @@ func TestEvents_Watch_Good_SetWithTTL(t *testing.T) {
 func TestEvents_EventType_Good_String(t *testing.T) {
 	assert.Equal(t, "set", EventSet.String())
 	assert.Equal(t, "delete", EventDelete.String())
-	assert.Equal(t, "delete_group", EventDeleteGroup.String())
+	assert.Equal(t, "deletegroup", EventDeleteGroup.String())
 	assert.Equal(t, "unknown", EventType(99).String())
 }
 

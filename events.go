@@ -27,7 +27,7 @@ func (t EventType) String() string {
 	case EventDelete:
 		return "delete"
 	case EventDeleteGroup:
-		return "delete_group"
+		return "deletegroup"
 	default:
 		return "unknown"
 	}
