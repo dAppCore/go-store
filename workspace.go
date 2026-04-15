@@ -17,10 +17,10 @@ const (
 )
 
 const createWorkspaceEntriesTableSQL = `CREATE TABLE IF NOT EXISTS workspace_entries (
-	entry_id    INTEGER PRIMARY KEY AUTOINCREMENT,
+	entry_id    BIGINT PRIMARY KEY DEFAULT nextval('workspace_entries_entry_id_seq'),
 	entry_kind  TEXT NOT NULL,
 	entry_data  TEXT NOT NULL,
-	created_at  INTEGER NOT NULL
+	created_at  BIGINT NOT NULL
 )`
 
 const createWorkspaceEntriesViewSQL = `CREATE VIEW IF NOT EXISTS entries AS
@@ -35,7 +35,7 @@ var defaultWorkspaceStateDirectory = ".core/state/"
 
 // Usage example: `workspace, err := storeInstance.NewWorkspace("scroll-session"); if err != nil { return }; defer workspace.Discard()`
 // Usage example: `workspace, err := storeInstance.NewWorkspace("scroll-session-2026-03-30"); if err != nil { return }; defer workspace.Discard(); _ = workspace.Put("like", map[string]any{"user": "@alice"})`
-// Each workspace keeps mutable work-in-progress in a SQLite file such as
+// Each workspace keeps mutable work-in-progress in a DuckDB file such as
 // `.core/state/scroll-session.duckdb` until `Commit()` or `Discard()` removes
 // it.
 type Workspace struct {
@@ -531,18 +531,18 @@ func (storeInstance *Store) commitWorkspaceAggregate(workspaceName string, field
 }
 
 func openWorkspaceDatabase(databasePath string) (*sql.DB, error) {
-	sqliteDatabase, err := sql.Open("sqlite", databasePath)
+	sqliteDatabase, err := sql.Open("duckdb", databasePath)
 	if err != nil {
 		return nil, core.E("store.openWorkspaceDatabase", "open workspace database", err)
 	}
 	sqliteDatabase.SetMaxOpenConns(1)
-	if _, err := sqliteDatabase.Exec("PRAGMA journal_mode=WAL"); err != nil {
+	if err := sqliteDatabase.Ping(); err != nil {
 		sqliteDatabase.Close()
-		return nil, core.E("store.openWorkspaceDatabase", "set WAL journal mode", err)
+		return nil, core.E("store.openWorkspaceDatabase", "ping workspace database", err)
 	}
-	if _, err := sqliteDatabase.Exec("PRAGMA busy_timeout=5000"); err != nil {
+	if _, err := sqliteDatabase.Exec("CREATE SEQUENCE IF NOT EXISTS workspace_entries_entry_id_seq START 1"); err != nil {
 		sqliteDatabase.Close()
-		return nil, core.E("store.openWorkspaceDatabase", "set busy timeout", err)
+		return nil, core.E("store.openWorkspaceDatabase", "create workspace entry sequence", err)
 	}
 	if _, err := sqliteDatabase.Exec(createWorkspaceEntriesTableSQL); err != nil {
 		sqliteDatabase.Close()
