@@ -2,7 +2,8 @@
 // namespace isolation, quota enforcement, reactive events, journal writes,
 // workspace buffering, cold archive compaction, and orphan recovery.
 //
-// Prefer `store.NewConfigured(store.StoreConfig{...})` and
+// Prefer `store.New(...)` and `store.NewScoped(...)` for the primary API.
+// Use `store.NewConfigured(store.StoreConfig{...})` and
 // `store.NewScopedConfigured(store.ScopedStoreConfig{...})` when the
 // configuration is already known:
 //
