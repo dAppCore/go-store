@@ -386,9 +386,25 @@ func (scopedStore *ScopedStore) PurgeExpired() (int64, error) {
 		return 0, err
 	}
 
-	removedRows, err := purgeExpiredMatchingGroupPrefix(scopedStore.store.sqliteDatabase, scopedStore.namespacePrefix())
+	cutoffUnixMilli := time.Now().UnixMilli()
+	expiredEntries, err := listExpiredEntriesMatchingGroupPrefix(scopedStore.store.sqliteDatabase, scopedStore.namespacePrefix(), cutoffUnixMilli)
+	if err != nil {
+		return 0, core.E("store.ScopedStore.PurgeExpired", "list expired rows", err)
+	}
+
+	removedRows, err := purgeExpiredMatchingGroupPrefix(scopedStore.store.sqliteDatabase, scopedStore.namespacePrefix(), cutoffUnixMilli)
 	if err != nil {
 		return 0, core.E("store.ScopedStore.PurgeExpired", "delete expired rows", err)
+	}
+	if removedRows > 0 {
+		for _, expiredEntry := range expiredEntries {
+			scopedStore.store.notify(Event{
+				Type:      EventDelete,
+				Group:     expiredEntry.group,
+				Key:       expiredEntry.key,
+				Timestamp: time.Now(),
+			})
+		}
 	}
 	return removedRows, nil
 }
@@ -792,9 +808,25 @@ func (scopedStoreTransaction *ScopedStoreTransaction) PurgeExpired() (int64, err
 		return 0, err
 	}
 
-	removedRows, err := purgeExpiredMatchingGroupPrefix(scopedStoreTransaction.storeTransaction.sqliteTransaction, scopedStoreTransaction.scopedStore.namespacePrefix())
+	cutoffUnixMilli := time.Now().UnixMilli()
+	expiredEntries, err := listExpiredEntriesMatchingGroupPrefix(scopedStoreTransaction.storeTransaction.sqliteTransaction, scopedStoreTransaction.scopedStore.namespacePrefix(), cutoffUnixMilli)
+	if err != nil {
+		return 0, core.E("store.ScopedStoreTransaction.PurgeExpired", "list expired rows", err)
+	}
+
+	removedRows, err := purgeExpiredMatchingGroupPrefix(scopedStoreTransaction.storeTransaction.sqliteTransaction, scopedStoreTransaction.scopedStore.namespacePrefix(), cutoffUnixMilli)
 	if err != nil {
 		return 0, core.E("store.ScopedStoreTransaction.PurgeExpired", "delete expired rows", err)
+	}
+	if removedRows > 0 {
+		for _, expiredEntry := range expiredEntries {
+			scopedStoreTransaction.storeTransaction.recordEvent(Event{
+				Type:      EventDelete,
+				Group:     expiredEntry.group,
+				Key:       expiredEntry.key,
+				Timestamp: time.Now(),
+			})
+		}
 	}
 	return removedRows, nil
 }

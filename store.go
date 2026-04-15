@@ -959,9 +959,25 @@ func (storeInstance *Store) PurgeExpired() (int64, error) {
 		return 0, err
 	}
 
-	removedRows, err := purgeExpiredMatchingGroupPrefix(storeInstance.sqliteDatabase, "")
+	cutoffUnixMilli := time.Now().UnixMilli()
+	expiredEntries, err := listExpiredEntriesMatchingGroupPrefix(storeInstance.sqliteDatabase, "", cutoffUnixMilli)
+	if err != nil {
+		return 0, core.E("store.PurgeExpired", "list expired rows", err)
+	}
+
+	removedRows, err := purgeExpiredMatchingGroupPrefix(storeInstance.sqliteDatabase, "", cutoffUnixMilli)
 	if err != nil {
 		return 0, core.E("store.PurgeExpired", "delete expired rows", err)
+	}
+	if removedRows > 0 {
+		for _, expiredEntry := range expiredEntries {
+			storeInstance.notify(Event{
+				Type:      EventDelete,
+				Group:     expiredEntry.group,
+				Key:       expiredEntry.key,
+				Timestamp: time.Now(),
+			})
+		}
 	}
 	return removedRows, nil
 }
@@ -1035,24 +1051,63 @@ func fieldsValueSeq(value string) iter.Seq[string] {
 	}
 }
 
+type expiredEntryRef struct {
+	group string
+	key   string
+}
+
+func listExpiredEntriesMatchingGroupPrefix(database schemaDatabase, groupPrefix string, cutoffUnixMilli int64) ([]expiredEntryRef, error) {
+	var (
+		rows *sql.Rows
+		err  error
+	)
+	if groupPrefix == "" {
+		rows, err = database.Query(
+			"SELECT "+entryGroupColumn+", "+entryKeyColumn+" FROM "+entriesTableName+" WHERE expires_at IS NOT NULL AND expires_at <= ? ORDER BY "+entryGroupColumn+", "+entryKeyColumn,
+			cutoffUnixMilli,
+		)
+	} else {
+		rows, err = database.Query(
+			"SELECT "+entryGroupColumn+", "+entryKeyColumn+" FROM "+entriesTableName+" WHERE expires_at IS NOT NULL AND expires_at <= ? AND "+entryGroupColumn+" LIKE ? ESCAPE '^' ORDER BY "+entryGroupColumn+", "+entryKeyColumn,
+			cutoffUnixMilli, escapeLike(groupPrefix)+"%",
+		)
+	}
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	expiredEntries := make([]expiredEntryRef, 0)
+	for rows.Next() {
+		var expiredEntry expiredEntryRef
+		if err := rows.Scan(&expiredEntry.group, &expiredEntry.key); err != nil {
+			return nil, err
+		}
+		expiredEntries = append(expiredEntries, expiredEntry)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return expiredEntries, nil
+}
+
 // purgeExpiredMatchingGroupPrefix deletes expired rows globally when
 // groupPrefix is empty, otherwise only rows whose group starts with the given
 // prefix.
-func purgeExpiredMatchingGroupPrefix(database schemaDatabase, groupPrefix string) (int64, error) {
+func purgeExpiredMatchingGroupPrefix(database schemaDatabase, groupPrefix string, cutoffUnixMilli int64) (int64, error) {
 	var (
 		deleteResult sql.Result
 		err          error
 	)
-	now := time.Now().UnixMilli()
 	if groupPrefix == "" {
 		deleteResult, err = database.Exec(
 			"DELETE FROM "+entriesTableName+" WHERE expires_at IS NOT NULL AND expires_at <= ?",
-			now,
+			cutoffUnixMilli,
 		)
 	} else {
 		deleteResult, err = database.Exec(
 			"DELETE FROM "+entriesTableName+" WHERE expires_at IS NOT NULL AND expires_at <= ? AND "+entryGroupColumn+" LIKE ? ESCAPE '^'",
-			now, escapeLike(groupPrefix)+"%",
+			cutoffUnixMilli, escapeLike(groupPrefix)+"%",
 		)
 	}
 	if err != nil {
