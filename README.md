@@ -1,4 +1,4 @@
-[![Go Reference](https://pkg.go.dev/badge/dappco.re/go/core/store.svg)](https://pkg.go.dev/dappco.re/go/core/store)
+[![Go Reference](https://pkg.go.dev/badge/dappco.re/go/store.svg)](https://pkg.go.dev/dappco.re/go/store)
 [![License: EUPL-1.2](https://img.shields.io/badge/License-EUPL--1.2-blue.svg)](LICENSE.md)
 [![Go Version](https://img.shields.io/badge/Go-1.26-00ADD8?style=flat&logo=go)](go.mod)
 
@@ -6,7 +6,7 @@
 
 Group-namespaced SQLite key-value store with TTL expiry, namespace isolation, quota enforcement, and a reactive event system. Backed by a pure-Go SQLite driver (no CGO), uses WAL mode for concurrent reads, and enforces a single connection to keep pragma settings consistent. Supports scoped stores for multi-tenant use, Watch/Unwatch subscriptions, and OnChange callbacks for downstream event consumers.
 
-**Module**: `dappco.re/go/core/store`
+**Module**: `dappco.re/go/store`
 **Licence**: EUPL-1.2
 **Language**: Go 1.26
 
@@ -19,7 +19,7 @@ import (
 	"fmt"
 	"time"
 
-	"dappco.re/go/core/store"
+	"dappco.re/go/store"
 )
 
 func main() {

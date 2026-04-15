@@ -11,7 +11,7 @@ For declarative setup, `store.NewConfigured(store.StoreConfig{...})` takes a sin
 
 The package has a single runtime dependency -- a pure-Go SQLite driver (`modernc.org/sqlite`). No CGO is required. It compiles and runs on all platforms that Go supports.
 
-**Module path:** `dappco.re/go/core/store`
+**Module path:** `dappco.re/go/store`
 **Go version:** 1.26+
 **Licence:** EUPL-1.2
 
@@ -24,7 +24,7 @@ import (
     "fmt"
     "time"
 
-    "dappco.re/go/core/store"
+    "dappco.re/go/store"
 )
 
 func main() {
