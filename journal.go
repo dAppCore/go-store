@@ -3,7 +3,6 @@ package store
 import (
 	"database/sql"
 	"regexp"
-	"strconv"
 	"time"
 
 	core "dappco.re/go/core"
@@ -335,7 +334,7 @@ func parseFluxTime(value string) (time.Time, error) {
 		return time.Now(), nil
 	}
 	if core.HasSuffix(value, "d") {
-		days, err := strconv.Atoi(core.TrimSuffix(value, "d"))
+		days, err := parseJournalInt64(core.TrimSuffix(value, "d"))
 		if err != nil {
 			return time.Time{}, err
 		}
@@ -483,14 +482,107 @@ func parseJournalScalarValue(value string) (any, bool) {
 		return false, true
 	}
 
-	if integerValue, err := strconv.ParseInt(value, 10, 64); err == nil {
+	if integerValue, err := parseJournalInt64(value); err == nil {
 		return integerValue, true
 	}
-	if floatValue, err := strconv.ParseFloat(value, 64); err == nil {
+	if floatValue, err := parseJournalFloat64(value); err == nil {
 		return floatValue, true
 	}
 	return nil, false
 }
+
+func parseJournalInt64(value string) (int64, error) {
+	if value == "" {
+		return 0, core.E("store.parseJournalInt64", "integer value is empty", nil)
+	}
+
+	negative := false
+	index := 0
+	if value[0] == '-' || value[0] == '+' {
+		negative = value[0] == '-'
+		index++
+		if index == len(value) {
+			return 0, core.E("store.parseJournalInt64", "integer value has no digits", nil)
+		}
+	}
+
+	limit := uint64(1<<63 - 1)
+	if negative {
+		limit = uint64(1 << 63)
+	}
+
+	var parsed uint64
+	for ; index < len(value); index++ {
+		character := value[index]
+		if character < '0' || character > '9' {
+			return 0, core.E("store.parseJournalInt64", "integer value contains non-digit characters", nil)
+		}
+		digit := uint64(character - '0')
+		if parsed > (limit-digit)/10 {
+			return 0, core.E("store.parseJournalInt64", "integer value is out of range", nil)
+		}
+		parsed = parsed*10 + digit
+	}
+
+	if negative {
+		if parsed == uint64(1<<63) {
+			return -1 << 63, nil
+		}
+		return -int64(parsed), nil
+	}
+	return int64(parsed), nil
+}
+
+func parseJournalFloat64(value string) (float64, error) {
+	if value == "" {
+		return 0, core.E("store.parseJournalFloat64", "float value is empty", nil)
+	}
+
+	negative := false
+	index := 0
+	if value[0] == '-' || value[0] == '+' {
+		negative = value[0] == '-'
+		index++
+		if index == len(value) {
+			return 0, core.E("store.parseJournalFloat64", "float value has no digits", nil)
+		}
+	}
+
+	var parsed float64
+	digits := 0
+	for index < len(value) && value[index] >= '0' && value[index] <= '9' {
+		parsed = parsed*10 + float64(value[index]-'0')
+		if parsed > maxJournalFloat64 {
+			return 0, core.E("store.parseJournalFloat64", "float value is out of range", nil)
+		}
+		digits++
+		index++
+	}
+
+	if index < len(value) && value[index] == '.' {
+		index++
+		scale := 0.1
+		for index < len(value) && value[index] >= '0' && value[index] <= '9' {
+			parsed += float64(value[index]-'0') * scale
+			scale /= 10
+			digits++
+			index++
+		}
+	}
+
+	if digits == 0 {
+		return 0, core.E("store.parseJournalFloat64", "float value has no digits", nil)
+	}
+	if index != len(value) {
+		return 0, core.E("store.parseJournalFloat64", "float value contains invalid characters", nil)
+	}
+	if negative {
+		return -parsed, nil
+	}
+	return parsed, nil
+}
+
+const maxJournalFloat64 = 1.79769313486231570814527423731704357e+308
 
 func cloneAnyMap(input map[string]any) map[string]any {
 	if input == nil {
