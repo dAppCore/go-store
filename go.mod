@@ -5,9 +5,9 @@ go 1.26.0
 require (
 	dappco.re/go/core v0.8.0-alpha.1
 	dappco.re/go/core/io v0.4.2
-	github.com/influxdata/influxdb-client-go/v2 v2.14.0
-	github.com/klauspost/compress v1.18.5
-	modernc.org/sqlite v1.47.0
+	github.com/influxdata/influxdb-client-go/v2 v2.14.0 // Note: InfluxDB storage client; no core equivalent
+	github.com/klauspost/compress v1.18.5 // Note: compression codecs for storage payloads; no core equivalent
+	modernc.org/sqlite v1.47.0 // Note: pure-Go SQLite driver; no core equivalent
 )
 
 require (
@@ -39,10 +39,10 @@ require (
 require (
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/google/uuid v1.6.0 // indirect
-	github.com/marcboeker/go-duckdb v1.8.5
+	github.com/marcboeker/go-duckdb v1.8.5 // Note: DuckDB workspace buffer driver; no core equivalent
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/ncruces/go-strftime v1.0.0 // indirect
-	github.com/parquet-go/parquet-go v0.29.0
+	github.com/parquet-go/parquet-go v0.29.0 // Note: Parquet file storage support; no core equivalent
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
 	golang.org/x/sys v0.43.0 // indirect
 	golang.org/x/tools v0.43.0 // indirect
