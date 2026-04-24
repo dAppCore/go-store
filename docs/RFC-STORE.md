@@ -41,21 +41,55 @@ SQLite-backed key-value store with TTL, namespace isolation, reactive events, an
 ## 4. Store Struct
 
 ```go
-// Store is the SQLite KV store with optional SQLite journal backing.
+// Store is the SQLite key-value store with TTL expiry, namespace isolation,
+// reactive events, SQLite journal writes, and orphan recovery.
 type Store struct {
-    db      *sql.DB            // SQLite connection (single, WAL mode)
-    journal JournalConfiguration // SQLite journal metadata (nil-equivalent when zero-valued)
-    bucket  string             // Journal bucket name
-    org     string             // Journal organisation
-    mu      sync.RWMutex
-    watchers map[string][]chan Event
+    db                      *sql.DB
+    sqliteDatabase          *sql.DB
+    databasePath            string
+    workspaceStateDirectory string
+    purgeContext            context.Context
+    cancelPurge             context.CancelFunc
+    purgeWaitGroup          sync.WaitGroup
+    purgeInterval           time.Duration // interval between background purge cycles
+    sqliteStoragePath       string
+    sqliteStorageDirectory  string
+    mediumBacked            bool
+    journal                 influxdb2.Client
+    bucket                  string
+    org                     string
+    mu                      sync.RWMutex
+    journalConfiguration    JournalConfiguration
+    medium                  Medium
+    lifecycleLock           sync.Mutex
+    isClosed                bool
+
+    // Event dispatch state.
+    watchers       map[string][]chan Event
+    callbacks      []changeCallbackRegistration
+    watcherLock    sync.RWMutex // protects watcher registration and dispatch
+    callbackLock   sync.RWMutex // protects callback registration and dispatch
+    nextCallbackID uint64       // monotonic ID for callback registrations
+
+    orphanWorkspaceLock    sync.Mutex
+    cachedOrphanWorkspaces []*Workspace
+}
+
+type EventType int
+
+const (
+    EventSet EventType = iota
+    EventDelete
+    EventDeleteGroup
 }
 
 // Event is emitted on Watch channels when a key changes.
 type Event struct {
-    Group string
-    Key   string
-    Value string
+    Type      EventType
+    Group     string
+    Key       string
+    Value     string
+    Timestamp time.Time
 }
 ```
 
