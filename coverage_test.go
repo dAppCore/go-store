@@ -9,8 +9,6 @@ import (
 	"testing"
 
 	core "dappco.re/go/core"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 // ---------------------------------------------------------------------------
@@ -24,19 +22,19 @@ func TestCoverage_New_Bad_SchemaConflict(t *testing.T) {
 	databasePath := testPath(t, "conflict.db")
 
 	database, err := sql.Open("sqlite", databasePath)
-	require.NoError(t, err)
+	assertNoError(t, err)
 	database.SetMaxOpenConns(1)
 	_, err = database.Exec("PRAGMA journal_mode=WAL")
-	require.NoError(t, err)
+	assertNoError(t, err)
 	_, err = database.Exec("CREATE TABLE dummy (id INTEGER)")
-	require.NoError(t, err)
+	assertNoError(t, err)
 	_, err = database.Exec("CREATE INDEX entries ON dummy(id)")
-	require.NoError(t, err)
-	require.NoError(t, database.Close())
+	assertNoError(t, err)
+	assertNoError(t, database.Close())
 
 	_, err = New(databasePath)
-	require.Error(t, err, "New should fail when an index named entries already exists")
-	assert.Contains(t, err.Error(), "store.New: ensure schema")
+	assertError(t, err)
+	assertContainsString(t, err.Error(), "store.New: ensure schema")
 }
 
 // ---------------------------------------------------------------------------
@@ -47,32 +45,32 @@ func TestCoverage_GetAll_Bad_ScanError(t *testing.T) {
 	// Trigger a scan error by inserting a row with a NULL key. The production
 	// code scans into plain strings, which cannot represent NULL.
 	storeInstance, err := New(":memory:")
-	require.NoError(t, err)
+	assertNoError(t, err)
 	defer storeInstance.Close()
 
 	// Insert a normal row first so the query returns results.
-	require.NoError(t, storeInstance.Set("g", "good", "value"))
+	assertNoError(t, storeInstance.Set("g", "good", "value"))
 
 	// Restructure the table to allow NULLs, then insert a NULL-key row.
 	_, err = storeInstance.sqliteDatabase.Exec("ALTER TABLE entries RENAME TO entries_backup")
-	require.NoError(t, err)
+	assertNoError(t, err)
 	_, err = storeInstance.sqliteDatabase.Exec(`CREATE TABLE entries (
 		group_name  TEXT,
 		entry_key   TEXT,
 		entry_value TEXT,
 		expires_at  INTEGER
 	)`)
-	require.NoError(t, err)
+	assertNoError(t, err)
 	_, err = storeInstance.sqliteDatabase.Exec("INSERT INTO entries SELECT * FROM entries_backup")
-	require.NoError(t, err)
+	assertNoError(t, err)
 	_, err = storeInstance.sqliteDatabase.Exec("INSERT INTO entries (group_name, entry_key, entry_value) VALUES ('g', NULL, 'null-key-val')")
-	require.NoError(t, err)
+	assertNoError(t, err)
 	_, err = storeInstance.sqliteDatabase.Exec("DROP TABLE entries_backup")
-	require.NoError(t, err)
+	assertNoError(t, err)
 
 	_, err = storeInstance.GetAll("g")
-	require.Error(t, err, "GetAll should fail when a row contains a NULL key")
-	assert.Contains(t, err.Error(), "store.All: scan")
+	assertError(t, err)
+	assertContainsString(t, err.Error(), "store.All: scan")
 }
 
 // ---------------------------------------------------------------------------
@@ -85,24 +83,22 @@ func TestCoverage_GetAll_Bad_RowsError(t *testing.T) {
 	databasePath := testPath(t, "corrupt-getall.db")
 
 	storeInstance, err := New(databasePath)
-	require.NoError(t, err)
+	assertNoError(t, err)
 
 	// Insert enough rows to span multiple database pages.
 	const rows = 5000
 	for i := range rows {
-		require.NoError(t, storeInstance.Set("g",
-			core.Sprintf("key-%06d", i),
-			core.Sprintf("value-with-padding-%06d-xxxxxxxxxxxxxxxxxxxxxxxx", i)))
+		assertNoError(t, storeInstance.Set("g", core.Sprintf("key-%06d", i), core.Sprintf("value-with-padding-%06d-xxxxxxxxxxxxxxxxxxxxxxxx", i)))
 	}
 	storeInstance.Close()
 
 	// Force a WAL checkpoint so all data is in the main database file.
 	rawDatabase, err := sql.Open("sqlite", databasePath)
-	require.NoError(t, err)
+	assertNoError(t, err)
 	rawDatabase.SetMaxOpenConns(1)
 	_, err = rawDatabase.Exec("PRAGMA wal_checkpoint(TRUNCATE)")
-	require.NoError(t, err)
-	require.NoError(t, rawDatabase.Close())
+	assertNoError(t, err)
+	assertNoError(t, rawDatabase.Close())
 
 	// Corrupt data pages in the latter portion of the file (skip the first
 	// pages which hold the schema).
@@ -111,7 +107,7 @@ func TestCoverage_GetAll_Bad_RowsError(t *testing.T) {
 	for i := range garbage {
 		garbage[i] = 0xFF
 	}
-	require.Greater(t, len(data), len(garbage)*2, "database file should be large enough to corrupt")
+	assertGreaterf(t, len(data), len(garbage)*2, "database file should be large enough to corrupt")
 	offset := len(data) * 3 / 4
 	maxOffset := len(data) - (len(garbage) * 2)
 	if offset > maxOffset {
@@ -126,12 +122,12 @@ func TestCoverage_GetAll_Bad_RowsError(t *testing.T) {
 	_ = testFilesystem().Delete(databasePath + "-shm")
 
 	reopenedStore, err := New(databasePath)
-	require.NoError(t, err)
+	assertNoError(t, err)
 	defer reopenedStore.Close()
 
 	_, err = reopenedStore.GetAll("g")
-	require.Error(t, err, "GetAll should fail on corrupted database pages")
-	assert.Contains(t, err.Error(), "store.All: rows")
+	assertError(t, err)
+	assertContainsString(t, err.Error(), "store.All: rows")
 }
 
 // ---------------------------------------------------------------------------
@@ -141,30 +137,30 @@ func TestCoverage_GetAll_Bad_RowsError(t *testing.T) {
 func TestCoverage_Render_Bad_ScanError(t *testing.T) {
 	// Same NULL-key technique as TestCoverage_GetAll_Bad_ScanError.
 	storeInstance, err := New(":memory:")
-	require.NoError(t, err)
+	assertNoError(t, err)
 	defer storeInstance.Close()
 
-	require.NoError(t, storeInstance.Set("g", "good", "value"))
+	assertNoError(t, storeInstance.Set("g", "good", "value"))
 
 	_, err = storeInstance.sqliteDatabase.Exec("ALTER TABLE entries RENAME TO entries_backup")
-	require.NoError(t, err)
+	assertNoError(t, err)
 	_, err = storeInstance.sqliteDatabase.Exec(`CREATE TABLE entries (
 		group_name  TEXT,
 		entry_key   TEXT,
 		entry_value TEXT,
 		expires_at  INTEGER
 	)`)
-	require.NoError(t, err)
+	assertNoError(t, err)
 	_, err = storeInstance.sqliteDatabase.Exec("INSERT INTO entries SELECT * FROM entries_backup")
-	require.NoError(t, err)
+	assertNoError(t, err)
 	_, err = storeInstance.sqliteDatabase.Exec("INSERT INTO entries (group_name, entry_key, entry_value) VALUES ('g', NULL, 'null-key-val')")
-	require.NoError(t, err)
+	assertNoError(t, err)
 	_, err = storeInstance.sqliteDatabase.Exec("DROP TABLE entries_backup")
-	require.NoError(t, err)
+	assertNoError(t, err)
 
 	_, err = storeInstance.Render("{{ .good }}", "g")
-	require.Error(t, err, "Render should fail when a row contains a NULL key")
-	assert.Contains(t, err.Error(), "store.All: scan")
+	assertError(t, err)
+	assertContainsString(t, err.Error(), "store.All: scan")
 }
 
 // ---------------------------------------------------------------------------
@@ -176,29 +172,27 @@ func TestCoverage_Render_Bad_RowsError(t *testing.T) {
 	databasePath := testPath(t, "corrupt-render.db")
 
 	storeInstance, err := New(databasePath)
-	require.NoError(t, err)
+	assertNoError(t, err)
 
 	const rows = 5000
 	for i := range rows {
-		require.NoError(t, storeInstance.Set("g",
-			core.Sprintf("key-%06d", i),
-			core.Sprintf("value-with-padding-%06d-xxxxxxxxxxxxxxxxxxxxxxxx", i)))
+		assertNoError(t, storeInstance.Set("g", core.Sprintf("key-%06d", i), core.Sprintf("value-with-padding-%06d-xxxxxxxxxxxxxxxxxxxxxxxx", i)))
 	}
 	storeInstance.Close()
 
 	rawDatabase, err := sql.Open("sqlite", databasePath)
-	require.NoError(t, err)
+	assertNoError(t, err)
 	rawDatabase.SetMaxOpenConns(1)
 	_, err = rawDatabase.Exec("PRAGMA wal_checkpoint(TRUNCATE)")
-	require.NoError(t, err)
-	require.NoError(t, rawDatabase.Close())
+	assertNoError(t, err)
+	assertNoError(t, rawDatabase.Close())
 
 	data := requireCoreReadBytes(t, databasePath)
 	garbage := make([]byte, 4096)
 	for i := range garbage {
 		garbage[i] = 0xFF
 	}
-	require.Greater(t, len(data), len(garbage)*2, "database file should be large enough to corrupt")
+	assertGreaterf(t, len(data), len(garbage)*2, "database file should be large enough to corrupt")
 	offset := len(data) * 3 / 4
 	maxOffset := len(data) - (len(garbage) * 2)
 	if offset > maxOffset {
@@ -212,12 +206,12 @@ func TestCoverage_Render_Bad_RowsError(t *testing.T) {
 	_ = testFilesystem().Delete(databasePath + "-shm")
 
 	reopenedStore, err := New(databasePath)
-	require.NoError(t, err)
+	assertNoError(t, err)
 	defer reopenedStore.Close()
 
 	_, err = reopenedStore.Render("{{ . }}", "g")
-	require.Error(t, err, "Render should fail on corrupted database pages")
-	assert.Contains(t, err.Error(), "store.All: rows")
+	assertError(t, err)
+	assertContainsString(t, err.Error(), "store.All: rows")
 }
 
 // ---------------------------------------------------------------------------
@@ -228,28 +222,28 @@ func TestCoverage_GroupsSeq_Bad_ScanError(t *testing.T) {
 	// Trigger a scan error by inserting a row with a NULL group name. The
 	// production code scans into a plain string, which cannot represent NULL.
 	storeInstance, err := New(":memory:")
-	require.NoError(t, err)
+	assertNoError(t, err)
 	defer storeInstance.Close()
 
 	_, err = storeInstance.sqliteDatabase.Exec("ALTER TABLE entries RENAME TO entries_backup")
-	require.NoError(t, err)
+	assertNoError(t, err)
 	_, err = storeInstance.sqliteDatabase.Exec(`CREATE TABLE entries (
 		group_name  TEXT,
 		entry_key   TEXT,
 		entry_value TEXT,
 		expires_at  INTEGER
 	)`)
-	require.NoError(t, err)
+	assertNoError(t, err)
 	_, err = storeInstance.sqliteDatabase.Exec("INSERT INTO entries SELECT * FROM entries_backup")
-	require.NoError(t, err)
+	assertNoError(t, err)
 	_, err = storeInstance.sqliteDatabase.Exec("INSERT INTO entries (group_name, entry_key, entry_value) VALUES (NULL, 'k', 'v')")
-	require.NoError(t, err)
+	assertNoError(t, err)
 	_, err = storeInstance.sqliteDatabase.Exec("DROP TABLE entries_backup")
-	require.NoError(t, err)
+	assertNoError(t, err)
 
 	for groupName, iterationErr := range storeInstance.GroupsSeq("") {
-		require.Error(t, iterationErr)
-		assert.Empty(t, groupName)
+		assertError(t, iterationErr)
+		assertEmpty(t, groupName)
 		break
 	}
 }
@@ -270,8 +264,8 @@ func TestCoverage_GroupsSeq_Bad_RowsError(t *testing.T) {
 	}
 
 	for groupName, iterationErr := range storeInstance.GroupsSeq("") {
-		require.Error(t, iterationErr, "GroupsSeq should fail on corrupted database pages")
-		assert.Empty(t, groupName)
+		assertError(t, iterationErr)
+		assertEmpty(t, groupName)
 		break
 	}
 }
@@ -282,14 +276,14 @@ func TestCoverage_GroupsSeq_Bad_RowsError(t *testing.T) {
 
 func TestCoverage_ScopedStore_Bad_GroupsClosedStore(t *testing.T) {
 	storeInstance, _ := New(":memory:")
-	require.NoError(t, storeInstance.Close())
+	assertNoError(t, storeInstance.Close())
 
 	scopedStore := NewScoped(storeInstance, "tenant-a")
-	require.NotNil(t, scopedStore)
+	assertNotNil(t, scopedStore)
 
 	_, err := scopedStore.Groups("")
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "store.Groups")
+	assertError(t, err)
+	assertContainsString(t, err.Error(), "store.Groups")
 }
 
 func TestCoverage_ScopedStore_Bad_GroupsSeqRowsError(t *testing.T) {
@@ -313,13 +307,13 @@ func TestCoverage_ScopedStore_Bad_GroupsSeqRowsError(t *testing.T) {
 	var seen []string
 	for groupName, iterationErr := range scopedStore.GroupsSeq("") {
 		if iterationErr != nil {
-			require.Error(t, iterationErr)
-			assert.Empty(t, groupName)
+			assertError(t, iterationErr)
+			assertEmpty(t, groupName)
 			break
 		}
 		seen = append(seen, groupName)
 	}
-	assert.Equal(t, []string{"config"}, seen)
+	assertEqual(t, []string{"config"}, seen)
 }
 
 // ---------------------------------------------------------------------------
@@ -333,8 +327,8 @@ func TestCoverage_EnsureSchema_Bad_TableExistsQueryError(t *testing.T) {
 	defer database.Close()
 
 	err := ensureSchema(database)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "sqlite master query failed")
+	assertError(t, err)
+	assertContainsString(t, err.Error(), "sqlite master query failed")
 }
 
 func TestCoverage_EnsureSchema_Good_ExistingEntriesAndLegacyMigration(t *testing.T) {
@@ -346,7 +340,7 @@ func TestCoverage_EnsureSchema_Good_ExistingEntriesAndLegacyMigration(t *testing
 	})
 	defer database.Close()
 
-	require.NoError(t, ensureSchema(database))
+	assertNoError(t, ensureSchema(database))
 }
 
 func TestCoverage_EnsureSchema_Bad_ExpiryColumnQueryError(t *testing.T) {
@@ -357,8 +351,8 @@ func TestCoverage_EnsureSchema_Bad_ExpiryColumnQueryError(t *testing.T) {
 	defer database.Close()
 
 	err := ensureSchema(database)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "table_info query failed")
+	assertError(t, err)
+	assertContainsString(t, err.Error(), "table_info query failed")
 }
 
 func TestCoverage_EnsureSchema_Bad_MigrationError(t *testing.T) {
@@ -372,8 +366,8 @@ func TestCoverage_EnsureSchema_Bad_MigrationError(t *testing.T) {
 	defer database.Close()
 
 	err := ensureSchema(database)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "insert failed")
+	assertError(t, err)
+	assertContainsString(t, err.Error(), "insert failed")
 }
 
 func TestCoverage_EnsureSchema_Bad_MigrationCommitError(t *testing.T) {
@@ -387,8 +381,8 @@ func TestCoverage_EnsureSchema_Bad_MigrationCommitError(t *testing.T) {
 	defer database.Close()
 
 	err := ensureSchema(database)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "commit failed")
+	assertError(t, err)
+	assertContainsString(t, err.Error(), "commit failed")
 }
 
 func TestCoverage_TableHasColumn_Bad_QueryError(t *testing.T) {
@@ -398,8 +392,8 @@ func TestCoverage_TableHasColumn_Bad_QueryError(t *testing.T) {
 	defer database.Close()
 
 	_, err := tableHasColumn(database, "entries", "expires_at")
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "table_info query failed")
+	assertError(t, err)
+	assertContainsString(t, err.Error(), "table_info query failed")
 }
 
 func TestCoverage_EnsureExpiryColumn_Good_DuplicateColumn(t *testing.T) {
@@ -411,7 +405,7 @@ func TestCoverage_EnsureExpiryColumn_Good_DuplicateColumn(t *testing.T) {
 	})
 	defer database.Close()
 
-	require.NoError(t, ensureExpiryColumn(database))
+	assertNoError(t, ensureExpiryColumn(database))
 }
 
 func TestCoverage_EnsureExpiryColumn_Bad_AlterTableError(t *testing.T) {
@@ -424,8 +418,8 @@ func TestCoverage_EnsureExpiryColumn_Bad_AlterTableError(t *testing.T) {
 	defer database.Close()
 
 	err := ensureExpiryColumn(database)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "permission denied")
+	assertError(t, err)
+	assertContainsString(t, err.Error(), "permission denied")
 }
 
 func TestCoverage_MigrateLegacyEntriesTable_Bad_InsertError(t *testing.T) {
@@ -438,8 +432,8 @@ func TestCoverage_MigrateLegacyEntriesTable_Bad_InsertError(t *testing.T) {
 	defer database.Close()
 
 	err := migrateLegacyEntriesTable(database)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "insert failed")
+	assertError(t, err)
+	assertContainsString(t, err.Error(), "insert failed")
 }
 
 func TestCoverage_MigrateLegacyEntriesTable_Bad_BeginError(t *testing.T) {
@@ -449,8 +443,8 @@ func TestCoverage_MigrateLegacyEntriesTable_Bad_BeginError(t *testing.T) {
 	defer database.Close()
 
 	err := migrateLegacyEntriesTable(database)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "begin failed")
+	assertError(t, err)
+	assertContainsString(t, err.Error(), "begin failed")
 }
 
 func TestCoverage_MigrateLegacyEntriesTable_Good_CreatesAndMigratesLegacyRows(t *testing.T) {
@@ -461,7 +455,7 @@ func TestCoverage_MigrateLegacyEntriesTable_Good_CreatesAndMigratesLegacyRows(t 
 	})
 	defer database.Close()
 
-	require.NoError(t, migrateLegacyEntriesTable(database))
+	assertNoError(t, migrateLegacyEntriesTable(database))
 }
 
 func TestCoverage_MigrateLegacyEntriesTable_Bad_TableInfoError(t *testing.T) {
@@ -471,8 +465,8 @@ func TestCoverage_MigrateLegacyEntriesTable_Bad_TableInfoError(t *testing.T) {
 	defer database.Close()
 
 	err := migrateLegacyEntriesTable(database)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "table_info query failed")
+	assertError(t, err)
+	assertContainsString(t, err.Error(), "table_info query failed")
 }
 
 type stubSQLiteScenario struct {
@@ -533,7 +527,7 @@ func openStubSQLiteDatabase(t *testing.T, scenario stubSQLiteScenario) (*sql.DB,
 	})
 
 	database, err := sql.Open(stubSQLiteDriverName, databasePath)
-	require.NoError(t, err)
+	assertNoError(t, err)
 	return database, databasePath
 }
 

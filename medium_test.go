@@ -11,8 +11,6 @@ import (
 	"time"
 
 	core "dappco.re/go/core"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 // memoryMedium is an in-memory implementation of `store.Medium` used by the
@@ -190,21 +188,21 @@ func TestMedium_WithMedium_Good(t *testing.T) {
 
 	medium := newMemoryMedium()
 	storeInstance, err := New(":memory:", WithMedium(medium))
-	require.NoError(t, err)
+	assertNoError(t, err)
 	defer storeInstance.Close()
 
-	assert.Same(t, medium, storeInstance.Medium(), "medium should round-trip via accessor")
-	assert.Same(t, medium, storeInstance.Config().Medium, "medium should appear in Config()")
+	assertSamef(t, medium, storeInstance.Medium(), "medium should round-trip via accessor")
+	assertSamef(t, medium, storeInstance.Config().Medium, "medium should appear in Config()")
 }
 
 func TestMedium_WithMedium_Bad_NilKeepsFilesystemBackend(t *testing.T) {
 	useWorkspaceStateDirectory(t)
 
 	storeInstance, err := New(":memory:")
-	require.NoError(t, err)
+	assertNoError(t, err)
 	defer storeInstance.Close()
 
-	assert.Nil(t, storeInstance.Medium())
+	assertNil(t, storeInstance.Medium())
 }
 
 func TestMedium_WithMedium_Good_PersistsDatabaseThroughMedium(t *testing.T) {
@@ -213,186 +211,186 @@ func TestMedium_WithMedium_Good_PersistsDatabaseThroughMedium(t *testing.T) {
 	medium := newMemoryMedium()
 
 	storeInstance, err := New("app.db", WithMedium(medium))
-	require.NoError(t, err)
+	assertNoError(t, err)
 
-	require.NoError(t, storeInstance.Set("g", "k", "v"))
-	require.NoError(t, storeInstance.Close())
+	assertNoError(t, storeInstance.Set("g", "k", "v"))
+	assertNoError(t, storeInstance.Close())
 
 	reopenedStore, err := New("app.db", WithMedium(medium))
-	require.NoError(t, err)
+	assertNoError(t, err)
 	defer reopenedStore.Close()
 
 	value, err := reopenedStore.Get("g", "k")
-	require.NoError(t, err)
-	assert.Equal(t, "v", value)
-	assert.True(t, medium.Exists("app.db"))
+	assertNoError(t, err)
+	assertEqual(t, "v", value)
+	assertTrue(t, medium.Exists("app.db"))
 }
 
 func TestMedium_Import_Good_JSONL(t *testing.T) {
 	useWorkspaceStateDirectory(t)
 
 	storeInstance, err := New(":memory:")
-	require.NoError(t, err)
+	assertNoError(t, err)
 	defer storeInstance.Close()
 
 	workspace, err := storeInstance.NewWorkspace("medium-import-jsonl")
-	require.NoError(t, err)
+	assertNoError(t, err)
 	defer workspace.Discard()
 
 	medium := newMemoryMedium()
-	require.NoError(t, medium.Write("data.jsonl", `{"user":"@alice"}
+	assertNoError(t, medium.Write("data.jsonl", `{"user":"@alice"}
 {"user":"@bob"}
 `))
 
-	require.NoError(t, Import(workspace, medium, "data.jsonl"))
+	assertNoError(t, Import(workspace, medium, "data.jsonl"))
 
 	rows := requireResultRows(t, workspace.Query("SELECT entry_kind, entry_data FROM workspace_entries ORDER BY entry_id"))
-	require.Len(t, rows, 2)
-	assert.Equal(t, "data", rows[0]["entry_kind"])
-	assert.Contains(t, rows[0]["entry_data"], "@alice")
-	assert.Contains(t, rows[1]["entry_data"], "@bob")
+	assertLen(t, rows, 2)
+	assertEqual(t, "data", rows[0]["entry_kind"])
+	assertContainsElement(t, rows[0]["entry_data"], "@alice")
+	assertContainsElement(t, rows[1]["entry_data"], "@bob")
 }
 
 func TestMedium_Import_Good_JSONArray(t *testing.T) {
 	useWorkspaceStateDirectory(t)
 
 	storeInstance, err := New(":memory:")
-	require.NoError(t, err)
+	assertNoError(t, err)
 	defer storeInstance.Close()
 
 	workspace, err := storeInstance.NewWorkspace("medium-import-json-array")
-	require.NoError(t, err)
+	assertNoError(t, err)
 	defer workspace.Discard()
 
 	medium := newMemoryMedium()
-	require.NoError(t, medium.Write("users.json", `[{"name":"Alice"},{"name":"Bob"},{"name":"Carol"}]`))
+	assertNoError(t, medium.Write("users.json", `[{"name":"Alice"},{"name":"Bob"},{"name":"Carol"}]`))
 
-	require.NoError(t, Import(workspace, medium, "users.json"))
+	assertNoError(t, Import(workspace, medium, "users.json"))
 
-	assert.Equal(t, map[string]any{"users": 3}, workspace.Aggregate())
+	assertEqual(t, map[string]any{"users": 3}, workspace.Aggregate())
 }
 
 func TestMedium_Import_Good_CSV(t *testing.T) {
 	useWorkspaceStateDirectory(t)
 
 	storeInstance, err := New(":memory:")
-	require.NoError(t, err)
+	assertNoError(t, err)
 	defer storeInstance.Close()
 
 	workspace, err := storeInstance.NewWorkspace("medium-import-csv")
-	require.NoError(t, err)
+	assertNoError(t, err)
 	defer workspace.Discard()
 
 	medium := newMemoryMedium()
-	require.NoError(t, medium.Write("findings.csv", "tool,severity\ngosec,high\ngolint,low\n"))
+	assertNoError(t, medium.Write("findings.csv", "tool,severity\ngosec,high\ngolint,low\n"))
 
-	require.NoError(t, Import(workspace, medium, "findings.csv"))
+	assertNoError(t, Import(workspace, medium, "findings.csv"))
 
-	assert.Equal(t, map[string]any{"findings": 2}, workspace.Aggregate())
+	assertEqual(t, map[string]any{"findings": 2}, workspace.Aggregate())
 }
 
 func TestMedium_Import_Bad_NilArguments(t *testing.T) {
 	useWorkspaceStateDirectory(t)
 
 	storeInstance, err := New(":memory:")
-	require.NoError(t, err)
+	assertNoError(t, err)
 	defer storeInstance.Close()
 
 	workspace, err := storeInstance.NewWorkspace("medium-import-bad")
-	require.NoError(t, err)
+	assertNoError(t, err)
 	defer workspace.Discard()
 
 	medium := newMemoryMedium()
 
-	require.Error(t, Import(nil, medium, "data.json"))
-	require.Error(t, Import(workspace, nil, "data.json"))
-	require.Error(t, Import(workspace, medium, ""))
+	assertError(t, Import(nil, medium, "data.json"))
+	assertError(t, Import(workspace, nil, "data.json"))
+	assertError(t, Import(workspace, medium, ""))
 }
 
 func TestMedium_Import_Ugly_MissingFileReturnsError(t *testing.T) {
 	useWorkspaceStateDirectory(t)
 
 	storeInstance, err := New(":memory:")
-	require.NoError(t, err)
+	assertNoError(t, err)
 	defer storeInstance.Close()
 
 	workspace, err := storeInstance.NewWorkspace("medium-import-missing")
-	require.NoError(t, err)
+	assertNoError(t, err)
 	defer workspace.Discard()
 
 	medium := newMemoryMedium()
-	require.Error(t, Import(workspace, medium, "ghost.jsonl"))
+	assertError(t, Import(workspace, medium, "ghost.jsonl"))
 }
 
 func TestMedium_Export_Good_JSON(t *testing.T) {
 	useWorkspaceStateDirectory(t)
 
 	storeInstance, err := New(":memory:")
-	require.NoError(t, err)
+	assertNoError(t, err)
 	defer storeInstance.Close()
 
 	workspace, err := storeInstance.NewWorkspace("medium-export-json")
-	require.NoError(t, err)
+	assertNoError(t, err)
 	defer workspace.Discard()
 
-	require.NoError(t, workspace.Put("like", map[string]any{"user": "@alice"}))
-	require.NoError(t, workspace.Put("like", map[string]any{"user": "@bob"}))
-	require.NoError(t, workspace.Put("profile_match", map[string]any{"user": "@carol"}))
+	assertNoError(t, workspace.Put("like", map[string]any{"user": "@alice"}))
+	assertNoError(t, workspace.Put("like", map[string]any{"user": "@bob"}))
+	assertNoError(t, workspace.Put("profile_match", map[string]any{"user": "@carol"}))
 
 	medium := newMemoryMedium()
-	require.NoError(t, Export(workspace, medium, "report.json"))
+	assertNoError(t, Export(workspace, medium, "report.json"))
 
-	assert.True(t, medium.Exists("report.json"))
+	assertTrue(t, medium.Exists("report.json"))
 	content, err := medium.Read("report.json")
-	require.NoError(t, err)
-	assert.Contains(t, content, `"like":2`)
-	assert.Contains(t, content, `"profile_match":1`)
+	assertNoError(t, err)
+	assertContainsString(t, content, `"like":2`)
+	assertContainsString(t, content, `"profile_match":1`)
 }
 
 func TestMedium_Export_Good_JSONLines(t *testing.T) {
 	useWorkspaceStateDirectory(t)
 
 	storeInstance, err := New(":memory:")
-	require.NoError(t, err)
+	assertNoError(t, err)
 	defer storeInstance.Close()
 
 	workspace, err := storeInstance.NewWorkspace("medium-export-jsonl")
-	require.NoError(t, err)
+	assertNoError(t, err)
 	defer workspace.Discard()
 
-	require.NoError(t, workspace.Put("like", map[string]any{"user": "@alice"}))
-	require.NoError(t, workspace.Put("like", map[string]any{"user": "@bob"}))
+	assertNoError(t, workspace.Put("like", map[string]any{"user": "@alice"}))
+	assertNoError(t, workspace.Put("like", map[string]any{"user": "@bob"}))
 
 	medium := newMemoryMedium()
-	require.NoError(t, Export(workspace, medium, "report.jsonl"))
+	assertNoError(t, Export(workspace, medium, "report.jsonl"))
 
 	content, err := medium.Read("report.jsonl")
-	require.NoError(t, err)
+	assertNoError(t, err)
 	lines := 0
 	for _, line := range splitNewlines(content) {
 		if line != "" {
 			lines++
 		}
 	}
-	assert.Equal(t, 2, lines)
+	assertEqual(t, 2, lines)
 }
 
 func TestMedium_Export_Bad_NilArguments(t *testing.T) {
 	useWorkspaceStateDirectory(t)
 
 	storeInstance, err := New(":memory:")
-	require.NoError(t, err)
+	assertNoError(t, err)
 	defer storeInstance.Close()
 
 	workspace, err := storeInstance.NewWorkspace("medium-export-bad")
-	require.NoError(t, err)
+	assertNoError(t, err)
 	defer workspace.Discard()
 
 	medium := newMemoryMedium()
 
-	require.Error(t, Export(nil, medium, "report.json"))
-	require.Error(t, Export(workspace, nil, "report.json"))
-	require.Error(t, Export(workspace, medium, ""))
+	assertError(t, Export(nil, medium, "report.json"))
+	assertError(t, Export(workspace, nil, "report.json"))
+	assertError(t, Export(workspace, medium, ""))
 }
 
 func TestMedium_Compact_Good_MediumRoutesArchive(t *testing.T) {
@@ -401,21 +399,21 @@ func TestMedium_Compact_Good_MediumRoutesArchive(t *testing.T) {
 
 	medium := newMemoryMedium()
 	storeInstance, err := New(":memory:", WithJournal("http://127.0.0.1:8086", "core", "events"), WithMedium(medium))
-	require.NoError(t, err)
+	assertNoError(t, err)
 	defer storeInstance.Close()
 
-	require.True(t, storeInstance.CommitToJournal("jobs", map[string]any{"count": 3}, map[string]string{"workspace": "jobs-1"}).OK)
+	assertTrue(t, storeInstance.CommitToJournal("jobs", map[string]any{"count": 3}, map[string]string{"workspace": "jobs-1"}).OK)
 
 	result := storeInstance.Compact(CompactOptions{
 		Before: time.Now().Add(time.Minute),
 		Output: "archive/",
 		Format: "gzip",
 	})
-	require.True(t, result.OK, "compact result: %v", result.Value)
+	assertTruef(t, result.OK, "compact result: %v", result.Value)
 	outputPath, ok := result.Value.(string)
-	require.True(t, ok)
-	require.NotEmpty(t, outputPath)
-	assert.True(t, medium.Exists(outputPath), "compact should write through medium at %s", outputPath)
+	assertTrue(t, ok)
+	assertNotEmpty(t, outputPath)
+	assertTruef(t, medium.Exists(outputPath), "compact should write through medium at %s", outputPath)
 }
 
 func splitNewlines(content string) []string {

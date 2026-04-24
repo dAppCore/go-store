@@ -10,8 +10,6 @@ import (
 	"unicode"
 
 	core "dappco.re/go/core"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestConventions_Imports_Good_Banned(t *testing.T) {
@@ -41,7 +39,7 @@ func TestConventions_Imports_Good_Banned(t *testing.T) {
 	}
 
 	slices.Sort(banned)
-	assert.Empty(t, banned, "banned imports should not appear in repository Go files")
+	assertEmptyf(t, banned, "banned imports should not appear in repository Go files")
 }
 
 func TestConventions_TestNaming_Good_StrictPattern(t *testing.T) {
@@ -75,7 +73,7 @@ func TestConventions_TestNaming_Good_StrictPattern(t *testing.T) {
 	}
 
 	slices.Sort(invalid)
-	assert.Empty(t, invalid, "top-level tests must follow Test<File>_<Function>_<Good|Bad|Ugly>")
+	assertEmptyf(t, invalid, "top-level tests must follow Test<File>_<Function>_<Good|Bad|Ugly>")
 }
 
 func TestConventions_Exports_Good_UsageExamples(t *testing.T) {
@@ -121,7 +119,7 @@ func TestConventions_Exports_Good_UsageExamples(t *testing.T) {
 	}
 
 	slices.Sort(missing)
-	assert.Empty(t, missing, "exported declarations must include a usage example in their doc comment")
+	assertEmptyf(t, missing, "exported declarations must include a usage example in their doc comment")
 }
 
 func TestConventions_Exports_Good_FieldUsageExamples(t *testing.T) {
@@ -161,7 +159,7 @@ func TestConventions_Exports_Good_FieldUsageExamples(t *testing.T) {
 	}
 
 	slices.Sort(missing)
-	assert.Empty(t, missing, "exported struct fields must include a usage example in their doc comment")
+	assertEmptyf(t, missing, "exported struct fields must include a usage example in their doc comment")
 }
 
 func TestConventions_Exports_Good_NoCompatibilityAliases(t *testing.T) {
@@ -208,7 +206,7 @@ func TestConventions_Exports_Good_NoCompatibilityAliases(t *testing.T) {
 	}
 
 	slices.Sort(invalid)
-	assert.Empty(t, invalid, "legacy compatibility aliases should not appear in the public Go API")
+	assertEmptyf(t, invalid, "legacy compatibility aliases should not appear in the public Go API")
 }
 
 func repoGoFiles(t *testing.T, keep func(name string) bool) []string {
@@ -218,7 +216,7 @@ func repoGoFiles(t *testing.T, keep func(name string) bool) []string {
 	requireCoreOK(t, result)
 
 	entries, ok := result.Value.([]fs.DirEntry)
-	require.True(t, ok, "unexpected directory entry type: %T", result.Value)
+	assertTruef(t, ok, "unexpected directory entry type: %T", result.Value)
 
 	var files []string
 	for _, entry := range entries {
@@ -236,7 +234,7 @@ func parseGoFile(t *testing.T, path string) *ast.File {
 	t.Helper()
 
 	file, err := parser.ParseFile(token.NewFileSet(), path, nil, parser.ParseComments)
-	require.NoError(t, err)
+	assertNoError(t, err)
 	return file
 }
 

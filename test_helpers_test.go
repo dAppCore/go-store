@@ -4,7 +4,6 @@ import (
 	"testing"
 
 	core "dappco.re/go/core"
-	"github.com/stretchr/testify/require"
 )
 
 func testFilesystem() *core.Fs {
@@ -18,7 +17,7 @@ func testPath(tb testing.TB, name string) string {
 
 func requireCoreOK(tb testing.TB, result core.Result) {
 	tb.Helper()
-	require.True(tb, result.OK, "core result failed: %v", result.Value)
+	assertTruef(tb, result.OK, "core result failed: %v", result.Value)
 }
 
 func requireCoreReadBytes(tb testing.TB, path string) []byte {
@@ -73,8 +72,8 @@ func useArchiveOutputDirectory(tb testing.TB) string {
 func requireResultRows(tb testing.TB, result core.Result) []map[string]any {
 	tb.Helper()
 
-	require.True(tb, result.OK, "core result failed: %v", result.Value)
+	assertTruef(tb, result.OK, "core result failed: %v", result.Value)
 	rows, ok := result.Value.([]map[string]any)
-	require.True(tb, ok, "unexpected row type: %T", result.Value)
+	assertTruef(tb, ok, "unexpected row type: %T", result.Value)
 	return rows
 }
