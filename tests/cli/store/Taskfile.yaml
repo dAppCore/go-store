@@ -1,0 +1,22 @@
+version: "3"
+
+tasks:
+  build:
+    dir: ../../..
+    cmds:
+      - go build ./...
+
+  test:
+    dir: ../../..
+    cmds:
+      - go test -count=1 -race ./...
+
+  test-memory:
+    dir: ../../..
+    cmds:
+      - go test -count=1 -race -run "^TestStore_.*Memory" ./...
+
+  test-workspace:
+    dir: ../../..
+    cmds:
+      - go test -count=1 -race -run "^TestWorkspace_" ./...
