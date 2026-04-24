@@ -6,13 +6,13 @@ import (
 	"bytes"
 
 	core "dappco.re/go/core"
-	"dappco.re/go/core/io"
+	"dappco.re/go/io"
 )
 
 // Medium is the minimal storage transport used by the go-store workspace
 // import and export helpers and by Compact when writing cold archives.
 //
-// This is an alias of `dappco.re/go/core/io.Medium`, so callers can pass any
+// This is an alias of `dappco.re/go/io.Medium`, so callers can pass any
 // upstream medium implementation directly without an adapter.
 //
 // Usage example: `medium, _ := local.New("/tmp/exports"); storeInstance, err := store.New(":memory:", store.WithMedium(medium))`
