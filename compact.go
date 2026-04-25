@@ -2,11 +2,11 @@ package store
 
 import (
 	"compress/gzip"
-	"io"
 	"time"
 	"unicode"
 
 	core "dappco.re/go/core"
+	coreio "dappco.re/go/core/io"
 	"github.com/klauspost/compress/zstd"
 )
 
@@ -24,7 +24,7 @@ type CompactOptions struct {
 	// Usage example: `options := store.CompactOptions{Format: "zstd"}`
 	Format string
 	// Usage example: `medium, _ := s3.New(s3.Options{Bucket: "archive"}); options := store.CompactOptions{Before: time.Now().Add(-90 * 24 * time.Hour), Medium: medium}`
-	// Medium routes the archive write through an io.Medium instead of the raw
+	// Medium routes the archive write through a coreio.Medium instead of the raw
 	// filesystem. When set, Output is the path inside the medium; leave empty
 	// to use `.core/archive/`. When nil, Compact falls back to the store-level
 	// medium (if configured via WithMedium), then to the local filesystem.
@@ -99,13 +99,13 @@ func (storeInstance *Store) Compact(options CompactOptions) core.Result {
 	if medium == nil {
 		medium = storeInstance.medium
 	}
-
-	filesystem := (&core.Fs{}).NewUnrestricted()
 	if medium == nil {
-		if result := filesystem.EnsureDir(options.Output); !result.OK {
-			return core.Result{Value: core.E("store.Compact", "ensure archive directory", result.Value.(error)), OK: false}
-		}
-	} else if err := ensureMediumDir(medium, options.Output); err != nil {
+		medium = coreio.Local
+	}
+	if medium == nil {
+		return core.Result{Value: core.E("store.Compact", "local medium is unavailable", nil), OK: false}
+	}
+	if err := ensureMediumDir(medium, options.Output); err != nil {
 		return core.Result{Value: core.E("store.Compact", "ensure medium archive directory", err), OK: false}
 	}
 
@@ -141,34 +141,11 @@ func (storeInstance *Store) Compact(options CompactOptions) core.Result {
 	}
 
 	outputPath := compactOutputPath(options.Output, options.Format)
-	var (
-		file       io.WriteCloser
-		createErr  error
-	)
-	if medium != nil {
-		file, createErr = medium.Create(outputPath)
-		if createErr != nil {
-			return core.Result{Value: core.E("store.Compact", "create archive via medium", createErr), OK: false}
-		}
-	} else {
-		archiveFileResult := filesystem.Create(outputPath)
-		if !archiveFileResult.OK {
-			return core.Result{Value: core.E("store.Compact", "create archive file", archiveFileResult.Value.(error)), OK: false}
-		}
-		existingFile, ok := archiveFileResult.Value.(io.WriteCloser)
-		if !ok {
-			return core.Result{Value: core.E("store.Compact", "archive file is not writable", nil), OK: false}
-		}
-		file = existingFile
+	archiveContent, err := newCompactArchiveBuffer()
+	if err != nil {
+		return core.Result{Value: core.E("store.Compact", "create archive buffer", err), OK: false}
 	}
-	archiveFileClosed := false
-	defer func() {
-		if !archiveFileClosed {
-			_ = file.Close()
-		}
-	}()
-
-	writer, err := archiveWriter(file, options.Format)
+	writer, err := archiveWriter(archiveContent, options.Format)
 	if err != nil {
 		return core.Result{Value: err, OK: false}
 	}
@@ -188,7 +165,7 @@ func (storeInstance *Store) Compact(options CompactOptions) core.Result {
 		if err != nil {
 			return core.Result{Value: err, OK: false}
 		}
-		if _, err := io.WriteString(writer, lineJSON+"\n"); err != nil {
+		if _, err := writer.Write([]byte(lineJSON + "\n")); err != nil {
 			return core.Result{Value: core.E("store.Compact", "write archive line", err), OK: false}
 		}
 	}
@@ -196,10 +173,13 @@ func (storeInstance *Store) Compact(options CompactOptions) core.Result {
 		return core.Result{Value: core.E("store.Compact", "close archive writer", err), OK: false}
 	}
 	archiveWriteFinished = true
-	if err := file.Close(); err != nil {
-		return core.Result{Value: core.E("store.Compact", "close archive file", err), OK: false}
+	compressedArchive, err := archiveContent.content()
+	if err != nil {
+		return core.Result{Value: core.E("store.Compact", "read archive buffer", err), OK: false}
 	}
-	archiveFileClosed = true
+	if err := medium.Write(outputPath, compressedArchive); err != nil {
+		return core.Result{Value: core.E("store.Compact", "write archive via medium", err), OK: false}
+	}
 
 	transaction, err := storeInstance.sqliteDatabase.Begin()
 	if err != nil {
@@ -253,7 +233,48 @@ func archiveEntryLine(entry compactArchiveEntry) (map[string]any, error) {
 	}, nil
 }
 
-func archiveWriter(writer io.Writer, format string) (io.WriteCloser, error) {
+type compactArchiveWriter interface {
+	Write([]byte) (int, error)
+	Close() error
+}
+
+type compactArchiveWriteTarget interface {
+	Write([]byte) (int, error)
+}
+
+type compactArchiveBuffer struct {
+	medium coreio.Medium
+	path   string
+}
+
+func newCompactArchiveBuffer() (*compactArchiveBuffer, error) {
+	buffer := &compactArchiveBuffer{
+		medium: coreio.NewMemoryMedium(),
+		path:   "archive-buffer",
+	}
+	if err := buffer.medium.Write(buffer.path, ""); err != nil {
+		return nil, err
+	}
+	return buffer, nil
+}
+
+// Usage example: `buffer, _ := newCompactArchiveBuffer(); _, _ = buffer.Write([]byte("archive"))`
+func (buffer *compactArchiveBuffer) Write(data []byte) (int, error) {
+	content, err := buffer.medium.Read(buffer.path)
+	if err != nil {
+		return 0, core.E("store.compactArchiveBuffer.Write", "read buffer", err)
+	}
+	if err := buffer.medium.Write(buffer.path, content+string(data)); err != nil {
+		return 0, core.E("store.compactArchiveBuffer.Write", "write buffer", err)
+	}
+	return len(data), nil
+}
+
+func (buffer *compactArchiveBuffer) content() (string, error) {
+	return buffer.medium.Read(buffer.path)
+}
+
+func archiveWriter(writer compactArchiveWriteTarget, format string) (compactArchiveWriter, error) {
 	switch format {
 	case "gzip":
 		return gzip.NewWriter(writer), nil
