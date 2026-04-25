@@ -4,11 +4,20 @@ package store
 
 import (
 	"bufio"
-	"io"
 
 	core "dappco.re/go/core"
 	"github.com/parquet-go/parquet-go"
 )
+
+type readCloser interface {
+	Read([]byte) (int, error)
+	Close() error
+}
+
+type writeCloser interface {
+	Write([]byte) (int, error)
+	Close() error
+}
 
 // ChatMessage represents a single message in a chat conversation, used for
 // reading JSONL training data during Parquet export and data import.
@@ -110,7 +119,7 @@ func ExportSplitParquet(jsonlPath, outputDir, split string) (int, error) {
 	if !openResult.OK {
 		return 0, core.E("store.ExportSplitParquet", core.Sprintf("open %s", jsonlPath), openResult.Value.(error))
 	}
-	f := openResult.Value.(io.ReadCloser)
+	f := openResult.Value.(readCloser)
 	defer f.Close()
 
 	var rows []ParquetRow
@@ -171,7 +180,7 @@ func ExportSplitParquet(jsonlPath, outputDir, split string) (int, error) {
 	if !createResult.OK {
 		return 0, core.E("store.ExportSplitParquet", core.Sprintf("create %s", outPath), createResult.Value.(error))
 	}
-	out := createResult.Value.(io.WriteCloser)
+	out := createResult.Value.(writeCloser)
 
 	writer := parquet.NewGenericWriter[ParquetRow](out,
 		parquet.Compression(&parquet.Snappy),

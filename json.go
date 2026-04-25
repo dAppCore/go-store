@@ -6,11 +6,7 @@
 // Internally uses core/go JSON primitives.
 package store
 
-import (
-	"bytes"
-
-	core "dappco.re/go/core"
-)
+import core "dappco.re/go/core"
 
 // RawMessage is a raw encoded JSON value.
 // Use in structs where the JSON should be stored as-is without re-encoding.
@@ -64,18 +60,21 @@ func MarshalIndent(v any, prefix, indent string) ([]byte, error) {
 		return raw, nil
 	}
 
-	var buf bytes.Buffer
-	if err := indentCompactJSON(&buf, raw, prefix, indent); err != nil {
+	buf := core.NewBuilder()
+	if err := indentCompactJSON(buf, raw, prefix, indent); err != nil {
 		return nil, core.E("store.MarshalIndent", "indent", err)
 	}
-	return buf.Bytes(), nil
+	return []byte(buf.String()), nil
 }
 
 // indentCompactJSON formats compact JSON bytes with prefix+indent.
 // Mirrors json.Indent's semantics without importing encoding/json.
 //
-// Usage example: `var buf bytes.Buffer; _ = indentCompactJSON(&buf, compact, "", "  ")`
-func indentCompactJSON(buf *bytes.Buffer, src []byte, prefix, indent string) error {
+// Usage example: `builder := core.NewBuilder(); _ = indentCompactJSON(builder, compact, "", "  ")`
+func indentCompactJSON(buf interface {
+	WriteByte(byte) error
+	WriteString(string) (int, error)
+}, src []byte, prefix, indent string) error {
 	depth := 0
 	inString := false
 	escaped := false
