@@ -3,7 +3,6 @@
 package store
 
 import (
-	"bytes"
 	"io"
 	"io/fs"
 	"net/http"
@@ -173,7 +172,7 @@ func uploadFileToHF(token, repoID, localPath, remotePath string) error {
 
 	url := core.Sprintf("https://huggingface.co/api/datasets/%s/upload/main/%s", repoID, remotePath)
 
-	req, err := http.NewRequest(http.MethodPut, url, bytes.NewReader(raw))
+	req, err := http.NewRequest(http.MethodPut, url, core.NewBuffer(raw))
 	if err != nil {
 		return core.E("store.uploadFileToHF", "create request", err)
 	}

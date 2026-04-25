@@ -3,8 +3,6 @@
 package store
 
 import (
-	"bytes"
-
 	core "dappco.re/go/core"
 	"dappco.re/go/io"
 )
@@ -235,9 +233,9 @@ func importCSV(workspace *Workspace, kind, content string) error {
 
 func splitCSVLine(line string) []string {
 	line = trimTrailingCarriageReturn(line)
+	buffer := core.NewBuffer()
 	var (
 		fields     []string
-		buffer     bytes.Buffer
 		inQuotes   bool
 		wasEscaped bool
 	)
