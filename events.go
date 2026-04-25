@@ -2,8 +2,8 @@ package store
 
 import (
 	"reflect"
-	"sync"
-	"sync/atomic"
+	"sync"        // Note: AX-6 — internal concurrency primitive; structural for store infrastructure (RFC §4 explicitly mandates).
+	"sync/atomic" // Note: AX-6 — internal concurrency primitive; structural for store infrastructure (RFC §4 explicitly mandates).
 	"time"
 )
 

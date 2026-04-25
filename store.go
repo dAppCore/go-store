@@ -4,7 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"iter"
-	"sync"
+	"sync" // Note: AX-6 — internal concurrency primitive; structural for store infrastructure (RFC §4 explicitly mandates).
 	"text/template"
 	"time"
 	"unicode"
