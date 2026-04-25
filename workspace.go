@@ -14,6 +14,7 @@ import (
 const (
 	workspaceEntriesTableName   = "workspace_entries"
 	workspaceSummaryGroupPrefix = "workspace"
+	workspaceQuarantineDirName  = "quarantine"
 )
 
 const createWorkspaceEntriesTableSQL = `CREATE TABLE IF NOT EXISTS workspace_entries (
@@ -201,6 +202,7 @@ func loadRecoveredWorkspaces(stateDirectory string, store *Store) []*Workspace {
 	for _, databasePath := range discoverOrphanWorkspacePaths(stateDirectory) {
 		sqliteDatabase, err := openWorkspaceDatabase(databasePath)
 		if err != nil {
+			quarantineOrphanWorkspaceFiles(filesystem, stateDirectory, databasePath)
 			continue
 		}
 		orphanWorkspace := &Workspace{
@@ -211,7 +213,13 @@ func loadRecoveredWorkspaces(stateDirectory string, store *Store) []*Workspace {
 			databasePath:   databasePath,
 			filesystem:     filesystem,
 		}
-		orphanWorkspace.cachedOrphanAggregate = orphanWorkspace.captureAggregateSnapshot()
+		aggregate, err := orphanWorkspace.aggregateFieldsWithoutReadiness()
+		if err != nil {
+			_ = orphanWorkspace.closeWithoutRemovingFiles()
+			quarantineOrphanWorkspaceFiles(filesystem, stateDirectory, databasePath)
+			continue
+		}
+		orphanWorkspace.cachedOrphanAggregate = aggregate
 		orphanWorkspaces = append(orphanWorkspaces, orphanWorkspace)
 	}
 	return orphanWorkspaces
@@ -229,6 +237,7 @@ func workspaceNameFromPath(stateDirectory, databasePath string) string {
 // Usage example: `orphans := storeInstance.RecoverOrphans(".core/state"); for _, orphanWorkspace := range orphans { fmt.Println(orphanWorkspace.Name(), orphanWorkspace.Aggregate()) }`
 // This reopens leftover `.duckdb` files such as `scroll-session-2026-03-30`
 // so callers can inspect `Aggregate()` and choose `Commit()` or `Discard()`.
+// Unreadable orphan files are moved under `.core/state/quarantine/`.
 func (storeInstance *Store) RecoverOrphans(stateDirectory string) []*Workspace {
 	if storeInstance == nil {
 		return nil
@@ -561,6 +570,54 @@ func workspaceSummaryGroup(workspaceName string) string {
 
 func workspaceFilePath(stateDirectory, name string) string {
 	return joinPath(stateDirectory, core.Concat(name, ".duckdb"))
+}
+
+func workspaceQuarantineFilePath(stateDirectory, databasePath string) string {
+	return joinPath(
+		joinPath(stateDirectory, workspaceQuarantineDirName),
+		core.Concat(workspaceNameFromPath(stateDirectory, databasePath), ".duckdb"),
+	)
+}
+
+func quarantineOrphanWorkspaceFiles(filesystem *core.Fs, stateDirectory, databasePath string) {
+	if filesystem == nil || databasePath == "" {
+		return
+	}
+	quarantineDirectory := joinPath(stateDirectory, workspaceQuarantineDirName)
+	if result := filesystem.EnsureDir(quarantineDirectory); !result.OK {
+		return
+	}
+	quarantinePath := availableQuarantineWorkspacePath(
+		filesystem,
+		workspaceQuarantineFilePath(stateDirectory, databasePath),
+	)
+	quarantineWorkspaceFile(filesystem, databasePath, quarantinePath)
+	quarantineWorkspaceFile(filesystem, databasePath+"-wal", quarantinePath+"-wal")
+	quarantineWorkspaceFile(filesystem, databasePath+"-shm", quarantinePath+"-shm")
+}
+
+func availableQuarantineWorkspacePath(filesystem *core.Fs, preferredPath string) string {
+	if !workspaceQuarantinePathExists(filesystem, preferredPath) {
+		return preferredPath
+	}
+	stem := core.TrimSuffix(preferredPath, ".duckdb")
+	for index := 1; ; index++ {
+		candidatePath := core.Concat(stem, ".", core.Itoa(index), ".duckdb")
+		if !workspaceQuarantinePathExists(filesystem, candidatePath) {
+			return candidatePath
+		}
+	}
+}
+
+func workspaceQuarantinePathExists(filesystem *core.Fs, databasePath string) bool {
+	return filesystem.Exists(databasePath) || filesystem.Exists(databasePath+"-wal") || filesystem.Exists(databasePath+"-shm")
+}
+
+func quarantineWorkspaceFile(filesystem *core.Fs, sourcePath, quarantinePath string) {
+	if filesystem == nil || !filesystem.Exists(sourcePath) {
+		return
+	}
+	_ = filesystem.Rename(sourcePath, quarantinePath)
 }
 
 func joinPath(base, name string) string {
