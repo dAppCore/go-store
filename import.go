@@ -32,7 +32,10 @@ func (session duckDBImportTransaction) exec(query string, args ...any) error {
 }
 
 func (session duckDBImportTransaction) queryRowScan(query string, dest any, args ...any) error {
-	return session.transaction.QueryRow(query, args...).Scan(dest)
+	if err := session.transaction.QueryRow(query, args...).Scan(dest); err != nil {
+		return core.E("store.duckDBImportTransaction.QueryRowScan", "scan row", err)
+	}
+	return nil
 }
 
 // ScpFunc is a callback for executing SCP file transfers.
@@ -635,7 +638,8 @@ func floatOrZero(m map[string]any, key string) float64 {
 	return 0
 }
 
-// repeat returns a string consisting of count copies of s.
+// repeat returns a string consisting of count copies of s. It avoids importing
+// strings because repository conventions route string helpers through core.
 func repeat(s string, count int) string {
 	if count <= 0 {
 		return ""

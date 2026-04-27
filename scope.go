@@ -227,11 +227,12 @@ func (scopedStore *ScopedStore) Set(key, value string) error {
 	if err := scopedStore.ensureReady("store.ScopedStore.Set"); err != nil {
 		return err
 	}
-	defaultGroup := scopedStore.defaultGroup()
-	if err := scopedStore.checkQuota("store.ScopedStore.Set", defaultGroup, key); err != nil {
-		return err
+	if err := scopedStore.Transaction(func(scopedTransaction *ScopedStoreTransaction) error {
+		return scopedTransaction.Set(key, value)
+	}); err != nil {
+		return core.E("store.ScopedStore.Set", "write scoped key", err)
 	}
-	return scopedStore.store.Set(scopedStore.namespacedGroup(defaultGroup), key, value)
+	return nil
 }
 
 // SetIn writes a key to an explicit namespaced group.
@@ -240,10 +241,12 @@ func (scopedStore *ScopedStore) SetIn(group, key, value string) error {
 	if err := scopedStore.ensureReady("store.ScopedStore.SetIn"); err != nil {
 		return err
 	}
-	if err := scopedStore.checkQuota("store.ScopedStore.SetIn", group, key); err != nil {
-		return err
+	if err := scopedStore.Transaction(func(scopedTransaction *ScopedStoreTransaction) error {
+		return scopedTransaction.SetIn(group, key, value)
+	}); err != nil {
+		return core.E("store.ScopedStore.SetIn", "write scoped group key", err)
 	}
-	return scopedStore.store.Set(scopedStore.namespacedGroup(group), key, value)
+	return nil
 }
 
 // Usage example: `if err := scopedStore.SetWithTTL("sessions", "token", "abc123", time.Hour); err != nil { return }`
@@ -251,10 +254,12 @@ func (scopedStore *ScopedStore) SetWithTTL(group, key, value string, timeToLive 
 	if err := scopedStore.ensureReady("store.ScopedStore.SetWithTTL"); err != nil {
 		return err
 	}
-	if err := scopedStore.checkQuota("store.ScopedStore.SetWithTTL", group, key); err != nil {
-		return err
+	if err := scopedStore.Transaction(func(scopedTransaction *ScopedStoreTransaction) error {
+		return scopedTransaction.SetWithTTL(group, key, value, timeToLive)
+	}); err != nil {
+		return core.E("store.ScopedStore.SetWithTTL", "write scoped group key with TTL", err)
 	}
-	return scopedStore.store.SetWithTTL(scopedStore.namespacedGroup(group), key, value, timeToLive)
+	return nil
 }
 
 // Usage example: `if err := scopedStore.Delete("config", "colour"); err != nil { return }`
@@ -850,24 +855,6 @@ func (scopedStoreTransaction *ScopedStoreTransaction) checkQuota(operation, grou
 		scopedStoreTransaction.scopedStore.MaxGroups,
 		scopedStoreTransaction.storeTransaction.sqliteTransaction,
 		scopedStoreTransaction.storeTransaction,
-	)
-}
-
-// checkQuota("store.ScopedStore.Set", "config", "colour") returns nil when the
-// namespace still has quota available and QuotaExceededError when a new key or
-// group would exceed the configured limit. Existing keys are treated as
-// upserts and do not consume quota.
-func (scopedStore *ScopedStore) checkQuota(operation, group, key string) error {
-	return enforceQuota(
-		operation,
-		group,
-		key,
-		scopedStore.namespacePrefix(),
-		scopedStore.namespacedGroup(group),
-		scopedStore.MaxKeys,
-		scopedStore.MaxGroups,
-		scopedStore.store.sqliteDatabase,
-		scopedStore.store,
 	)
 }
 

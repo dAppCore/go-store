@@ -90,7 +90,7 @@ func TestCoverage_GetAll_Bad_RowsError(t *testing.T) {
 	for i := range rows {
 		assertNoError(t, storeInstance.Set("g", core.Sprintf("key-%06d", i), core.Sprintf("value-with-padding-%06d-xxxxxxxxxxxxxxxxxxxxxxxx", i)))
 	}
-	_ = storeInstance.Close()
+	assertNoError(t, storeInstance.Close())
 	// Force a WAL checkpoint so all data is in the main database file.
 	rawDatabase, err := sql.Open("sqlite", databasePath)
 	assertNoError(t, err)
@@ -177,7 +177,7 @@ func TestCoverage_Render_Bad_RowsError(t *testing.T) {
 	for i := range rows {
 		assertNoError(t, storeInstance.Set("g", core.Sprintf("key-%06d", i), core.Sprintf("value-with-padding-%06d-xxxxxxxxxxxxxxxxxxxxxxxx", i)))
 	}
-	_ = storeInstance.Close()
+	assertNoError(t, storeInstance.Close())
 	rawDatabase, err := sql.Open("sqlite", databasePath)
 	assertNoError(t, err)
 	rawDatabase.SetMaxOpenConns(1)

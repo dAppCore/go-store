@@ -1506,18 +1506,23 @@ func TestStore_SetWithTTL_Good_ExpiresOnGet(t *testing.T) {
 }
 
 func TestStore_SetWithTTL_Good_ExpiresOnGetEmitsDeleteEvent(t *testing.T) {
-	storeInstance, _ := New(":memory:")
+	storeInstance, err := New(":memory:")
+	assertNoError(t, err)
 	defer func() { _ = storeInstance.Close() }()
 
 	events := storeInstance.Watch("g")
 	defer storeInstance.Unwatch("g", events)
 
 	assertNoError(t, storeInstance.SetWithTTL("g", "ephemeral", "gone-soon", 1*time.Millisecond))
-	<-events
+	select {
+	case <-events:
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for initial TTL set event")
+	}
 
 	time.Sleep(5 * time.Millisecond)
 
-	_, err := storeInstance.Get("g", "ephemeral")
+	_, err = storeInstance.Get("g", "ephemeral")
 	assertError(t, err)
 	assertTruef(t, core.Is(err, NotFoundError), "expired key should be NotFoundError")
 
