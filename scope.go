@@ -565,6 +565,9 @@ func (scopedStore *ScopedStore) Transaction(operation func(*ScopedStoreTransacti
 	if operation == nil {
 		return core.E("store.ScopedStore.Transaction", "operation is nil", nil)
 	}
+	if scopedStore.store == nil {
+		return core.E("store.ScopedStore.Transaction", "scoped store store is nil", nil)
+	}
 
 	return scopedStore.store.Transaction(func(storeTransaction *StoreTransaction) error {
 		return operation(&ScopedStoreTransaction{

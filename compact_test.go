@@ -16,7 +16,7 @@ func TestCompact_Compact_Good_GzipArchive(t *testing.T) {
 
 	storeInstance, err := New(":memory:", WithJournal("http://127.0.0.1:8086", "core", "events"))
 	assertNoError(t, err)
-	defer storeInstance.Close()
+	defer func() { _ = storeInstance.Close() }()
 
 	assertTrue(t, storeInstance.CommitToJournal("session-a", map[string]any{"like": 1}, map[string]string{"workspace": "session-a"}).OK)
 	assertTrue(t, storeInstance.CommitToJournal("session-b", map[string]any{"like": 2}, map[string]string{"workspace": "session-b"}).OK)
@@ -42,7 +42,9 @@ func TestCompact_Compact_Good_GzipArchive(t *testing.T) {
 	archiveData := requireCoreReadBytes(t, archivePath)
 	reader, err := gzip.NewReader(bytes.NewReader(archiveData))
 	assertNoError(t, err)
-	defer reader.Close()
+	defer func() {
+		_ = reader.Close()
+	}()
 
 	decompressedData, err := io.ReadAll(reader)
 	assertNoError(t, err)
@@ -64,7 +66,7 @@ func TestCompact_Compact_Good_ZstdArchive(t *testing.T) {
 
 	storeInstance, err := New(":memory:", WithJournal("http://127.0.0.1:8086", "core", "events"))
 	assertNoError(t, err)
-	defer storeInstance.Close()
+	defer func() { _ = storeInstance.Close() }()
 
 	assertTrue(t, storeInstance.CommitToJournal("session-a", map[string]any{"like": 1}, map[string]string{"workspace": "session-a"}).OK)
 
@@ -108,7 +110,7 @@ func TestCompact_Compact_Good_NoRows(t *testing.T) {
 
 	storeInstance, err := New(":memory:")
 	assertNoError(t, err)
-	defer storeInstance.Close()
+	defer func() { _ = storeInstance.Close() }()
 
 	result := storeInstance.Compact(CompactOptions{
 		Before: time.Now(),
@@ -124,12 +126,12 @@ func TestCompact_Compact_Good_DeterministicOrderingForSameTimestamp(t *testing.T
 
 	storeInstance, err := New(":memory:", WithJournal("http://127.0.0.1:8086", "core", "events"))
 	assertNoError(t, err)
-	defer storeInstance.Close()
+	defer func() { _ = storeInstance.Close() }()
 	assertNoError(t, ensureJournalSchema(storeInstance.sqliteDatabase))
 
 	committedAt := time.Now().Add(-48 * time.Hour).UnixMilli()
-	assertNoError(t, commitJournalEntry( storeInstance.sqliteDatabase, "events", "session-b", `{"like":2}`, `{"workspace":"session-b"}`, committedAt, ))
-	assertNoError(t, commitJournalEntry( storeInstance.sqliteDatabase, "events", "session-a", `{"like":1}`, `{"workspace":"session-a"}`, committedAt, ))
+	assertNoError(t, commitJournalEntry(storeInstance.sqliteDatabase, "events", "session-b", `{"like":2}`, `{"workspace":"session-b"}`, committedAt))
+	assertNoError(t, commitJournalEntry(storeInstance.sqliteDatabase, "events", "session-a", `{"like":1}`, `{"workspace":"session-a"}`, committedAt))
 
 	result := storeInstance.Compact(CompactOptions{
 		Before: time.Now().Add(-24 * time.Hour),
@@ -144,7 +146,9 @@ func TestCompact_Compact_Good_DeterministicOrderingForSameTimestamp(t *testing.T
 	archiveData := requireCoreReadBytes(t, archivePath)
 	reader, err := gzip.NewReader(bytes.NewReader(archiveData))
 	assertNoError(t, err)
-	defer reader.Close()
+	defer func() {
+		_ = reader.Close()
+	}()
 
 	decompressedData, err := io.ReadAll(reader)
 	assertNoError(t, err)

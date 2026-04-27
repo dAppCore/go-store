@@ -171,33 +171,34 @@ func TestConventions_Exports_Good_NoCompatibilityAliases(t *testing.T) {
 	for _, path := range files {
 		file := parseGoFile(t, path)
 		for _, decl := range file.Decls {
-			switch node := decl.(type) {
-			case *ast.GenDecl:
-				for _, spec := range node.Specs {
-					switch item := spec.(type) {
-					case *ast.TypeSpec:
-						if item.Name.Name == "KV" {
-							invalid = append(invalid, core.Concat(path, ": ", item.Name.Name))
-						}
-						if item.Name.Name != "Watcher" {
-							continue
-						}
-						structType, ok := item.Type.(*ast.StructType)
-						if !ok {
-							continue
-						}
-						for _, field := range structType.Fields.List {
-							for _, name := range field.Names {
-								if name.Name == "Ch" {
-									invalid = append(invalid, core.Concat(path, ": Watcher.Ch"))
-								}
+			node, ok := decl.(*ast.GenDecl)
+			if !ok {
+				continue
+			}
+			for _, spec := range node.Specs {
+				switch item := spec.(type) {
+				case *ast.TypeSpec:
+					if item.Name.Name == "KV" {
+						invalid = append(invalid, core.Concat(path, ": ", item.Name.Name))
+					}
+					if item.Name.Name != "Watcher" {
+						continue
+					}
+					structType, ok := item.Type.(*ast.StructType)
+					if !ok {
+						continue
+					}
+					for _, field := range structType.Fields.List {
+						for _, name := range field.Names {
+							if name.Name == "Ch" {
+								invalid = append(invalid, core.Concat(path, ": Watcher.Ch"))
 							}
 						}
-					case *ast.ValueSpec:
-						for _, name := range item.Names {
-							if name.Name == "ErrNotFound" || name.Name == "ErrQuotaExceeded" {
-								invalid = append(invalid, core.Concat(path, ": ", name.Name))
-							}
+					}
+				case *ast.ValueSpec:
+					for _, name := range item.Names {
+						if name.Name == "ErrNotFound" || name.Name == "ErrQuotaExceeded" {
+							invalid = append(invalid, core.Concat(path, ": ", name.Name))
 						}
 					}
 				}

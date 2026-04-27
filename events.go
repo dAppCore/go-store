@@ -27,7 +27,7 @@ func (t EventType) String() string {
 	case EventDelete:
 		return "delete"
 	case EventDeleteGroup:
-		return "deletegroup"
+		return "delete_group"
 	default:
 		return "unknown"
 	}
@@ -72,23 +72,16 @@ func (storeInstance *Store) Watch(group string) <-chan Event {
 		return closedEventChannel()
 	}
 
+	eventChannel := make(chan Event, watcherEventBufferCapacity)
+
 	storeInstance.lifecycleLock.Lock()
-	closed := storeInstance.isClosed
-	storeInstance.lifecycleLock.Unlock()
-	if closed {
+	defer storeInstance.lifecycleLock.Unlock()
+	if storeInstance.isClosed {
 		return closedEventChannel()
 	}
-
-	eventChannel := make(chan Event, watcherEventBufferCapacity)
 
 	storeInstance.watcherLock.Lock()
 	defer storeInstance.watcherLock.Unlock()
-	storeInstance.lifecycleLock.Lock()
-	closed = storeInstance.isClosed
-	storeInstance.lifecycleLock.Unlock()
-	if closed {
-		return closedEventChannel()
-	}
 	if storeInstance.watchers == nil {
 		storeInstance.watchers = make(map[string][]chan Event)
 	}
@@ -152,9 +145,8 @@ func (storeInstance *Store) OnChange(callback func(Event)) func() {
 	}
 
 	storeInstance.lifecycleLock.Lock()
-	closed := storeInstance.isClosed
-	storeInstance.lifecycleLock.Unlock()
-	if closed {
+	defer storeInstance.lifecycleLock.Unlock()
+	if storeInstance.isClosed {
 		return func() {}
 	}
 
@@ -163,12 +155,6 @@ func (storeInstance *Store) OnChange(callback func(Event)) func() {
 
 	storeInstance.callbackLock.Lock()
 	defer storeInstance.callbackLock.Unlock()
-	storeInstance.lifecycleLock.Lock()
-	closed = storeInstance.isClosed
-	storeInstance.lifecycleLock.Unlock()
-	if closed {
-		return func() {}
-	}
 	storeInstance.callbacks = append(storeInstance.callbacks, callbackRegistration)
 
 	// Return an idempotent unregister function.
@@ -202,20 +188,13 @@ func (storeInstance *Store) notify(event Event) {
 	}
 
 	storeInstance.lifecycleLock.Lock()
-	closed := storeInstance.isClosed
-	storeInstance.lifecycleLock.Unlock()
-	if closed {
+	if storeInstance.isClosed {
+		storeInstance.lifecycleLock.Unlock()
 		return
 	}
 
 	storeInstance.watcherLock.RLock()
-	storeInstance.lifecycleLock.Lock()
-	closed = storeInstance.isClosed
 	storeInstance.lifecycleLock.Unlock()
-	if closed {
-		storeInstance.watcherLock.RUnlock()
-		return
-	}
 	for _, registeredChannel := range storeInstance.watchers["*"] {
 		select {
 		case registeredChannel <- event:
@@ -230,7 +209,13 @@ func (storeInstance *Store) notify(event Event) {
 	}
 	storeInstance.watcherLock.RUnlock()
 
+	storeInstance.lifecycleLock.Lock()
+	if storeInstance.isClosed {
+		storeInstance.lifecycleLock.Unlock()
+		return
+	}
 	storeInstance.callbackLock.RLock()
+	storeInstance.lifecycleLock.Unlock()
 	callbacks := append([]changeCallbackRegistration(nil), storeInstance.callbacks...)
 	storeInstance.callbackLock.RUnlock()
 

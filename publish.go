@@ -3,6 +3,7 @@
 package store
 
 import (
+	"bytes"
 	"io"
 	"io/fs"
 	"net/http"
@@ -108,6 +109,10 @@ func Publish(cfg PublishConfig, w io.Writer) error {
 
 	core.Print(w, "Publishing to https://huggingface.co/datasets/%s", cfg.Repo)
 
+	if err := ensureHFDatasetRepo(token, cfg.Repo, cfg.Public); err != nil {
+		return core.E("store.Publish", "ensure HuggingFace dataset", err)
+	}
+
 	for _, f := range files {
 		if err := uploadFileToHF(token, cfg.Repo, f.local, f.remote); err != nil {
 			return core.E("store.Publish", core.Sprintf("upload %s", core.PathBase(f.local)), err)
@@ -161,33 +166,115 @@ func collectUploadFiles(inputDir string) ([]uploadEntry, error) {
 	return files, nil
 }
 
+func ensureHFDatasetRepo(token, repoID string, public bool) error {
+	if repoID == "" {
+		return core.E("store.ensureHFDatasetRepo", "repository is required", nil)
+	}
+
+	organisation, name := splitHFRepoID(repoID)
+	if name == "" {
+		return core.E("store.ensureHFDatasetRepo", "repository name is required", nil)
+	}
+
+	createPayload := map[string]any{
+		"name":    name,
+		"type":    "dataset",
+		"private": !public,
+	}
+	if organisation != "" {
+		createPayload["organization"] = organisation
+	}
+
+	createStatus, createBody, err := hfJSONRequest(token, http.MethodPost, "https://huggingface.co/api/repos/create", createPayload)
+	if err != nil {
+		return core.E("store.ensureHFDatasetRepo", "create dataset repository", err)
+	}
+	if createStatus >= 300 && createStatus != http.StatusConflict {
+		return core.E("store.ensureHFDatasetRepo", core.Sprintf("create dataset failed: HTTP %d: %s", createStatus, createBody), nil)
+	}
+
+	settingsURL := core.Sprintf("https://huggingface.co/api/repos/dataset/%s/settings", repoID)
+	settingsStatus, settingsBody, err := hfJSONRequest(token, http.MethodPut, settingsURL, map[string]any{
+		"private": !public,
+	})
+	if err != nil {
+		return core.E("store.ensureHFDatasetRepo", "update dataset visibility", err)
+	}
+	if settingsStatus >= 300 {
+		return core.E("store.ensureHFDatasetRepo", core.Sprintf("update dataset visibility failed: HTTP %d: %s", settingsStatus, settingsBody), nil)
+	}
+	return nil
+}
+
+func splitHFRepoID(repoID string) (organisation string, name string) {
+	parts := core.Split(repoID, "/")
+	if len(parts) == 1 {
+		return "", repoID
+	}
+	return parts[0], parts[1]
+}
+
+func hfJSONRequest(token, method, url string, payload map[string]any) (int, string, error) {
+	payloadJSON := core.JSONMarshalString(payload)
+	req, err := http.NewRequest(method, url, bytes.NewBufferString(payloadJSON))
+	if err != nil {
+		return 0, "", core.E("store.hfJSONRequest", "create request", err)
+	}
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Content-Type", "application/json")
+
+	client := &http.Client{Timeout: 120 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return 0, "", core.E("store.hfJSONRequest", "send request", err)
+	}
+	defer func() {
+		_ = resp.Body.Close()
+	}()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return resp.StatusCode, "", core.E("store.hfJSONRequest", "read response body", err)
+	}
+	return resp.StatusCode, string(body), nil
+}
+
 // uploadFileToHF uploads a single file to a HuggingFace dataset repo via the
 // Hub API.
 func uploadFileToHF(token, repoID, localPath, remotePath string) error {
-	readResult := localFs.Read(localPath)
-	if !readResult.OK {
-		return core.E("store.uploadFileToHF", core.Sprintf("read %s", localPath), readResult.Value.(error))
+	openResult := localFs.Open(localPath)
+	if !openResult.OK {
+		return core.E("store.uploadFileToHF", core.Sprintf("open %s", localPath), openResult.Value.(error))
 	}
-	raw := []byte(readResult.Value.(string))
+	file := openResult.Value.(fs.File)
+	defer func() { _ = file.Close() }()
 
 	url := core.Sprintf("https://huggingface.co/api/datasets/%s/upload/main/%s", repoID, remotePath)
 
-	req, err := http.NewRequest(http.MethodPut, url, core.NewBuffer(raw))
+	req, err := http.NewRequest(http.MethodPut, url, file)
 	if err != nil {
 		return core.E("store.uploadFileToHF", "create request", err)
 	}
 	req.Header.Set("Authorization", "Bearer "+token)
 	req.Header.Set("Content-Type", "application/octet-stream")
+	if stat, err := file.Stat(); err == nil {
+		req.ContentLength = stat.Size()
+	}
 
 	client := &http.Client{Timeout: 120 * time.Second}
 	resp, err := client.Do(req)
 	if err != nil {
 		return core.E("store.uploadFileToHF", "upload request", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	if resp.StatusCode >= 300 {
-		body, _ := io.ReadAll(resp.Body)
+		body, readErr := io.ReadAll(resp.Body)
+		if readErr != nil {
+			return core.E("store.uploadFileToHF", "read error response body", readErr)
+		}
 		return core.E("store.uploadFileToHF", core.Sprintf("upload failed: HTTP %d: %s", resp.StatusCode, string(body)), nil)
 	}
 

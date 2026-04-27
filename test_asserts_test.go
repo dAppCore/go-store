@@ -27,13 +27,6 @@ func assertError(t testing.TB, err error) {
 	}
 }
 
-func assertErrorf(t testing.TB, err error, format string, args ...any) {
-	t.Helper()
-	if err == nil {
-		t.Fatalf("expected error, got nil — "+format, args...)
-	}
-}
-
 func assertErrorIs(t testing.TB, err, target error) {
 	t.Helper()
 	if !errIs(err, target) {
@@ -169,24 +162,10 @@ func assertLessOrEqual(t testing.TB, got, want int) {
 	}
 }
 
-func assertSame(t testing.TB, want, got any) {
-	t.Helper()
-	if !samePointer(want, got) {
-		t.Fatalf("expected same pointer, got %v vs %v", want, got)
-	}
-}
-
 func assertSamef(t testing.TB, want, got any, format string, args ...any) {
 	t.Helper()
 	if !samePointer(want, got) {
 		t.Fatalf("expected same pointer, got %v vs %v — "+format, append([]any{want, got}, args...)...)
-	}
-}
-
-func assertGreater(t testing.TB, got, want int) {
-	t.Helper()
-	if got <= want {
-		t.Fatalf("expected %d > %d", got, want)
 	}
 }
 
@@ -211,6 +190,15 @@ func errIs(err, target error) bool {
 	for err != nil {
 		if err == target {
 			return true
+		}
+		multiUnwrapper, ok := err.(interface{ Unwrap() []error })
+		if ok {
+			for _, childErr := range multiUnwrapper.Unwrap() {
+				if errIs(childErr, target) {
+					return true
+				}
+			}
+			return false
 		}
 		unwrapper, ok := err.(interface{ Unwrap() error })
 		if !ok {

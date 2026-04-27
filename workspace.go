@@ -43,7 +43,6 @@ type Workspace struct {
 	name                  string
 	store                 *Store
 	db                    *sql.DB
-	sqliteDatabase        *sql.DB
 	databasePath          string
 	filesystem            *core.Fs
 	cachedOrphanAggregate map[string]any
@@ -84,15 +83,6 @@ func (workspace *Workspace) ensureReady(operation string) error {
 		return core.E(operation, "workspace store is nil", nil)
 	}
 	if workspace.db == nil {
-		workspace.db = workspace.sqliteDatabase
-	}
-	if workspace.sqliteDatabase == nil {
-		workspace.sqliteDatabase = workspace.db
-	}
-	if workspace.db == nil {
-		return core.E(operation, "workspace database is nil", nil)
-	}
-	if workspace.sqliteDatabase == nil {
 		return core.E(operation, "workspace database is nil", nil)
 	}
 	if workspace.filesystem == nil {
@@ -135,18 +125,17 @@ func (storeInstance *Store) NewWorkspace(name string) (*Workspace, error) {
 		return nil, core.E("store.NewWorkspace", "ensure state directory", result.Value.(error))
 	}
 
-	sqliteDatabase, err := openWorkspaceDatabase(databasePath)
+	database, err := openWorkspaceDatabase(databasePath)
 	if err != nil {
 		return nil, core.E("store.NewWorkspace", "open workspace database", err)
 	}
 
 	return &Workspace{
-		name:           name,
-		store:          storeInstance,
-		db:             sqliteDatabase,
-		sqliteDatabase: sqliteDatabase,
-		databasePath:   databasePath,
-		filesystem:     filesystem,
+		name:         name,
+		store:        storeInstance,
+		db:           database,
+		databasePath: databasePath,
+		filesystem:   filesystem,
 	}, nil
 }
 
@@ -200,18 +189,17 @@ func loadRecoveredWorkspaces(stateDirectory string, store *Store) []*Workspace {
 	filesystem := (&core.Fs{}).NewUnrestricted()
 	orphanWorkspaces := make([]*Workspace, 0)
 	for _, databasePath := range discoverOrphanWorkspacePaths(stateDirectory) {
-		sqliteDatabase, err := openWorkspaceDatabase(databasePath)
+		database, err := openWorkspaceDatabase(databasePath)
 		if err != nil {
 			quarantineOrphanWorkspaceFiles(filesystem, stateDirectory, databasePath)
 			continue
 		}
 		orphanWorkspace := &Workspace{
-			name:           workspaceNameFromPath(stateDirectory, databasePath),
-			store:          store,
-			db:             sqliteDatabase,
-			sqliteDatabase: sqliteDatabase,
-			databasePath:   databasePath,
-			filesystem:     filesystem,
+			name:         workspaceNameFromPath(stateDirectory, databasePath),
+			store:        store,
+			db:           database,
+			databasePath: databasePath,
+			filesystem:   filesystem,
 		}
 		aggregate, err := orphanWorkspace.aggregateFieldsWithoutReadiness()
 		if err != nil {
@@ -278,7 +266,7 @@ func (workspace *Workspace) Put(kind string, data map[string]any) error {
 		return err
 	}
 
-	_, err = workspace.sqliteDatabase.Exec(
+	_, err = workspace.db.Exec(
 		"INSERT INTO "+workspaceEntriesTableName+" (entry_kind, entry_data, created_at) VALUES (?, ?, ?)",
 		kind,
 		dataJSON,
@@ -297,7 +285,7 @@ func (workspace *Workspace) Count() (int, error) {
 	}
 
 	var count int
-	err := workspace.sqliteDatabase.QueryRow(
+	err := workspace.db.QueryRow(
 		"SELECT COUNT(*) FROM " + workspaceEntriesTableName,
 	).Scan(&count)
 	if err != nil {
@@ -359,11 +347,11 @@ func (workspace *Workspace) Query(query string) core.Result {
 		return core.Result{Value: err, OK: false}
 	}
 
-	rows, err := workspace.sqliteDatabase.Query(query)
+	rows, err := workspace.db.Query(query)
 	if err != nil {
 		return core.Result{Value: core.E("store.Workspace.Query", "query workspace", err), OK: false}
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	rowMaps, err := queryRowsAsMaps(rows)
 	if err != nil {
@@ -377,18 +365,6 @@ func (workspace *Workspace) aggregateFields() (map[string]any, error) {
 		return nil, err
 	}
 	return workspace.aggregateFieldsWithoutReadiness()
-}
-
-func (workspace *Workspace) captureAggregateSnapshot() map[string]any {
-	if workspace == nil || workspace.sqliteDatabase == nil {
-		return nil
-	}
-
-	fields, err := workspace.aggregateFieldsWithoutReadiness()
-	if err != nil {
-		return nil
-	}
-	return fields
 }
 
 func (workspace *Workspace) aggregateFallback() map[string]any {
@@ -409,13 +385,13 @@ func (workspace *Workspace) shouldUseOrphanAggregate() bool {
 }
 
 func (workspace *Workspace) aggregateFieldsWithoutReadiness() (map[string]any, error) {
-	rows, err := workspace.sqliteDatabase.Query(
+	rows, err := workspace.db.Query(
 		"SELECT entry_kind, COUNT(*) FROM " + workspaceEntriesTableName + " GROUP BY entry_kind ORDER BY entry_kind",
 	)
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	fields := make(map[string]any)
 	for rows.Next() {
@@ -448,7 +424,7 @@ func (workspace *Workspace) closeAndCleanup(removeFiles bool) error {
 	if workspace == nil {
 		return nil
 	}
-	if workspace.sqliteDatabase == nil {
+	if workspace.db == nil {
 		return nil
 	}
 
@@ -460,14 +436,14 @@ func (workspace *Workspace) closeAndCleanup(removeFiles bool) error {
 	workspace.lifecycleLock.Unlock()
 
 	if !alreadyClosed {
-		if err := workspace.sqliteDatabase.Close(); err != nil {
+		if err := workspace.db.Close(); err != nil {
 			return core.E("store.Workspace.closeAndCleanup", "close workspace database", err)
 		}
 	}
 	if !removeFiles || workspace.filesystem == nil {
 		return nil
 	}
-	for _, path := range []string{workspace.databasePath, workspace.databasePath + "-wal", workspace.databasePath + "-shm"} {
+	for _, path := range workspaceDatabaseFilePaths(workspace.databasePath) {
 		if result := workspace.filesystem.Delete(path); !result.OK && workspace.filesystem.Exists(path) {
 			return core.E("store.Workspace.closeAndCleanup", "delete workspace file", result.Value.(error))
 		}
@@ -540,28 +516,28 @@ func (storeInstance *Store) commitWorkspaceAggregate(workspaceName string, field
 }
 
 func openWorkspaceDatabase(databasePath string) (*sql.DB, error) {
-	sqliteDatabase, err := sql.Open("duckdb", databasePath)
+	database, err := sql.Open("duckdb", databasePath)
 	if err != nil {
 		return nil, core.E("store.openWorkspaceDatabase", "open workspace database", err)
 	}
-	sqliteDatabase.SetMaxOpenConns(1)
-	if err := sqliteDatabase.Ping(); err != nil {
-		sqliteDatabase.Close()
+	database.SetMaxOpenConns(1)
+	if err := database.Ping(); err != nil {
+		_ = database.Close()
 		return nil, core.E("store.openWorkspaceDatabase", "ping workspace database", err)
 	}
-	if _, err := sqliteDatabase.Exec("CREATE SEQUENCE IF NOT EXISTS workspace_entries_entry_id_seq START 1"); err != nil {
-		sqliteDatabase.Close()
+	if _, err := database.Exec("CREATE SEQUENCE IF NOT EXISTS workspace_entries_entry_id_seq START 1"); err != nil {
+		_ = database.Close()
 		return nil, core.E("store.openWorkspaceDatabase", "create workspace entry sequence", err)
 	}
-	if _, err := sqliteDatabase.Exec(createWorkspaceEntriesTableSQL); err != nil {
-		sqliteDatabase.Close()
+	if _, err := database.Exec(createWorkspaceEntriesTableSQL); err != nil {
+		_ = database.Close()
 		return nil, core.E("store.openWorkspaceDatabase", "create workspace entries table", err)
 	}
-	if _, err := sqliteDatabase.Exec(createWorkspaceEntriesViewSQL); err != nil {
-		sqliteDatabase.Close()
+	if _, err := database.Exec(createWorkspaceEntriesViewSQL); err != nil {
+		_ = database.Close()
 		return nil, core.E("store.openWorkspaceDatabase", "create workspace entries view", err)
 	}
-	return sqliteDatabase, nil
+	return database, nil
 }
 
 func workspaceSummaryGroup(workspaceName string) string {
@@ -591,9 +567,11 @@ func quarantineOrphanWorkspaceFiles(filesystem *core.Fs, stateDirectory, databas
 		filesystem,
 		workspaceQuarantineFilePath(stateDirectory, databasePath),
 	)
-	quarantineWorkspaceFile(filesystem, databasePath, quarantinePath)
-	quarantineWorkspaceFile(filesystem, databasePath+"-wal", quarantinePath+"-wal")
-	quarantineWorkspaceFile(filesystem, databasePath+"-shm", quarantinePath+"-shm")
+	sourcePaths := workspaceDatabaseFilePaths(databasePath)
+	quarantinePaths := workspaceDatabaseFilePaths(quarantinePath)
+	for index, sourcePath := range sourcePaths {
+		quarantineWorkspaceFile(filesystem, sourcePath, quarantinePaths[index])
+	}
 }
 
 func availableQuarantineWorkspacePath(filesystem *core.Fs, preferredPath string) string {
@@ -602,7 +580,7 @@ func availableQuarantineWorkspacePath(filesystem *core.Fs, preferredPath string)
 	}
 	stem := core.TrimSuffix(preferredPath, ".duckdb")
 	for index := 1; ; index++ {
-		candidatePath := core.Concat(stem, ".", core.Itoa(index), ".duckdb")
+		candidatePath := core.Concat(stem, ".", core.Sprint(index), ".duckdb")
 		if !workspaceQuarantinePathExists(filesystem, candidatePath) {
 			return candidatePath
 		}
@@ -610,7 +588,19 @@ func availableQuarantineWorkspacePath(filesystem *core.Fs, preferredPath string)
 }
 
 func workspaceQuarantinePathExists(filesystem *core.Fs, databasePath string) bool {
-	return filesystem.Exists(databasePath) || filesystem.Exists(databasePath+"-wal") || filesystem.Exists(databasePath+"-shm")
+	for _, path := range workspaceDatabaseFilePaths(databasePath) {
+		if filesystem.Exists(path) {
+			return true
+		}
+	}
+	return false
+}
+
+func workspaceDatabaseFilePaths(databasePath string) []string {
+	if core.HasSuffix(databasePath, ".duckdb") {
+		return []string{databasePath, databasePath + ".wal"}
+	}
+	return []string{databasePath, databasePath + "-wal", databasePath + "-shm"}
 }
 
 func quarantineWorkspaceFile(filesystem *core.Fs, sourcePath, quarantinePath string) {

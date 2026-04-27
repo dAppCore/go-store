@@ -46,7 +46,7 @@ func TestCoverage_GetAll_Bad_ScanError(t *testing.T) {
 	// code scans into plain strings, which cannot represent NULL.
 	storeInstance, err := New(":memory:")
 	assertNoError(t, err)
-	defer storeInstance.Close()
+	defer func() { _ = storeInstance.Close() }()
 
 	// Insert a normal row first so the query returns results.
 	assertNoError(t, storeInstance.Set("g", "good", "value"))
@@ -90,8 +90,7 @@ func TestCoverage_GetAll_Bad_RowsError(t *testing.T) {
 	for i := range rows {
 		assertNoError(t, storeInstance.Set("g", core.Sprintf("key-%06d", i), core.Sprintf("value-with-padding-%06d-xxxxxxxxxxxxxxxxxxxxxxxx", i)))
 	}
-	storeInstance.Close()
-
+	_ = storeInstance.Close()
 	// Force a WAL checkpoint so all data is in the main database file.
 	rawDatabase, err := sql.Open("sqlite", databasePath)
 	assertNoError(t, err)
@@ -123,7 +122,7 @@ func TestCoverage_GetAll_Bad_RowsError(t *testing.T) {
 
 	reopenedStore, err := New(databasePath)
 	assertNoError(t, err)
-	defer reopenedStore.Close()
+	defer func() { _ = reopenedStore.Close() }()
 
 	_, err = reopenedStore.GetAll("g")
 	assertError(t, err)
@@ -138,7 +137,7 @@ func TestCoverage_Render_Bad_ScanError(t *testing.T) {
 	// Same NULL-key technique as TestCoverage_GetAll_Bad_ScanError.
 	storeInstance, err := New(":memory:")
 	assertNoError(t, err)
-	defer storeInstance.Close()
+	defer func() { _ = storeInstance.Close() }()
 
 	assertNoError(t, storeInstance.Set("g", "good", "value"))
 
@@ -178,8 +177,7 @@ func TestCoverage_Render_Bad_RowsError(t *testing.T) {
 	for i := range rows {
 		assertNoError(t, storeInstance.Set("g", core.Sprintf("key-%06d", i), core.Sprintf("value-with-padding-%06d-xxxxxxxxxxxxxxxxxxxxxxxx", i)))
 	}
-	storeInstance.Close()
-
+	_ = storeInstance.Close()
 	rawDatabase, err := sql.Open("sqlite", databasePath)
 	assertNoError(t, err)
 	rawDatabase.SetMaxOpenConns(1)
@@ -207,7 +205,7 @@ func TestCoverage_Render_Bad_RowsError(t *testing.T) {
 
 	reopenedStore, err := New(databasePath)
 	assertNoError(t, err)
-	defer reopenedStore.Close()
+	defer func() { _ = reopenedStore.Close() }()
 
 	_, err = reopenedStore.Render("{{ . }}", "g")
 	assertError(t, err)
@@ -223,7 +221,7 @@ func TestCoverage_GroupsSeq_Bad_ScanError(t *testing.T) {
 	// production code scans into a plain string, which cannot represent NULL.
 	storeInstance, err := New(":memory:")
 	assertNoError(t, err)
-	defer storeInstance.Close()
+	defer func() { _ = storeInstance.Close() }()
 
 	_, err = storeInstance.sqliteDatabase.Exec("ALTER TABLE entries RENAME TO entries_backup")
 	assertNoError(t, err)
@@ -256,7 +254,7 @@ func TestCoverage_GroupsSeq_Bad_RowsError(t *testing.T) {
 		groupRowsErr:      core.E("stubSQLiteScenario", "rows iteration failed", nil),
 		groupRowsErrIndex: 0,
 	})
-	defer database.Close()
+	defer func() { _ = database.Close() }()
 
 	storeInstance := &Store{
 		sqliteDatabase: database,
@@ -294,7 +292,7 @@ func TestCoverage_ScopedStore_Bad_GroupsSeqRowsError(t *testing.T) {
 		groupRowsErr:      core.E("stubSQLiteScenario", "rows iteration failed", nil),
 		groupRowsErrIndex: 1,
 	})
-	defer database.Close()
+	defer func() { _ = database.Close() }()
 
 	scopedStore := &ScopedStore{
 		store: &Store{
@@ -324,7 +322,7 @@ func TestCoverage_EnsureSchema_Bad_TableExistsQueryError(t *testing.T) {
 	database, _ := openStubSQLiteDatabase(t, stubSQLiteScenario{
 		tableExistsErr: core.E("stubSQLiteScenario", "sqlite master query failed", nil),
 	})
-	defer database.Close()
+	defer func() { _ = database.Close() }()
 
 	err := ensureSchema(database)
 	assertError(t, err)
@@ -338,7 +336,7 @@ func TestCoverage_EnsureSchema_Good_ExistingEntriesAndLegacyMigration(t *testing
 			{0, "expires_at", "INTEGER", 0, nil, 0},
 		},
 	})
-	defer database.Close()
+	defer func() { _ = database.Close() }()
 
 	assertNoError(t, ensureSchema(database))
 }
@@ -348,7 +346,7 @@ func TestCoverage_EnsureSchema_Bad_ExpiryColumnQueryError(t *testing.T) {
 		tableExistsFound: true,
 		tableInfoErr:     core.E("stubSQLiteScenario", "table_info query failed", nil),
 	})
-	defer database.Close()
+	defer func() { _ = database.Close() }()
 
 	err := ensureSchema(database)
 	assertError(t, err)
@@ -363,7 +361,7 @@ func TestCoverage_EnsureSchema_Bad_MigrationError(t *testing.T) {
 		},
 		insertErr: core.E("stubSQLiteScenario", "insert failed", nil),
 	})
-	defer database.Close()
+	defer func() { _ = database.Close() }()
 
 	err := ensureSchema(database)
 	assertError(t, err)
@@ -378,7 +376,7 @@ func TestCoverage_EnsureSchema_Bad_MigrationCommitError(t *testing.T) {
 		},
 		commitErr: core.E("stubSQLiteScenario", "commit failed", nil),
 	})
-	defer database.Close()
+	defer func() { _ = database.Close() }()
 
 	err := ensureSchema(database)
 	assertError(t, err)
@@ -389,7 +387,7 @@ func TestCoverage_TableHasColumn_Bad_QueryError(t *testing.T) {
 	database, _ := openStubSQLiteDatabase(t, stubSQLiteScenario{
 		tableInfoErr: core.E("stubSQLiteScenario", "table_info query failed", nil),
 	})
-	defer database.Close()
+	defer func() { _ = database.Close() }()
 
 	_, err := tableHasColumn(database, "entries", "expires_at")
 	assertError(t, err)
@@ -403,7 +401,7 @@ func TestCoverage_EnsureExpiryColumn_Good_DuplicateColumn(t *testing.T) {
 		},
 		alterTableErr: core.E("stubSQLiteScenario", "duplicate column name: expires_at", nil),
 	})
-	defer database.Close()
+	defer func() { _ = database.Close() }()
 
 	assertNoError(t, ensureExpiryColumn(database))
 }
@@ -415,7 +413,7 @@ func TestCoverage_EnsureExpiryColumn_Bad_AlterTableError(t *testing.T) {
 		},
 		alterTableErr: core.E("stubSQLiteScenario", "permission denied", nil),
 	})
-	defer database.Close()
+	defer func() { _ = database.Close() }()
 
 	err := ensureExpiryColumn(database)
 	assertError(t, err)
@@ -429,7 +427,7 @@ func TestCoverage_MigrateLegacyEntriesTable_Bad_InsertError(t *testing.T) {
 		},
 		insertErr: core.E("stubSQLiteScenario", "insert failed", nil),
 	})
-	defer database.Close()
+	defer func() { _ = database.Close() }()
 
 	err := migrateLegacyEntriesTable(database)
 	assertError(t, err)
@@ -440,7 +438,7 @@ func TestCoverage_MigrateLegacyEntriesTable_Bad_BeginError(t *testing.T) {
 	database, _ := openStubSQLiteDatabase(t, stubSQLiteScenario{
 		beginErr: core.E("stubSQLiteScenario", "begin failed", nil),
 	})
-	defer database.Close()
+	defer func() { _ = database.Close() }()
 
 	err := migrateLegacyEntriesTable(database)
 	assertError(t, err)
@@ -453,7 +451,7 @@ func TestCoverage_MigrateLegacyEntriesTable_Good_CreatesAndMigratesLegacyRows(t 
 			{0, "grp", "TEXT", 1, nil, 0},
 		},
 	})
-	defer database.Close()
+	defer func() { _ = database.Close() }()
 
 	assertNoError(t, migrateLegacyEntriesTable(database))
 }
@@ -462,7 +460,7 @@ func TestCoverage_MigrateLegacyEntriesTable_Bad_TableInfoError(t *testing.T) {
 	database, _ := openStubSQLiteDatabase(t, stubSQLiteScenario{
 		tableInfoErr: core.E("stubSQLiteScenario", "table_info query failed", nil),
 	})
-	defer database.Close()
+	defer func() { _ = database.Close() }()
 
 	err := migrateLegacyEntriesTable(database)
 	assertError(t, err)

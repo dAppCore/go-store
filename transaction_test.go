@@ -10,7 +10,7 @@ import (
 
 func TestTransaction_Transaction_Good_CommitsMultipleWrites(t *testing.T) {
 	storeInstance, _ := New(":memory:")
-	defer storeInstance.Close()
+	defer func() { _ = storeInstance.Close() }()
 
 	events := storeInstance.Watch("*")
 	defer storeInstance.Unwatch("*", events)
@@ -46,7 +46,7 @@ func TestTransaction_Transaction_Good_CommitsMultipleWrites(t *testing.T) {
 
 func TestTransaction_Transaction_Good_RollbackOnError(t *testing.T) {
 	storeInstance, _ := New(":memory:")
-	defer storeInstance.Close()
+	defer func() { _ = storeInstance.Close() }()
 
 	err := storeInstance.Transaction(func(transaction *StoreTransaction) error {
 		if err := transaction.Set("alpha", "first", "1"); err != nil {
@@ -62,7 +62,7 @@ func TestTransaction_Transaction_Good_RollbackOnError(t *testing.T) {
 
 func TestTransaction_Transaction_Good_DeletesAtomically(t *testing.T) {
 	storeInstance, _ := New(":memory:")
-	defer storeInstance.Close()
+	defer func() { _ = storeInstance.Close() }()
 
 	assertNoError(t, storeInstance.Set("alpha", "first", "1"))
 	assertNoError(t, storeInstance.Set("beta", "second", "2"))
@@ -83,7 +83,7 @@ func TestTransaction_Transaction_Good_DeletesAtomically(t *testing.T) {
 
 func TestTransaction_Transaction_Good_ReadHelpersSeePendingWrites(t *testing.T) {
 	storeInstance, _ := New(":memory:")
-	defer storeInstance.Close()
+	defer func() { _ = storeInstance.Close() }()
 
 	err := storeInstance.Transaction(func(transaction *StoreTransaction) error {
 		if err := transaction.Set("config", "colour", "blue"); err != nil {
@@ -127,7 +127,7 @@ func TestTransaction_Transaction_Good_ReadHelpersSeePendingWrites(t *testing.T) 
 
 func TestTransaction_Transaction_Good_PurgeExpired(t *testing.T) {
 	storeInstance, _ := New(":memory:")
-	defer storeInstance.Close()
+	defer func() { _ = storeInstance.Close() }()
 
 	assertNoError(t, storeInstance.SetWithTTL("alpha", "ephemeral", "gone", 1*time.Millisecond))
 	time.Sleep(5 * time.Millisecond)
@@ -146,7 +146,7 @@ func TestTransaction_Transaction_Good_PurgeExpired(t *testing.T) {
 
 func TestTransaction_Transaction_Good_Exists(t *testing.T) {
 	storeInstance, _ := New(":memory:")
-	defer storeInstance.Close()
+	defer func() { _ = storeInstance.Close() }()
 
 	assertNoError(t, storeInstance.Set("config", "colour", "blue"))
 
@@ -166,7 +166,7 @@ func TestTransaction_Transaction_Good_Exists(t *testing.T) {
 
 func TestTransaction_Transaction_Good_ExistsSeesPendingWrites(t *testing.T) {
 	storeInstance, _ := New(":memory:")
-	defer storeInstance.Close()
+	defer func() { _ = storeInstance.Close() }()
 
 	err := storeInstance.Transaction(func(transaction *StoreTransaction) error {
 		exists, err := transaction.Exists("config", "colour")
@@ -188,7 +188,7 @@ func TestTransaction_Transaction_Good_ExistsSeesPendingWrites(t *testing.T) {
 
 func TestTransaction_Transaction_Good_GroupExists(t *testing.T) {
 	storeInstance, _ := New(":memory:")
-	defer storeInstance.Close()
+	defer func() { _ = storeInstance.Close() }()
 
 	err := storeInstance.Transaction(func(transaction *StoreTransaction) error {
 		exists, err := transaction.GroupExists("config")
@@ -210,7 +210,7 @@ func TestTransaction_Transaction_Good_GroupExists(t *testing.T) {
 
 func TestTransaction_ScopedStoreTransaction_Good_ExistsAndGroupExists(t *testing.T) {
 	storeInstance, _ := New(":memory:")
-	defer storeInstance.Close()
+	defer func() { _ = storeInstance.Close() }()
 
 	scopedStore := NewScoped(storeInstance, "tenant-a")
 
@@ -250,7 +250,7 @@ func TestTransaction_ScopedStoreTransaction_Good_ExistsAndGroupExists(t *testing
 
 func TestTransaction_ScopedStoreTransaction_Good_GetPage(t *testing.T) {
 	storeInstance, _ := New(":memory:")
-	defer storeInstance.Close()
+	defer func() { _ = storeInstance.Close() }()
 
 	scopedStore := NewScoped(storeInstance, "tenant-a")
 
@@ -276,7 +276,7 @@ func TestTransaction_ScopedStoreTransaction_Good_GetPage(t *testing.T) {
 
 func TestTransaction_ScopedStoreTransaction_Good_CommitsNamespacedWrites(t *testing.T) {
 	storeInstance, _ := New(":memory:")
-	defer storeInstance.Close()
+	defer func() { _ = storeInstance.Close() }()
 
 	scopedStore, err := NewScopedConfigured(storeInstance, ScopedStoreConfig{
 		Namespace: "tenant-a",
@@ -319,7 +319,7 @@ func TestTransaction_ScopedStoreTransaction_Good_CommitsNamespacedWrites(t *test
 
 func TestTransaction_ScopedStoreTransaction_Good_PurgeExpired(t *testing.T) {
 	storeInstance, _ := New(":memory:")
-	defer storeInstance.Close()
+	defer func() { _ = storeInstance.Close() }()
 
 	scopedStore := NewScoped(storeInstance, "tenant-a")
 
@@ -340,7 +340,7 @@ func TestTransaction_ScopedStoreTransaction_Good_PurgeExpired(t *testing.T) {
 
 func TestTransaction_ScopedStoreTransaction_Good_QuotaUsesPendingWrites(t *testing.T) {
 	storeInstance, _ := New(":memory:")
-	defer storeInstance.Close()
+	defer func() { _ = storeInstance.Close() }()
 
 	scopedStore, err := NewScopedConfigured(storeInstance, ScopedStoreConfig{
 		Namespace: "tenant-a",
@@ -366,7 +366,7 @@ func TestTransaction_ScopedStoreTransaction_Good_QuotaUsesPendingWrites(t *testi
 
 func TestTransaction_ScopedStoreTransaction_Good_DeletePrefix(t *testing.T) {
 	storeInstance, _ := New(":memory:")
-	defer storeInstance.Close()
+	defer func() { _ = storeInstance.Close() }()
 
 	scopedStore := NewScoped(storeInstance, "tenant-a")
 	otherScopedStore := NewScoped(storeInstance, "tenant-b")

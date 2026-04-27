@@ -151,7 +151,6 @@ type Store struct {
 	journal                 influxdb2.Client
 	bucket                  string
 	org                     string
-	mu                      sync.RWMutex
 	journalConfiguration    JournalConfiguration
 	medium                  Medium
 	lifecycleLock           sync.Mutex
@@ -382,15 +381,15 @@ func openSQLiteStore(operation, databasePath string, medium Medium) (*Store, err
 	// pool hands out different connections for each call.
 	sqliteDatabase.SetMaxOpenConns(1)
 	if _, err := sqliteDatabase.Exec("PRAGMA journal_mode=WAL"); err != nil {
-		sqliteDatabase.Close()
+		_ = sqliteDatabase.Close()
 		return nil, core.E(operation, "set WAL journal mode", err)
 	}
 	if _, err := sqliteDatabase.Exec("PRAGMA busy_timeout=5000"); err != nil {
-		sqliteDatabase.Close()
+		_ = sqliteDatabase.Close()
 		return nil, core.E(operation, "set busy timeout", err)
 	}
 	if err := ensureSchema(sqliteDatabase); err != nil {
-		sqliteDatabase.Close()
+		_ = sqliteDatabase.Close()
 		return nil, core.E(operation, "ensure schema", err)
 	}
 
@@ -418,7 +417,7 @@ func (storeInstance *Store) workspaceStateDirectoryPath() string {
 	return normaliseWorkspaceStateDirectory(storeInstance.workspaceStateDirectory)
 }
 
-// Usage example: `storeInstance, err := store.New(":memory:"); if err != nil { return }; defer storeInstance.Close()`
+// Usage example: `storeInstance, err := store.New(":memory:"); if err != nil { return }; defer func() { _ = storeInstance.Close() }()`
 func (storeInstance *Store) Close() error {
 	if storeInstance == nil {
 		return nil
@@ -675,7 +674,7 @@ func (storeInstance *Store) DeletePrefix(groupPrefix string) error {
 	if err != nil {
 		return core.E("store.DeletePrefix", "list groups", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var groupNames []string
 	for rows.Next() {
@@ -739,7 +738,7 @@ func (storeInstance *Store) GetPage(group string, offset, limit int) ([]KeyValue
 	if err != nil {
 		return nil, core.E("store.GetPage", "query rows", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	page := make([]KeyValue, 0, limit)
 	for rows.Next() {
@@ -771,7 +770,7 @@ func (storeInstance *Store) AllSeq(group string) iter.Seq2[KeyValue, error] {
 			yield(KeyValue{}, core.E("store.All", "query rows", err))
 			return
 		}
-		defer rows.Close()
+		defer func() { _ = rows.Close() }()
 
 		for rows.Next() {
 			var entry KeyValue
@@ -917,7 +916,7 @@ func (storeInstance *Store) GroupsSeq(groupPrefix ...string) iter.Seq2[string, e
 			yield("", core.E("store.GroupsSeq", "query group names", err))
 			return
 		}
-		defer rows.Close()
+		defer func() { _ = rows.Close() }()
 
 		for rows.Next() {
 			var groupName string
@@ -1008,6 +1007,7 @@ func (storeInstance *Store) startBackgroundPurge() {
 				if _, err := storeInstance.PurgeExpired(); err != nil {
 					// For example, a logger could record the failure here. The loop
 					// keeps running so the next tick can retry.
+					_ = err
 				}
 			}
 		}
@@ -1075,7 +1075,7 @@ func listExpiredEntriesMatchingGroupPrefix(database schemaDatabase, groupPrefix 
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	expiredEntries := make([]expiredEntryRef, 0)
 	for rows.Next() {
@@ -1203,6 +1203,7 @@ func migrateLegacyEntriesTable(database *sql.DB) error {
 		if !committed {
 			if rollbackErr := transaction.Rollback(); rollbackErr != nil {
 				// Ignore rollback failures; the original error is already being returned.
+				_ = rollbackErr
 			}
 		}
 	}()
@@ -1259,7 +1260,7 @@ func tableHasColumn(database schemaDatabase, tableName, columnName string) (bool
 	if err != nil {
 		return false, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	for rows.Next() {
 		var (

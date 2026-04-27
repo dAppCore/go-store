@@ -234,7 +234,7 @@ func (storeTransaction *StoreTransaction) DeletePrefix(groupPrefix string) error
 	if err != nil {
 		return core.E("store.Transaction.DeletePrefix", "list groups", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var groupNames []string
 	for rows.Next() {
@@ -307,7 +307,7 @@ func (storeTransaction *StoreTransaction) GetPage(group string, offset, limit in
 	if err != nil {
 		return nil, core.E("store.Transaction.GetPage", "query rows", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	page := make([]KeyValue, 0, limit)
 	for rows.Next() {
@@ -344,7 +344,7 @@ func (storeTransaction *StoreTransaction) AllSeq(group string) iter.Seq2[KeyValu
 			yield(KeyValue{}, core.E("store.Transaction.All", "query rows", err))
 			return
 		}
-		defer rows.Close()
+		defer func() { _ = rows.Close() }()
 
 		for rows.Next() {
 			var entry KeyValue
@@ -434,7 +434,7 @@ func (storeTransaction *StoreTransaction) GroupsSeq(groupPrefix ...string) iter.
 			yield("", core.E("store.Transaction.GroupsSeq", "query group names", err))
 			return
 		}
-		defer rows.Close()
+		defer func() { _ = rows.Close() }()
 
 		for rows.Next() {
 			var groupName string

@@ -10,7 +10,7 @@ import (
 
 func TestEvents_Watch_Good_Group(t *testing.T) {
 	storeInstance, _ := New(":memory:")
-	defer storeInstance.Close()
+	defer func() { _ = storeInstance.Close() }()
 
 	events := storeInstance.Watch("config")
 	defer storeInstance.Unwatch("config", events)
@@ -28,7 +28,7 @@ func TestEvents_Watch_Good_Group(t *testing.T) {
 
 func TestEvents_Watch_Good_WildcardGroup(t *testing.T) {
 	storeInstance, _ := New(":memory:")
-	defer storeInstance.Close()
+	defer func() { _ = storeInstance.Close() }()
 
 	events := storeInstance.Watch("*")
 	defer storeInstance.Unwatch("*", events)
@@ -48,7 +48,7 @@ func TestEvents_Watch_Good_WildcardGroup(t *testing.T) {
 
 func TestEvents_Unwatch_Good_StopsDelivery(t *testing.T) {
 	storeInstance, _ := New(":memory:")
-	defer storeInstance.Close()
+	defer func() { _ = storeInstance.Close() }()
 
 	events := storeInstance.Watch("g")
 	storeInstance.Unwatch("g", events)
@@ -61,7 +61,7 @@ func TestEvents_Unwatch_Good_StopsDelivery(t *testing.T) {
 
 func TestEvents_Unwatch_Good_Idempotent(t *testing.T) {
 	storeInstance, _ := New(":memory:")
-	defer storeInstance.Close()
+	defer func() { _ = storeInstance.Close() }()
 
 	events := storeInstance.Watch("g")
 	storeInstance.Unwatch("g", events)
@@ -80,14 +80,14 @@ func TestEvents_Close_Good_ClosesWatcherChannels(t *testing.T) {
 
 func TestEvents_Unwatch_Good_NilChannel(t *testing.T) {
 	storeInstance, _ := New(":memory:")
-	defer storeInstance.Close()
+	defer func() { _ = storeInstance.Close() }()
 
 	storeInstance.Unwatch("g", nil)
 }
 
 func TestEvents_Watch_Good_DeleteEvent(t *testing.T) {
 	storeInstance, _ := New(":memory:")
-	defer storeInstance.Close()
+	defer func() { _ = storeInstance.Close() }()
 
 	events := storeInstance.Watch("g")
 	defer storeInstance.Unwatch("g", events)
@@ -110,7 +110,7 @@ func TestEvents_Watch_Good_DeleteEvent(t *testing.T) {
 
 func TestEvents_Watch_Good_DeleteGroupEvent(t *testing.T) {
 	storeInstance, _ := New(":memory:")
-	defer storeInstance.Close()
+	defer func() { _ = storeInstance.Close() }()
 
 	events := storeInstance.Watch("g")
 	defer storeInstance.Unwatch("g", events)
@@ -134,7 +134,7 @@ func TestEvents_Watch_Good_DeleteGroupEvent(t *testing.T) {
 
 func TestEvents_OnChange_Good_Fires(t *testing.T) {
 	storeInstance, _ := New(":memory:")
-	defer storeInstance.Close()
+	defer func() { _ = storeInstance.Close() }()
 
 	var events []Event
 	var eventsMutex sync.Mutex
@@ -158,7 +158,7 @@ func TestEvents_OnChange_Good_Fires(t *testing.T) {
 
 func TestEvents_OnChange_Good_GroupFilteredCallback(t *testing.T) {
 	storeInstance, _ := New(":memory:")
-	defer storeInstance.Close()
+	defer func() { _ = storeInstance.Close() }()
 
 	var seen []string
 	unregister := storeInstance.OnChange(func(event Event) {
@@ -177,7 +177,7 @@ func TestEvents_OnChange_Good_GroupFilteredCallback(t *testing.T) {
 
 func TestEvents_OnChange_Good_ReentrantSubscriptionChanges(t *testing.T) {
 	storeInstance, _ := New(":memory:")
-	defer storeInstance.Close()
+	defer func() { _ = storeInstance.Close() }()
 
 	var (
 		seen             []string
@@ -234,7 +234,7 @@ func TestEvents_OnChange_Good_ReentrantSubscriptionChanges(t *testing.T) {
 
 func TestEvents_Notify_Good_PopulatesTimestamp(t *testing.T) {
 	storeInstance, _ := New(":memory:")
-	defer storeInstance.Close()
+	defer func() { _ = storeInstance.Close() }()
 
 	events := storeInstance.Watch("config")
 	defer storeInstance.Unwatch("config", events)
@@ -253,7 +253,7 @@ func TestEvents_Notify_Good_PopulatesTimestamp(t *testing.T) {
 
 func TestEvents_Watch_Good_BufferDrops(t *testing.T) {
 	storeInstance, _ := New(":memory:")
-	defer storeInstance.Close()
+	defer func() { _ = storeInstance.Close() }()
 
 	events := storeInstance.Watch("g")
 	defer storeInstance.Unwatch("g", events)
@@ -268,7 +268,7 @@ func TestEvents_Watch_Good_BufferDrops(t *testing.T) {
 
 func TestEvents_Watch_Good_ConcurrentWatchUnwatch(t *testing.T) {
 	storeInstance, _ := New(":memory:")
-	defer storeInstance.Close()
+	defer func() { _ = storeInstance.Close() }()
 
 	const workers = 10
 	var wg sync.WaitGroup
@@ -289,7 +289,7 @@ func TestEvents_Watch_Good_ConcurrentWatchUnwatch(t *testing.T) {
 
 func TestEvents_Watch_Good_ScopedStoreEventGroup(t *testing.T) {
 	storeInstance, _ := New(":memory:")
-	defer storeInstance.Close()
+	defer func() { _ = storeInstance.Close() }()
 
 	scopedStore := NewScoped(storeInstance, "tenant-a")
 	assertNotNil(t, scopedStore)
@@ -310,7 +310,7 @@ func TestEvents_Watch_Good_ScopedStoreEventGroup(t *testing.T) {
 
 func TestEvents_Watch_Good_SetWithTTL(t *testing.T) {
 	storeInstance, _ := New(":memory:")
-	defer storeInstance.Close()
+	defer func() { _ = storeInstance.Close() }()
 
 	events := storeInstance.Watch("g")
 	defer storeInstance.Unwatch("g", events)
@@ -329,7 +329,7 @@ func TestEvents_Watch_Good_SetWithTTL(t *testing.T) {
 func TestEvents_EventType_Good_String(t *testing.T) {
 	assertEqual(t, "set", EventSet.String())
 	assertEqual(t, "delete", EventDelete.String())
-	assertEqual(t, "deletegroup", EventDeleteGroup.String())
+	assertEqual(t, "delete_group", EventDeleteGroup.String())
 	assertEqual(t, "unknown", EventType(99).String())
 }
 

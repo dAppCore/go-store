@@ -1,34 +1,37 @@
+version: "2"
 run:
-  timeout: 5m
   go: "1.26"
-
 linters:
   enable:
     - depguard
-    - govet
-    - errcheck
-    - staticcheck
-    - unused
-    - gosimple
-    - ineffassign
-    - typecheck
     - gocritic
-    - gofmt
   disable:
     - exhaustive
     - wrapcheck
-
-linters-settings:
-  depguard:
-    rules:
-      legacy-module-paths:
-        list-mode: lax
-        files:
-          - $all
-        deny:
-          - pkg: forge.lthn.ai/
-            desc: use dappco.re/ module paths instead
-
+  settings:
+    depguard:
+      rules:
+        legacy-module-paths:
+          list-mode: lax
+          files:
+            - $all
+          deny:
+            - pkg: forge.lthn.ai/
+              desc: use dappco.re/ module paths instead
+  exclusions:
+    generated: lax
+    paths:
+      - third_party$
+      - builtin$
+      - examples$
 issues:
-  exclude-use-default: false
   max-same-issues: 0
+formatters:
+  enable:
+    - gofmt
+  exclusions:
+    generated: lax
+    paths:
+      - third_party$
+      - builtin$
+      - examples$

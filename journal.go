@@ -146,7 +146,7 @@ func (storeInstance *Store) queryJournalRows(query string, arguments ...any) cor
 	if err != nil {
 		return core.Result{Value: core.E("store.QueryJournal", "query rows", err), OK: false}
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	rowMaps, err := queryRowsAsMaps(rows)
 	if err != nil {
@@ -366,14 +366,6 @@ func firstQuotedSubmatch(patterns []*regexp.Regexp, value string) string {
 		}
 	}
 	return ""
-}
-
-func regexpSubmatch(pattern *regexp.Regexp, value string, index int) string {
-	match := pattern.FindStringSubmatch(value)
-	if len(match) <= index {
-		return ""
-	}
-	return match[index]
 }
 
 func queryRowsAsMaps(rows *sql.Rows) ([]map[string]any, error) {

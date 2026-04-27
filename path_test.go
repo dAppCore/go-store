@@ -2,7 +2,6 @@ package store
 
 import (
 	"testing"
-
 )
 
 func TestPath_Normalise_Good_TrailingSlashes(t *testing.T) {

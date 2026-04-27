@@ -94,7 +94,9 @@ func ImportAll(db *DuckDB, cfg ImportConfig, w io.Writer) error {
 		}
 	}
 	if isFile(goldenPath) {
-		db.Exec("DROP TABLE IF EXISTS golden_set")
+		if err := db.Exec("DROP TABLE IF EXISTS golden_set"); err != nil {
+			return core.E("store.ImportAll", "drop golden_set", err)
+		}
 		err := db.Exec(core.Sprintf(`
 			CREATE TABLE golden_set AS
 			SELECT
@@ -110,10 +112,12 @@ func ImportAll(db *DuckDB, cfg ImportConfig, w io.Writer) error {
 			FROM read_json_auto('%s', maximum_object_size=1048576)
 		`, escapeSQLPath(goldenPath)))
 		if err != nil {
-			core.Print(w, "  WARNING: golden set import failed: %v", err)
+			return core.E("store.ImportAll", "import golden_set", err)
 		} else {
 			var n int
-			db.QueryRowScan("SELECT count(*) FROM golden_set", &n)
+			if err := db.QueryRowScan("SELECT count(*) FROM golden_set", &n); err != nil {
+				return core.E("store.ImportAll", "count golden_set", err)
+			}
 			totals["golden_set"] = n
 			core.Print(w, "  golden_set: %d rows", n)
 		}
@@ -140,23 +144,26 @@ func ImportAll(db *DuckDB, cfg ImportConfig, w io.Writer) error {
 		{"russian-bridge", []string{"russian-bridge/train.jsonl", "russian-bridge/valid.jsonl"}},
 	}
 
-	trainingLocal := core.JoinPath(cfg.DataDir, "training")
-	localFs.EnsureDir(trainingLocal)
+	trainingRoot := cfg.DataDir
 
 	if !cfg.SkipM3 && cfg.Scp != nil {
 		core.Print(w, "  Pulling training sets from M3...")
 		for _, td := range trainingDirs {
 			for _, rel := range td.files {
-				local := core.JoinPath(trainingLocal, rel)
-				localFs.EnsureDir(core.PathDir(local))
+				local := core.JoinPath(trainingRoot, rel)
+				if result := localFs.EnsureDir(core.PathDir(local)); !result.OK {
+					return core.E("store.ImportAll", "ensure training directory", result.Value.(error))
+				}
 				remote := core.Sprintf("%s:/Volumes/Data/lem/%s", m3Host, rel)
-				cfg.Scp(remote, local) // ignore errors, file might not exist
+				_ = cfg.Scp(remote, local) // ignore errors, file might not exist
 			}
 		}
 	}
 
-	db.Exec("DROP TABLE IF EXISTS training_examples")
-	db.Exec(`
+	if err := db.Exec("DROP TABLE IF EXISTS training_examples"); err != nil {
+		return core.E("store.ImportAll", "drop training_examples", err)
+	}
+	if err := db.Exec(`
 		CREATE TABLE training_examples (
 			source VARCHAR,
 			split VARCHAR,
@@ -166,12 +173,14 @@ func ImportAll(db *DuckDB, cfg ImportConfig, w io.Writer) error {
 			full_messages TEXT,
 			char_count INT
 		)
-	`)
+	`); err != nil {
+		return core.E("store.ImportAll", "create training_examples", err)
+	}
 
 	trainingTotal := 0
 	for _, td := range trainingDirs {
 		for _, rel := range td.files {
-			local := core.JoinPath(trainingLocal, rel)
+			local := core.JoinPath(trainingRoot, rel)
 			if !isFile(local) {
 				continue
 			}
@@ -183,7 +192,10 @@ func ImportAll(db *DuckDB, cfg ImportConfig, w io.Writer) error {
 				split = "test"
 			}
 
-			n := importTrainingFile(db, local, td.name, split)
+			n, err := importTrainingFile(db, local, td.name, split)
+			if err != nil {
+				return core.E("store.ImportAll", core.Sprintf("import training file %s", local), err)
+			}
 			trainingTotal += n
 		}
 	}
@@ -199,7 +211,7 @@ func ImportAll(db *DuckDB, cfg ImportConfig, w io.Writer) error {
 		if cfg.Scp != nil {
 			for _, bname := range []string{"truthfulqa", "gsm8k", "do_not_answer", "toxigen"} {
 				remote := core.Sprintf("%s:/Volumes/Data/lem/benchmarks/%s.jsonl", m3Host, bname)
-				cfg.Scp(remote, core.JoinPath(benchLocal, bname+".jsonl"))
+				_ = cfg.Scp(remote, core.JoinPath(benchLocal, bname+".jsonl"))
 			}
 		}
 		if cfg.ScpDir != nil {
@@ -207,25 +219,32 @@ func ImportAll(db *DuckDB, cfg ImportConfig, w io.Writer) error {
 				localSub := core.JoinPath(benchLocal, subdir)
 				localFs.EnsureDir(localSub)
 				remote := core.Sprintf("%s:/Volumes/Data/lem/benchmarks/%s/", m3Host, subdir)
-				cfg.ScpDir(remote, core.JoinPath(benchLocal)+"/")
+				_ = cfg.ScpDir(remote, localSub+"/")
 			}
 		}
 	}
 
-	db.Exec("DROP TABLE IF EXISTS benchmark_results")
-	db.Exec(`
+	if err := db.Exec("DROP TABLE IF EXISTS benchmark_results"); err != nil {
+		return core.E("store.ImportAll", "drop benchmark_results", err)
+	}
+	if err := db.Exec(`
 		CREATE TABLE benchmark_results (
 			source VARCHAR, id VARCHAR, benchmark VARCHAR, model VARCHAR,
 			prompt TEXT, response TEXT, elapsed_seconds DOUBLE, domain VARCHAR
 		)
-	`)
+	`); err != nil {
+		return core.E("store.ImportAll", "create benchmark_results", err)
+	}
 
 	benchTotal := 0
 	for _, subdir := range []string{"results", "scale_results", "cross_arch_results", "deepseek-r1-7b"} {
 		resultDir := core.JoinPath(benchLocal, subdir)
 		matches := core.PathGlob(core.JoinPath(resultDir, "*.jsonl"))
 		for _, jf := range matches {
-			n := importBenchmarkFile(db, jf, subdir)
+			n, err := importBenchmarkFile(db, jf, subdir)
+			if err != nil {
+				return core.E("store.ImportAll", core.Sprintf("import benchmark file %s", jf), err)
+			}
 			benchTotal += n
 		}
 	}
@@ -235,12 +254,15 @@ func ImportAll(db *DuckDB, cfg ImportConfig, w io.Writer) error {
 		local := core.JoinPath(benchLocal, bfile+".jsonl")
 		if !isFile(local) {
 			if !cfg.SkipM3 && cfg.Scp != nil {
-				remote := core.Sprintf("%s:/Volumes/Data/lem/benchmark/%s.jsonl", m3Host, bfile)
-				cfg.Scp(remote, local)
+				remote := core.Sprintf("%s:/Volumes/Data/lem/benchmarks/%s.jsonl", m3Host, bfile)
+				_ = cfg.Scp(remote, local)
 			}
 		}
 		if isFile(local) {
-			n := importBenchmarkFile(db, local, "benchmark")
+			n, err := importBenchmarkFile(db, local, "benchmark")
+			if err != nil {
+				return core.E("store.ImportAll", core.Sprintf("import benchmark file %s", local), err)
+			}
 			benchTotal += n
 		}
 	}
@@ -248,19 +270,26 @@ func ImportAll(db *DuckDB, cfg ImportConfig, w io.Writer) error {
 	core.Print(w, "  benchmark_results: %d rows", benchTotal)
 
 	// ── 4. Benchmark questions ──
-	db.Exec("DROP TABLE IF EXISTS benchmark_questions")
-	db.Exec(`
+	if err := db.Exec("DROP TABLE IF EXISTS benchmark_questions"); err != nil {
+		return core.E("store.ImportAll", "drop benchmark_questions", err)
+	}
+	if err := db.Exec(`
 		CREATE TABLE benchmark_questions (
 			benchmark VARCHAR, id VARCHAR, question TEXT,
 			best_answer TEXT, correct_answers TEXT, incorrect_answers TEXT, category VARCHAR
 		)
-	`)
+	`); err != nil {
+		return core.E("store.ImportAll", "create benchmark_questions", err)
+	}
 
 	benchQTotal := 0
 	for _, bname := range []string{"truthfulqa", "gsm8k", "do_not_answer", "toxigen"} {
 		local := core.JoinPath(benchLocal, bname+".jsonl")
 		if isFile(local) {
-			n := importBenchmarkQuestions(db, local, bname)
+			n, err := importBenchmarkQuestions(db, local, bname)
+			if err != nil {
+				return core.E("store.ImportAll", core.Sprintf("import benchmark questions %s", local), err)
+			}
 			benchQTotal += n
 		}
 	}
@@ -268,12 +297,16 @@ func ImportAll(db *DuckDB, cfg ImportConfig, w io.Writer) error {
 	core.Print(w, "  benchmark_questions: %d rows", benchQTotal)
 
 	// ── 5. Seeds ──
-	db.Exec("DROP TABLE IF EXISTS seeds")
-	db.Exec(`
+	if err := db.Exec("DROP TABLE IF EXISTS seeds"); err != nil {
+		return core.E("store.ImportAll", "drop seeds", err)
+	}
+	if err := db.Exec(`
 		CREATE TABLE seeds (
 			source_file VARCHAR, region VARCHAR, seed_id VARCHAR, domain VARCHAR, prompt TEXT
 		)
-	`)
+	`); err != nil {
+		return core.E("store.ImportAll", "create seeds", err)
+	}
 
 	seedTotal := 0
 	seedDirs := []string{core.JoinPath(cfg.DataDir, "seeds"), "/tmp/lem-data/seeds", "/tmp/lem-repo/seeds"}
@@ -281,7 +314,10 @@ func ImportAll(db *DuckDB, cfg ImportConfig, w io.Writer) error {
 		if !isDir(seedDir) {
 			continue
 		}
-		n := importSeeds(db, seedDir)
+		n, err := importSeeds(db, seedDir)
+		if err != nil {
+			return core.E("store.ImportAll", core.Sprintf("import seeds %s", seedDir), err)
+		}
 		seedTotal += n
 	}
 	totals["seeds"] = seedTotal
@@ -303,13 +339,13 @@ func ImportAll(db *DuckDB, cfg ImportConfig, w io.Writer) error {
 	return nil
 }
 
-func importTrainingFile(db *DuckDB, path, source, split string) int {
+func importTrainingFile(db *DuckDB, path, source, split string) (int, error) {
 	r := localFs.Open(path)
 	if !r.OK {
-		return 0
+		return 0, core.E("store.importTrainingFile", core.Sprintf("open %s", path), r.Value.(error))
 	}
 	f := r.Value.(io.ReadCloser)
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	count := 0
 	scanner := bufio.NewScanner(f)
@@ -339,20 +375,25 @@ func importTrainingFile(db *DuckDB, path, source, split string) int {
 		}
 
 		msgsJSON := core.JSONMarshalString(rec.Messages)
-		db.Exec(`INSERT INTO training_examples VALUES (?, ?, ?, ?, ?, ?, ?)`,
-			source, split, prompt, response, assistantCount, msgsJSON, len(response))
+		if err := db.Exec(`INSERT INTO training_examples VALUES (?, ?, ?, ?, ?, ?, ?)`,
+			source, split, prompt, response, assistantCount, msgsJSON, len(response)); err != nil {
+			return count, core.E("store.importTrainingFile", "insert training example", err)
+		}
 		count++
 	}
-	return count
+	if err := scanner.Err(); err != nil {
+		return count, core.E("store.importTrainingFile", "scan training file", err)
+	}
+	return count, nil
 }
 
-func importBenchmarkFile(db *DuckDB, path, source string) int {
+func importBenchmarkFile(db *DuckDB, path, source string) (int, error) {
 	r := localFs.Open(path)
 	if !r.OK {
-		return 0
+		return 0, core.E("store.importBenchmarkFile", core.Sprintf("open %s", path), r.Value.(error))
 	}
 	f := r.Value.(io.ReadCloser)
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	count := 0
 	scanner := bufio.NewScanner(f)
@@ -364,7 +405,7 @@ func importBenchmarkFile(db *DuckDB, path, source string) int {
 			continue
 		}
 
-		db.Exec(`INSERT INTO benchmark_results VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+		if err := db.Exec(`INSERT INTO benchmark_results VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
 			source,
 			core.Sprint(rec["id"]),
 			strOrEmpty(rec, "benchmark"),
@@ -373,19 +414,24 @@ func importBenchmarkFile(db *DuckDB, path, source string) int {
 			strOrEmpty(rec, "response"),
 			floatOrZero(rec, "elapsed_seconds"),
 			strOrEmpty(rec, "domain"),
-		)
+		); err != nil {
+			return count, core.E("store.importBenchmarkFile", "insert benchmark result", err)
+		}
 		count++
 	}
-	return count
+	if err := scanner.Err(); err != nil {
+		return count, core.E("store.importBenchmarkFile", "scan benchmark file", err)
+	}
+	return count, nil
 }
 
-func importBenchmarkQuestions(db *DuckDB, path, benchmark string) int {
+func importBenchmarkQuestions(db *DuckDB, path, benchmark string) (int, error) {
 	r := localFs.Open(path)
 	if !r.OK {
-		return 0
+		return 0, core.E("store.importBenchmarkQuestions", core.Sprintf("open %s", path), r.Value.(error))
 	}
 	f := r.Value.(io.ReadCloser)
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	count := 0
 	scanner := bufio.NewScanner(f)
@@ -400,7 +446,7 @@ func importBenchmarkQuestions(db *DuckDB, path, benchmark string) int {
 		correctJSON := core.JSONMarshalString(rec["correct_answers"])
 		incorrectJSON := core.JSONMarshalString(rec["incorrect_answers"])
 
-		db.Exec(`INSERT INTO benchmark_questions VALUES (?, ?, ?, ?, ?, ?, ?)`,
+		if err := db.Exec(`INSERT INTO benchmark_questions VALUES (?, ?, ?, ?, ?, ?, ?)`,
 			benchmark,
 			core.Sprint(rec["id"]),
 			strOrEmpty(rec, "question"),
@@ -408,15 +454,24 @@ func importBenchmarkQuestions(db *DuckDB, path, benchmark string) int {
 			correctJSON,
 			incorrectJSON,
 			strOrEmpty(rec, "category"),
-		)
+		); err != nil {
+			return count, core.E("store.importBenchmarkQuestions", "insert benchmark question", err)
+		}
 		count++
 	}
-	return count
+	if err := scanner.Err(); err != nil {
+		return count, core.E("store.importBenchmarkQuestions", "scan benchmark questions", err)
+	}
+	return count, nil
 }
 
-func importSeeds(db *DuckDB, seedDir string) int {
+func importSeeds(db *DuckDB, seedDir string) (int, error) {
 	count := 0
+	var firstErr error
 	walkDir(seedDir, func(path string) {
+		if firstErr != nil {
+			return
+		}
 		if !core.HasSuffix(path, ".json") {
 			return
 		}
@@ -458,21 +513,30 @@ func importSeeds(db *DuckDB, seedDir string) int {
 				if prompt == "" {
 					prompt = strOrEmpty(seed, "question")
 				}
-				db.Exec(`INSERT INTO seeds VALUES (?, ?, ?, ?, ?)`,
+				if err := db.Exec(`INSERT INTO seeds VALUES (?, ?, ?, ?, ?)`,
 					rel, region,
 					strOrEmpty(seed, "seed_id"),
 					strOrEmpty(seed, "domain"),
 					prompt,
-				)
+				); err != nil {
+					firstErr = core.E("store.importSeeds", "insert seed prompt", err)
+					return
+				}
 				count++
 			case string:
-				db.Exec(`INSERT INTO seeds VALUES (?, ?, ?, ?, ?)`,
-					rel, region, "", "", seed)
+				if err := db.Exec(`INSERT INTO seeds VALUES (?, ?, ?, ?, ?)`,
+					rel, region, "", "", seed); err != nil {
+					firstErr = core.E("store.importSeeds", "insert seed string", err)
+					return
+				}
 				count++
 			}
 		}
 	})
-	return count
+	if firstErr != nil {
+		return count, firstErr
+	}
+	return count, nil
 }
 
 // walkDir recursively visits all regular files under root, calling fn for each.

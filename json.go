@@ -16,11 +16,12 @@ import core "dappco.re/go/core"
 //	type CacheEntry struct {
 //	    Data store.RawMessage `json:"data"`
 //	}
+//	cacheEntry := CacheEntry{Data: store.RawMessage([]byte("{\"name\":\"Alice\"}"))}
 type RawMessage []byte
 
 // MarshalJSON returns the raw bytes as-is. If empty, returns `null`.
 //
-// Usage example: `bytes, err := raw.MarshalJSON()`
+// Usage example: `bytes, err := store.RawMessage([]byte("{\"name\":\"Alice\"}")).MarshalJSON()`
 func (raw RawMessage) MarshalJSON() ([]byte, error) {
 	if len(raw) == 0 {
 		return []byte("null"), nil
@@ -30,7 +31,7 @@ func (raw RawMessage) MarshalJSON() ([]byte, error) {
 
 // UnmarshalJSON stores the raw JSON bytes without decoding them.
 //
-// Usage example: `var raw store.RawMessage; err := raw.UnmarshalJSON(data)`
+// Usage example: `var raw store.RawMessage; err := raw.UnmarshalJSON([]byte("{\"name\":\"Alice\"}"))`
 func (raw *RawMessage) UnmarshalJSON(data []byte) error {
 	if raw == nil {
 		return core.E("store.RawMessage.UnmarshalJSON", "nil receiver", nil)
@@ -43,9 +44,9 @@ func (raw *RawMessage) UnmarshalJSON(data []byte) error {
 // Uses core.JSONMarshal internally then applies prefix/indent formatting
 // so consumers get readable output without importing encoding/json.
 //
-// Usage example: `data, err := store.MarshalIndent(entry, "", "  ")`
-func MarshalIndent(v any, prefix, indent string) ([]byte, error) {
-	marshalled := core.JSONMarshal(v)
+// Usage example: `data, err := store.MarshalIndent(map[string]string{"name": "Alice"}, "", "  ")`
+func MarshalIndent(value any, prefix, indent string) ([]byte, error) {
+	marshalled := core.JSONMarshal(value)
 	if !marshalled.OK {
 		if err, ok := marshalled.Value.(error); ok {
 			return nil, core.E("store.MarshalIndent", "marshal", err)
@@ -70,7 +71,7 @@ func MarshalIndent(v any, prefix, indent string) ([]byte, error) {
 // indentCompactJSON formats compact JSON bytes with prefix+indent.
 // Mirrors json.Indent's semantics without importing encoding/json.
 //
-// Usage example: `builder := core.NewBuilder(); _ = indentCompactJSON(builder, compact, "", "  ")`
+// Usage example: `builder := core.NewBuilder(); _ = indentCompactJSON(builder, []byte("{\"name\":\"Alice\"}"), "", "  ")`
 func indentCompactJSON(buf interface {
 	WriteByte(byte) error
 	WriteString(string) (int, error)
@@ -79,18 +80,27 @@ func indentCompactJSON(buf interface {
 	inString := false
 	escaped := false
 
-	writeNewlineIndent := func(level int) {
-		buf.WriteByte('\n')
-		buf.WriteString(prefix)
-		for i := 0; i < level; i++ {
-			buf.WriteString(indent)
+	writeNewlineIndent := func(level int) error {
+		if err := buf.WriteByte('\n'); err != nil {
+			return err
 		}
+		if _, err := buf.WriteString(prefix); err != nil {
+			return err
+		}
+		for i := 0; i < level; i++ {
+			if _, err := buf.WriteString(indent); err != nil {
+				return err
+			}
+		}
+		return nil
 	}
 
 	for i := 0; i < len(src); i++ {
 		c := src[i]
 		if inString {
-			buf.WriteByte(c)
+			if err := buf.WriteByte(c); err != nil {
+				return err
+			}
 			if escaped {
 				escaped = false
 				continue
@@ -107,34 +117,54 @@ func indentCompactJSON(buf interface {
 		switch c {
 		case '"':
 			inString = true
-			buf.WriteByte(c)
+			if err := buf.WriteByte(c); err != nil {
+				return err
+			}
 		case '{', '[':
-			buf.WriteByte(c)
+			if err := buf.WriteByte(c); err != nil {
+				return err
+			}
 			depth++
 			// Look ahead for empty object/array.
 			if i+1 < len(src) && (src[i+1] == '}' || src[i+1] == ']') {
 				continue
 			}
-			writeNewlineIndent(depth)
+			if err := writeNewlineIndent(depth); err != nil {
+				return err
+			}
 		case '}', ']':
 			// Only indent if previous byte wasn't the matching opener.
 			if i > 0 && src[i-1] != '{' && src[i-1] != '[' {
 				depth--
-				writeNewlineIndent(depth)
+				if err := writeNewlineIndent(depth); err != nil {
+					return err
+				}
 			} else {
 				depth--
 			}
-			buf.WriteByte(c)
+			if err := buf.WriteByte(c); err != nil {
+				return err
+			}
 		case ',':
-			buf.WriteByte(c)
-			writeNewlineIndent(depth)
+			if err := buf.WriteByte(c); err != nil {
+				return err
+			}
+			if err := writeNewlineIndent(depth); err != nil {
+				return err
+			}
 		case ':':
-			buf.WriteByte(c)
-			buf.WriteByte(' ')
+			if err := buf.WriteByte(c); err != nil {
+				return err
+			}
+			if err := buf.WriteByte(' '); err != nil {
+				return err
+			}
 		case ' ', '\t', '\n', '\r':
 			// Drop whitespace from compact source.
 		default:
-			buf.WriteByte(c)
+			if err := buf.WriteByte(c); err != nil {
+				return err
+			}
 		}
 	}
 	return nil

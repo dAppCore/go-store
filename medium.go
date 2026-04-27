@@ -3,18 +3,20 @@
 package store
 
 import (
+	"bytes"
+
 	core "dappco.re/go/core"
-	"dappco.re/go/io"
+	coreio "dappco.re/go/core/io"
 )
 
 // Medium is the minimal storage transport used by the go-store workspace
 // import and export helpers and by Compact when writing cold archives.
 //
-// This is an alias of `dappco.re/go/io.Medium`, so callers can pass any
+// This is an alias of `dappco.re/go/core/io.Medium`, so callers can pass any
 // upstream medium implementation directly without an adapter.
 //
 // Usage example: `medium, _ := local.New("/tmp/exports"); storeInstance, err := store.New(":memory:", store.WithMedium(medium))`
-type Medium = io.Medium
+type Medium = coreio.Medium
 
 // Usage example: `medium, _ := local.New("/srv/core"); storeInstance, err := store.NewConfigured(store.StoreConfig{DatabasePath: ":memory:", Medium: medium})`
 // WithMedium installs an io.Medium-compatible transport on the Store so that
@@ -233,11 +235,10 @@ func importCSV(workspace *Workspace, kind, content string) error {
 
 func splitCSVLine(line string) []string {
 	line = trimTrailingCarriageReturn(line)
-	buffer := core.NewBuffer()
+	buffer := &bytes.Buffer{}
 	var (
-		fields     []string
-		inQuotes   bool
-		wasEscaped bool
+		fields   []string
+		inQuotes bool
 	)
 	for index := 0; index < len(line); index++ {
 		character := line[index]
@@ -245,19 +246,16 @@ func splitCSVLine(line string) []string {
 		case character == '"' && inQuotes && index+1 < len(line) && line[index+1] == '"':
 			buffer.WriteByte('"')
 			index++
-			wasEscaped = true
 		case character == '"':
 			inQuotes = !inQuotes
 		case character == ',' && !inQuotes:
 			fields = append(fields, buffer.String())
 			buffer.Reset()
-			wasEscaped = false
 		default:
 			buffer.WriteByte(character)
 		}
 	}
 	fields = append(fields, buffer.String())
-	_ = wasEscaped
 	return fields
 }
 

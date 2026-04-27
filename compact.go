@@ -1,6 +1,7 @@
 package store
 
 import (
+	"bytes"
 	"compress/gzip"
 	"time"
 	"unicode"
@@ -116,7 +117,9 @@ func (storeInstance *Store) Compact(options CompactOptions) core.Result {
 	if queryErr != nil {
 		return core.Result{Value: core.E("store.Compact", "query journal rows", queryErr), OK: false}
 	}
-	defer rows.Close()
+	defer func() {
+		_ = rows.Close()
+	}()
 
 	var archiveEntries []compactArchiveEntry
 	for rows.Next() {
@@ -177,9 +180,16 @@ func (storeInstance *Store) Compact(options CompactOptions) core.Result {
 	if err != nil {
 		return core.Result{Value: core.E("store.Compact", "read archive buffer", err), OK: false}
 	}
-	if err := medium.Write(outputPath, compressedArchive); err != nil {
-		return core.Result{Value: core.E("store.Compact", "write archive via medium", err), OK: false}
+	stagedOutputPath := core.Concat(outputPath, ".tmp")
+	stagedOutputPublished := false
+	if err := medium.Write(stagedOutputPath, compressedArchive); err != nil {
+		return core.Result{Value: core.E("store.Compact", "write staged archive via medium", err), OK: false}
 	}
+	defer func() {
+		if !stagedOutputPublished && medium.Exists(stagedOutputPath) {
+			_ = medium.Delete(stagedOutputPath)
+		}
+	}()
 
 	transaction, err := storeInstance.sqliteDatabase.Begin()
 	if err != nil {
@@ -207,6 +217,11 @@ func (storeInstance *Store) Compact(options CompactOptions) core.Result {
 		return core.Result{Value: core.E("store.Compact", "commit archive transaction", err), OK: false}
 	}
 	committed = true
+
+	if err := medium.Rename(stagedOutputPath, outputPath); err != nil {
+		return core.Result{Value: core.E("store.Compact", "publish staged archive", err), OK: false}
+	}
+	stagedOutputPublished = true
 
 	return core.Result{Value: outputPath, OK: true}
 }
@@ -243,35 +258,20 @@ type compactArchiveWriteTarget interface {
 }
 
 type compactArchiveBuffer struct {
-	medium coreio.Medium
-	path   string
+	buffer bytes.Buffer
 }
 
 func newCompactArchiveBuffer() (*compactArchiveBuffer, error) {
-	buffer := &compactArchiveBuffer{
-		medium: coreio.NewMemoryMedium(),
-		path:   "archive-buffer",
-	}
-	if err := buffer.medium.Write(buffer.path, ""); err != nil {
-		return nil, err
-	}
-	return buffer, nil
+	return &compactArchiveBuffer{}, nil
 }
 
 // Usage example: `buffer, _ := newCompactArchiveBuffer(); _, _ = buffer.Write([]byte("archive"))`
 func (buffer *compactArchiveBuffer) Write(data []byte) (int, error) {
-	content, err := buffer.medium.Read(buffer.path)
-	if err != nil {
-		return 0, core.E("store.compactArchiveBuffer.Write", "read buffer", err)
-	}
-	if err := buffer.medium.Write(buffer.path, content+string(data)); err != nil {
-		return 0, core.E("store.compactArchiveBuffer.Write", "write buffer", err)
-	}
-	return len(data), nil
+	return buffer.buffer.Write(data)
 }
 
 func (buffer *compactArchiveBuffer) content() (string, error) {
-	return buffer.medium.Read(buffer.path)
+	return buffer.buffer.String(), nil
 }
 
 func archiveWriter(writer compactArchiveWriteTarget, format string) (compactArchiveWriter, error) {

@@ -13,7 +13,7 @@ import (
 //
 // Usage example:
 //
-//	db.EnsureScoringTables()
+//	_ = db.EnsureScoringTables()
 //	db.Exec(core.Sprintf("SELECT * FROM %s", store.TableCheckpointScores))
 const (
 	// TableCheckpointScores is the table name for checkpoint scoring data.
@@ -38,7 +38,7 @@ const (
 //
 //	db, err := store.OpenDuckDB("/Volumes/Data/lem/lem.duckdb")
 //	if err != nil { return }
-//	defer db.Close()
+//	defer func() { _ = db.Close() }()
 //	rows, _ := db.QueryGoldenSet(500)
 type DuckDB struct {
 	conn *sql.DB
@@ -57,7 +57,7 @@ func OpenDuckDB(path string) (*DuckDB, error) {
 		return nil, core.E("store.OpenDuckDB", core.Sprintf("open duckdb %s", path), err)
 	}
 	if err := conn.Ping(); err != nil {
-		conn.Close()
+		_ = conn.Close()
 		return nil, core.E("store.OpenDuckDB", core.Sprintf("ping duckdb %s", path), err)
 	}
 	return &DuckDB{conn: conn, path: path}, nil
@@ -74,7 +74,7 @@ func OpenDuckDBReadWrite(path string) (*DuckDB, error) {
 		return nil, core.E("store.OpenDuckDBReadWrite", core.Sprintf("open duckdb %s", path), err)
 	}
 	if err := conn.Ping(); err != nil {
-		conn.Close()
+		_ = conn.Close()
 		return nil, core.E("store.OpenDuckDBReadWrite", core.Sprintf("ping duckdb %s", path), err)
 	}
 	return &DuckDB{conn: conn, path: path}, nil
@@ -84,7 +84,7 @@ func OpenDuckDBReadWrite(path string) (*DuckDB, error) {
 //
 // Usage example:
 //
-//	defer db.Close()
+//	defer func() { _ = db.Close() }()
 func (db *DuckDB) Close() error {
 	return db.conn.Close()
 }
@@ -116,7 +116,10 @@ func (db *DuckDB) Conn() *sql.DB {
 //	err := db.Exec("INSERT INTO golden_set VALUES (?, ?)", idx, prompt)
 func (db *DuckDB) Exec(query string, args ...any) error {
 	_, err := db.conn.Exec(query, args...)
-	return err
+	if err != nil {
+		return core.E("store.DuckDB.Exec", "execute query", err)
+	}
+	return nil
 }
 
 // QueryRowScan executes a query expected to return at most one row and scans
@@ -279,7 +282,9 @@ func (db *DuckDB) QueryGoldenSet(minChars int) ([]GoldenSetRow, error) {
 	if err != nil {
 		return nil, core.E("store.DuckDB.QueryGoldenSet", "query golden_set", err)
 	}
-	defer rows.Close()
+	defer func() {
+		_ = rows.Close()
+	}()
 
 	var result []GoldenSetRow
 	for rows.Next() {
@@ -331,7 +336,9 @@ func (db *DuckDB) QueryExpansionPrompts(status string, limit int) ([]ExpansionPr
 	if err != nil {
 		return nil, core.E("store.DuckDB.QueryExpansionPrompts", "query expansion_prompts", err)
 	}
-	defer rows.Close()
+	defer func() {
+		_ = rows.Close()
+	}()
 
 	var result []ExpansionPromptRow
 	for rows.Next() {
@@ -385,7 +392,9 @@ func (db *DuckDB) QueryRows(query string, args ...any) ([]map[string]any, error)
 	if err != nil {
 		return nil, core.E("store.DuckDB.QueryRows", "query", err)
 	}
-	defer rows.Close()
+	defer func() {
+		_ = rows.Close()
+	}()
 
 	cols, err := rows.Columns()
 	if err != nil {
@@ -415,25 +424,32 @@ func (db *DuckDB) QueryRows(query string, args ...any) ([]map[string]any, error)
 //
 // Usage example:
 //
-//	db.EnsureScoringTables()
-func (db *DuckDB) EnsureScoringTables() {
-	db.conn.Exec(core.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
+//	if err := db.EnsureScoringTables(); err != nil { return }
+func (db *DuckDB) EnsureScoringTables() error {
+	if _, err := db.conn.Exec(core.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
 		model TEXT, run_id TEXT, label TEXT, iteration INTEGER,
 		correct INTEGER, total INTEGER, accuracy DOUBLE,
 		scored_at TIMESTAMP DEFAULT current_timestamp,
 		PRIMARY KEY (run_id, label)
-	)`, TableCheckpointScores))
-	db.conn.Exec(core.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
+	)`, TableCheckpointScores)); err != nil {
+		return core.E("store.DuckDB.EnsureScoringTables", "create checkpoint_scores", err)
+	}
+	if _, err := db.conn.Exec(core.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
 		model TEXT, run_id TEXT, label TEXT, probe_id TEXT,
 		passed BOOLEAN, response TEXT, iteration INTEGER,
 		scored_at TIMESTAMP DEFAULT current_timestamp,
 		PRIMARY KEY (run_id, label, probe_id)
-	)`, TableProbeResults))
-	db.conn.Exec(`CREATE TABLE IF NOT EXISTS scoring_results (
+	)`, TableProbeResults)); err != nil {
+		return core.E("store.DuckDB.EnsureScoringTables", "create probe_results", err)
+	}
+	if _, err := db.conn.Exec(`CREATE TABLE IF NOT EXISTS scoring_results (
 		model TEXT, prompt_id TEXT, suite TEXT,
 		dimension TEXT, score DOUBLE,
 		scored_at TIMESTAMP DEFAULT current_timestamp
-	)`)
+	)`); err != nil {
+		return core.E("store.DuckDB.EnsureScoringTables", "create scoring_results", err)
+	}
+	return nil
 }
 
 // WriteScoringResult writes a single scoring dimension result to DuckDB.
@@ -446,7 +462,10 @@ func (db *DuckDB) WriteScoringResult(model, promptID, suite, dimension string, s
 		`INSERT INTO scoring_results (model, prompt_id, suite, dimension, score) VALUES (?, ?, ?, ?, ?)`,
 		model, promptID, suite, dimension, score,
 	)
-	return err
+	if err != nil {
+		return core.E("store.DuckDB.WriteScoringResult", "insert scoring result", err)
+	}
+	return nil
 }
 
 // TableCounts returns row counts for all known tables.

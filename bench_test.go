@@ -20,7 +20,7 @@ func BenchmarkGetAll_VaryingSize(b *testing.B) {
 			if err != nil {
 				b.Fatal(err)
 			}
-			defer storeInstance.Close()
+			defer func() { _ = storeInstance.Close() }()
 
 			for i := range size {
 				_ = storeInstance.Set("bench", core.Sprintf("key-%d", i), "value")
@@ -41,7 +41,7 @@ func BenchmarkSetGet_Parallel(b *testing.B) {
 	if err != nil {
 		b.Fatal(err)
 	}
-	defer storeInstance.Close()
+	defer func() { _ = storeInstance.Close() }()
 
 	b.ReportAllocs()
 	b.ResetTimer()
@@ -62,7 +62,7 @@ func BenchmarkCount_10K(b *testing.B) {
 	if err != nil {
 		b.Fatal(err)
 	}
-	defer storeInstance.Close()
+	defer func() { _ = storeInstance.Close() }()
 
 	for i := range 10_000 {
 		_ = storeInstance.Set("bench", core.Sprintf("key-%d", i), "value")
@@ -81,7 +81,7 @@ func BenchmarkDelete(b *testing.B) {
 	if err != nil {
 		b.Fatal(err)
 	}
-	defer storeInstance.Close()
+	defer func() { _ = storeInstance.Close() }()
 
 	// Pre-populate keys that will be deleted.
 	for i := range b.N {
@@ -101,7 +101,7 @@ func BenchmarkSetWithTTL(b *testing.B) {
 	if err != nil {
 		b.Fatal(err)
 	}
-	defer storeInstance.Close()
+	defer func() { _ = storeInstance.Close() }()
 
 	b.ReportAllocs()
 	b.ResetTimer()
@@ -116,7 +116,7 @@ func BenchmarkRender(b *testing.B) {
 	if err != nil {
 		b.Fatal(err)
 	}
-	defer storeInstance.Close()
+	defer func() { _ = storeInstance.Close() }()
 
 	for i := range 50 {
 		_ = storeInstance.Set("bench", core.Sprintf("key%d", i), core.Sprintf("val%d", i))

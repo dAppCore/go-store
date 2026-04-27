@@ -4,7 +4,7 @@
 //
 // Prefer `store.New(...)` and `store.NewScoped(...)` for the primary API.
 // Use `store.NewConfigured(store.StoreConfig{...})` and
-// `store.NewScopedConfigured(store.ScopedStoreConfig{...})` when the
+// `store.NewScopedConfigured(configuredStore, store.ScopedStoreConfig{...})` when the
 // configuration is already known:
 //
 //	configuredStore, err := store.NewConfigured(store.StoreConfig{
@@ -39,7 +39,7 @@
 //		if err != nil {
 //			return
 //		}
-//		defer configuredStore.Close()
+//		defer func() { _ = configuredStore.Close() }()
 //
 //		if err := configuredStore.Set("config", "colour", "blue"); err != nil {
 //			return

@@ -1,5 +1,5 @@
 [![Go Reference](https://pkg.go.dev/badge/dappco.re/go/store.svg)](https://pkg.go.dev/dappco.re/go/store)
-[![License: EUPL-1.2](https://img.shields.io/badge/License-EUPL--1.2-blue.svg)](LICENSE.md)
+[![Licence: EUPL-1.2](https://img.shields.io/badge/License-EUPL--1.2-blue.svg)](LICENSE.md)
 [![Go Version](https://img.shields.io/badge/Go-1.26-00ADD8?style=flat&logo=go)](go.mod)
 
 # go-store
@@ -81,6 +81,7 @@ func main() {
 - [Architecture](docs/architecture.md) — storage layer, group/key model, TTL expiry, event system, namespace isolation
 - [Development Guide](docs/development.md) — prerequisites, test patterns, benchmarks, adding methods
 - [Project History](docs/history.md) — completed phases, known limitations, future considerations
+- [Dependency Exceptions](DEPENDENCIES.md) — documented runtime dependency exceptions
 
 ## Build & Test
 

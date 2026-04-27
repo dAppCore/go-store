@@ -190,7 +190,7 @@ Watcher delivery is grouped by the registered group name. Wildcard `"*"` matches
 
 ## Namespace Isolation (ScopedStore)
 
-`ScopedStore` wraps a `*Store` and automatically prefixes all group names with `namespace + ":"`. This prevents key collisions when multiple tenants share a single underlying database. When the namespace and quota are already known, prefer `NewScopedConfigured(store.ScopedStoreConfig{...})` so the configuration is explicit at the call site.
+`ScopedStore` wraps a `*Store` and automatically prefixes all group names with `namespace + ":"`. This prevents key collisions when multiple tenants share a single underlying database. When the namespace and quota are already known, prefer `NewScopedConfigured(storeInstance, store.ScopedStoreConfig{...})` so the configuration is explicit at the call site.
 
 ```go
 scopedStore, err := store.NewScopedConfigured(storeInstance, store.ScopedStoreConfig{
@@ -215,7 +215,7 @@ Namespace strings must match `^[a-zA-Z0-9-]+$`. Invalid namespaces are rejected 
 
 ### Quota Enforcement
 
-`NewScopedConfigured(store.ScopedStoreConfig{...})` is the preferred way to set per-namespace limits because the quota values stay visible at the call site. For example, `store.QuotaConfig{MaxKeys: 100, MaxGroups: 10}` caps a namespace at 100 keys and 10 groups:
+`NewScopedConfigured(storeInstance, store.ScopedStoreConfig{...})` is the preferred way to set per-namespace limits because the quota values stay visible at the call site. For example, `store.QuotaConfig{MaxKeys: 100, MaxGroups: 10}` caps a namespace at 100 keys and 10 groups:
 
 ```go
 type QuotaConfig struct {

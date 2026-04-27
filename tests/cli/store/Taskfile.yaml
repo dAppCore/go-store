@@ -2,12 +2,17 @@ version: "3"
 
 tasks:
   default:
-    deps: [build, test]
+    deps: [build, vet, test]
 
   build:
     dir: ../../..
     cmds:
       - go build ./...
+
+  vet:
+    dir: ../../..
+    cmds:
+      - go vet ./...
 
   test:
     dir: ../../..

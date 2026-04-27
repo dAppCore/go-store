@@ -13,7 +13,7 @@ import (
 
 func TestScope_NewScoped_Good(t *testing.T) {
 	storeInstance, _ := New(":memory:")
-	defer storeInstance.Close()
+	defer func() { _ = storeInstance.Close() }()
 
 	scopedStore := NewScoped(storeInstance, "tenant-1")
 	assertNotNil(t, scopedStore)
@@ -22,7 +22,7 @@ func TestScope_NewScoped_Good(t *testing.T) {
 
 func TestScope_ScopedStore_Good_Config(t *testing.T) {
 	storeInstance, _ := New(":memory:")
-	defer storeInstance.Close()
+	defer func() { _ = storeInstance.Close() }()
 
 	scopedStore, err := NewScopedConfigured(storeInstance, ScopedStoreConfig{
 		Namespace: "tenant-a",
@@ -30,7 +30,7 @@ func TestScope_ScopedStore_Good_Config(t *testing.T) {
 	})
 	assertNoError(t, err)
 
-	assertEqual(t, ScopedStoreConfig{ Namespace: "tenant-a", Quota: QuotaConfig{MaxKeys: 4, MaxGroups: 2}, }, scopedStore.Config())
+	assertEqual(t, ScopedStoreConfig{Namespace: "tenant-a", Quota: QuotaConfig{MaxKeys: 4, MaxGroups: 2}}, scopedStore.Config())
 }
 
 func TestScope_ScopedStore_Good_ConfigZeroValueFromNil(t *testing.T) {
@@ -41,7 +41,7 @@ func TestScope_ScopedStore_Good_ConfigZeroValueFromNil(t *testing.T) {
 
 func TestScope_NewScoped_Good_AlphanumericHyphens(t *testing.T) {
 	storeInstance, _ := New(":memory:")
-	defer storeInstance.Close()
+	defer func() { _ = storeInstance.Close() }()
 
 	valid := []string{"abc", "ABC", "123", "a-b-c", "tenant-42", "A1-B2"}
 	for _, namespace := range valid {
@@ -52,7 +52,7 @@ func TestScope_NewScoped_Good_AlphanumericHyphens(t *testing.T) {
 
 func TestScope_NewScoped_Bad_Empty(t *testing.T) {
 	storeInstance, _ := New(":memory:")
-	defer storeInstance.Close()
+	defer func() { _ = storeInstance.Close() }()
 
 	assertNil(t, NewScoped(storeInstance, ""))
 }
@@ -63,7 +63,7 @@ func TestScope_NewScoped_Bad_NilStore(t *testing.T) {
 
 func TestScope_NewScoped_Bad_InvalidChars(t *testing.T) {
 	storeInstance, _ := New(":memory:")
-	defer storeInstance.Close()
+	defer func() { _ = storeInstance.Close() }()
 
 	invalid := []string{"foo.bar", "foo:bar", "foo bar", "foo/bar", "foo_bar", "tenant!", "@ns"}
 	for _, namespace := range invalid {
@@ -73,7 +73,7 @@ func TestScope_NewScoped_Bad_InvalidChars(t *testing.T) {
 
 func TestScope_NewScopedConfigured_Bad_InvalidNamespaceFromQuotaConfig(t *testing.T) {
 	storeInstance, _ := New(":memory:")
-	defer storeInstance.Close()
+	defer func() { _ = storeInstance.Close() }()
 
 	_, err := NewScopedConfigured(storeInstance, ScopedStoreConfig{
 		Namespace: "tenant_a",
@@ -94,7 +94,7 @@ func TestScope_NewScopedConfigured_Bad_NilStoreFromQuotaConfig(t *testing.T) {
 
 func TestScope_NewScopedConfigured_Bad_NegativeMaxKeys(t *testing.T) {
 	storeInstance, _ := New(":memory:")
-	defer storeInstance.Close()
+	defer func() { _ = storeInstance.Close() }()
 
 	_, err := NewScopedConfigured(storeInstance, ScopedStoreConfig{
 		Namespace: "tenant-a",
@@ -106,7 +106,7 @@ func TestScope_NewScopedConfigured_Bad_NegativeMaxKeys(t *testing.T) {
 
 func TestScope_NewScopedConfigured_Bad_NegativeMaxGroups(t *testing.T) {
 	storeInstance, _ := New(":memory:")
-	defer storeInstance.Close()
+	defer func() { _ = storeInstance.Close() }()
 
 	_, err := NewScopedConfigured(storeInstance, ScopedStoreConfig{
 		Namespace: "tenant-a",
@@ -118,7 +118,7 @@ func TestScope_NewScopedConfigured_Bad_NegativeMaxGroups(t *testing.T) {
 
 func TestScope_NewScopedConfigured_Good_InlineQuotaFields(t *testing.T) {
 	storeInstance, _ := New(":memory:")
-	defer storeInstance.Close()
+	defer func() { _ = storeInstance.Close() }()
 
 	scopedStore, err := NewScopedConfigured(storeInstance, ScopedStoreConfig{
 		Namespace: "tenant-a",
@@ -140,7 +140,7 @@ func TestScope_ScopedStoreConfig_Good_Validate(t *testing.T) {
 
 func TestScope_NewScopedConfigured_Good(t *testing.T) {
 	storeInstance, _ := New(":memory:")
-	defer storeInstance.Close()
+	defer func() { _ = storeInstance.Close() }()
 
 	scopedStore, err := NewScopedConfigured(storeInstance, ScopedStoreConfig{
 		Namespace: "tenant-a",
@@ -154,7 +154,7 @@ func TestScope_NewScopedConfigured_Good(t *testing.T) {
 
 func TestScope_NewScopedWithQuota_Good(t *testing.T) {
 	storeInstance, _ := New(":memory:")
-	defer storeInstance.Close()
+	defer func() { _ = storeInstance.Close() }()
 
 	scopedStore, err := NewScopedWithQuota(storeInstance, "tenant-a", QuotaConfig{MaxKeys: 4, MaxGroups: 2})
 	assertNoError(t, err)
@@ -167,7 +167,7 @@ func TestScope_NewScopedWithQuota_Good(t *testing.T) {
 
 func TestScope_NewScopedConfigured_Bad_InvalidNamespace(t *testing.T) {
 	storeInstance, _ := New(":memory:")
-	defer storeInstance.Close()
+	defer func() { _ = storeInstance.Close() }()
 
 	_, err := NewScopedConfigured(storeInstance, ScopedStoreConfig{
 		Namespace: "tenant_a",
@@ -217,7 +217,7 @@ func TestScope_ScopedStore_Good_NilReceiverReturnsErrors(t *testing.T) {
 
 func TestScope_ScopedStore_Good_SetGet(t *testing.T) {
 	storeInstance, _ := New(":memory:")
-	defer storeInstance.Close()
+	defer func() { _ = storeInstance.Close() }()
 
 	scopedStore := NewScoped(storeInstance, "tenant-a")
 	assertNoError(t, scopedStore.SetIn("config", "theme", "dark"))
@@ -229,7 +229,7 @@ func TestScope_ScopedStore_Good_SetGet(t *testing.T) {
 
 func TestScope_ScopedStore_Good_DefaultGroupHelpers(t *testing.T) {
 	storeInstance, _ := New(":memory:")
-	defer storeInstance.Close()
+	defer func() { _ = storeInstance.Close() }()
 
 	scopedStore := NewScoped(storeInstance, "tenant-a")
 	assertNoError(t, scopedStore.Set("theme", "dark"))
@@ -245,7 +245,7 @@ func TestScope_ScopedStore_Good_DefaultGroupHelpers(t *testing.T) {
 
 func TestScope_ScopedStore_Good_SetInGetFrom(t *testing.T) {
 	storeInstance, _ := New(":memory:")
-	defer storeInstance.Close()
+	defer func() { _ = storeInstance.Close() }()
 
 	scopedStore := NewScoped(storeInstance, "tenant-a")
 	assertNoError(t, scopedStore.SetIn("config", "theme", "dark"))
@@ -257,7 +257,7 @@ func TestScope_ScopedStore_Good_SetInGetFrom(t *testing.T) {
 
 func TestScope_ScopedStore_Good_PrefixedInUnderlyingStore(t *testing.T) {
 	storeInstance, _ := New(":memory:")
-	defer storeInstance.Close()
+	defer func() { _ = storeInstance.Close() }()
 
 	scopedStore := NewScoped(storeInstance, "tenant-a")
 	assertNoError(t, scopedStore.SetIn("config", "key", "val"))
@@ -274,7 +274,7 @@ func TestScope_ScopedStore_Good_PrefixedInUnderlyingStore(t *testing.T) {
 
 func TestScope_ScopedStore_Good_NamespaceIsolation(t *testing.T) {
 	storeInstance, _ := New(":memory:")
-	defer storeInstance.Close()
+	defer func() { _ = storeInstance.Close() }()
 
 	alphaStore := NewScoped(storeInstance, "tenant-a")
 	betaStore := NewScoped(storeInstance, "tenant-b")
@@ -297,7 +297,7 @@ func TestScope_ScopedStore_Good_NamespaceIsolation(t *testing.T) {
 
 func TestScope_ScopedStore_Good_ExistsInDefaultGroup(t *testing.T) {
 	storeInstance, _ := New(":memory:")
-	defer storeInstance.Close()
+	defer func() { _ = storeInstance.Close() }()
 
 	scopedStore := NewScoped(storeInstance, "tenant-a")
 	assertNoError(t, scopedStore.Set("colour", "blue"))
@@ -313,7 +313,7 @@ func TestScope_ScopedStore_Good_ExistsInDefaultGroup(t *testing.T) {
 
 func TestScope_ScopedStore_Good_ExistsInExplicitGroup(t *testing.T) {
 	storeInstance, _ := New(":memory:")
-	defer storeInstance.Close()
+	defer func() { _ = storeInstance.Close() }()
 
 	scopedStore := NewScoped(storeInstance, "tenant-a")
 	assertNoError(t, scopedStore.SetIn("config", "colour", "blue"))
@@ -333,7 +333,7 @@ func TestScope_ScopedStore_Good_ExistsInExplicitGroup(t *testing.T) {
 
 func TestScope_ScopedStore_Good_ExistsExpiredKeyReturnsFalse(t *testing.T) {
 	storeInstance, _ := New(":memory:")
-	defer storeInstance.Close()
+	defer func() { _ = storeInstance.Close() }()
 
 	scopedStore := NewScoped(storeInstance, "tenant-a")
 	assertNoError(t, scopedStore.SetWithTTL("session", "token", "abc123", 1*time.Millisecond))
@@ -346,7 +346,7 @@ func TestScope_ScopedStore_Good_ExistsExpiredKeyReturnsFalse(t *testing.T) {
 
 func TestScope_ScopedStore_Good_GroupExists(t *testing.T) {
 	storeInstance, _ := New(":memory:")
-	defer storeInstance.Close()
+	defer func() { _ = storeInstance.Close() }()
 
 	scopedStore := NewScoped(storeInstance, "tenant-a")
 	assertNoError(t, scopedStore.SetIn("config", "colour", "blue"))
@@ -362,7 +362,7 @@ func TestScope_ScopedStore_Good_GroupExists(t *testing.T) {
 
 func TestScope_ScopedStore_Good_GroupExistsAfterDelete(t *testing.T) {
 	storeInstance, _ := New(":memory:")
-	defer storeInstance.Close()
+	defer func() { _ = storeInstance.Close() }()
 
 	scopedStore := NewScoped(storeInstance, "tenant-a")
 	assertNoError(t, scopedStore.SetIn("config", "colour", "blue"))
@@ -375,8 +375,7 @@ func TestScope_ScopedStore_Good_GroupExistsAfterDelete(t *testing.T) {
 
 func TestScope_ScopedStore_Bad_ExistsClosedStore(t *testing.T) {
 	storeInstance, _ := New(":memory:")
-	storeInstance.Close()
-
+	_ = storeInstance.Close()
 	scopedStore := NewScoped(storeInstance, "tenant-a")
 
 	_, err := scopedStore.Exists("colour")
@@ -391,7 +390,7 @@ func TestScope_ScopedStore_Bad_ExistsClosedStore(t *testing.T) {
 
 func TestScope_ScopedStore_Good_Delete(t *testing.T) {
 	storeInstance, _ := New(":memory:")
-	defer storeInstance.Close()
+	defer func() { _ = storeInstance.Close() }()
 
 	scopedStore := NewScoped(storeInstance, "tenant-a")
 	assertNoError(t, scopedStore.SetIn("g", "k", "v"))
@@ -403,7 +402,7 @@ func TestScope_ScopedStore_Good_Delete(t *testing.T) {
 
 func TestScope_ScopedStore_Good_DeleteGroup(t *testing.T) {
 	storeInstance, _ := New(":memory:")
-	defer storeInstance.Close()
+	defer func() { _ = storeInstance.Close() }()
 
 	scopedStore := NewScoped(storeInstance, "tenant-a")
 	assertNoError(t, scopedStore.SetIn("g", "a", "1"))
@@ -417,7 +416,7 @@ func TestScope_ScopedStore_Good_DeleteGroup(t *testing.T) {
 
 func TestScope_ScopedStore_Good_DeletePrefix(t *testing.T) {
 	storeInstance, _ := New(":memory:")
-	defer storeInstance.Close()
+	defer func() { _ = storeInstance.Close() }()
 
 	scopedStore := NewScoped(storeInstance, "tenant-a")
 	otherScopedStore := NewScoped(storeInstance, "tenant-b")
@@ -445,7 +444,7 @@ func TestScope_ScopedStore_Good_DeletePrefix(t *testing.T) {
 
 func TestScope_ScopedStore_Good_OnChange_NamespaceLocal(t *testing.T) {
 	storeInstance, _ := New(":memory:")
-	defer storeInstance.Close()
+	defer func() { _ = storeInstance.Close() }()
 
 	scopedStore := NewScoped(storeInstance, "tenant-a")
 	otherScopedStore := NewScoped(storeInstance, "tenant-b")
@@ -471,7 +470,7 @@ func TestScope_ScopedStore_Good_OnChange_NamespaceLocal(t *testing.T) {
 
 func TestScope_ScopedStore_Good_Watch_NamespaceLocal(t *testing.T) {
 	storeInstance, _ := New(":memory:")
-	defer storeInstance.Close()
+	defer func() { _ = storeInstance.Close() }()
 
 	scopedStore := NewScoped(storeInstance, "tenant-a")
 	otherScopedStore := NewScoped(storeInstance, "tenant-b")
@@ -502,7 +501,7 @@ func TestScope_ScopedStore_Good_Watch_NamespaceLocal(t *testing.T) {
 
 func TestScope_ScopedStore_Good_Watch_All_NamespaceLocal(t *testing.T) {
 	storeInstance, _ := New(":memory:")
-	defer storeInstance.Close()
+	defer func() { _ = storeInstance.Close() }()
 
 	scopedStore := NewScoped(storeInstance, "tenant-a")
 	otherScopedStore := NewScoped(storeInstance, "tenant-b")
@@ -541,7 +540,7 @@ func TestScope_ScopedStore_Good_Watch_All_NamespaceLocal(t *testing.T) {
 
 func TestScope_ScopedStore_Good_Unwatch_ClosesLocalChannel(t *testing.T) {
 	storeInstance, _ := New(":memory:")
-	defer storeInstance.Close()
+	defer func() { _ = storeInstance.Close() }()
 
 	scopedStore := NewScoped(storeInstance, "tenant-a")
 
@@ -558,7 +557,7 @@ func TestScope_ScopedStore_Good_Unwatch_ClosesLocalChannel(t *testing.T) {
 
 func TestScope_ScopedStore_Good_GetAll(t *testing.T) {
 	storeInstance, _ := New(":memory:")
-	defer storeInstance.Close()
+	defer func() { _ = storeInstance.Close() }()
 
 	alphaStore := NewScoped(storeInstance, "tenant-a")
 	betaStore := NewScoped(storeInstance, "tenant-b")
@@ -578,7 +577,7 @@ func TestScope_ScopedStore_Good_GetAll(t *testing.T) {
 
 func TestScope_ScopedStore_Good_GetPage(t *testing.T) {
 	storeInstance, _ := New(":memory:")
-	defer storeInstance.Close()
+	defer func() { _ = storeInstance.Close() }()
 
 	scopedStore := NewScoped(storeInstance, "tenant-a")
 	assertNoError(t, scopedStore.SetIn("items", "charlie", "3"))
@@ -593,7 +592,7 @@ func TestScope_ScopedStore_Good_GetPage(t *testing.T) {
 
 func TestScope_ScopedStore_Good_All(t *testing.T) {
 	storeInstance, _ := New(":memory:")
-	defer storeInstance.Close()
+	defer func() { _ = storeInstance.Close() }()
 
 	scopedStore := NewScoped(storeInstance, "tenant-a")
 	assertNoError(t, scopedStore.SetIn("items", "first", "1"))
@@ -610,7 +609,7 @@ func TestScope_ScopedStore_Good_All(t *testing.T) {
 
 func TestScope_ScopedStore_Good_All_SortedByKey(t *testing.T) {
 	storeInstance, _ := New(":memory:")
-	defer storeInstance.Close()
+	defer func() { _ = storeInstance.Close() }()
 
 	scopedStore := NewScoped(storeInstance, "tenant-a")
 	assertNoError(t, scopedStore.SetIn("items", "charlie", "3"))
@@ -628,7 +627,7 @@ func TestScope_ScopedStore_Good_All_SortedByKey(t *testing.T) {
 
 func TestScope_ScopedStore_Good_Count(t *testing.T) {
 	storeInstance, _ := New(":memory:")
-	defer storeInstance.Close()
+	defer func() { _ = storeInstance.Close() }()
 
 	scopedStore := NewScoped(storeInstance, "tenant-a")
 	assertNoError(t, scopedStore.SetIn("g", "a", "1"))
@@ -641,7 +640,7 @@ func TestScope_ScopedStore_Good_Count(t *testing.T) {
 
 func TestScope_ScopedStore_Good_SetWithTTL(t *testing.T) {
 	storeInstance, _ := New(":memory:")
-	defer storeInstance.Close()
+	defer func() { _ = storeInstance.Close() }()
 
 	scopedStore := NewScoped(storeInstance, "tenant-a")
 	assertNoError(t, scopedStore.SetWithTTL("g", "k", "v", time.Hour))
@@ -653,7 +652,7 @@ func TestScope_ScopedStore_Good_SetWithTTL(t *testing.T) {
 
 func TestScope_ScopedStore_Good_SetWithTTL_Expires(t *testing.T) {
 	storeInstance, _ := New(":memory:")
-	defer storeInstance.Close()
+	defer func() { _ = storeInstance.Close() }()
 
 	scopedStore := NewScoped(storeInstance, "tenant-a")
 	assertNoError(t, scopedStore.SetWithTTL("g", "k", "v", 1*time.Millisecond))
@@ -665,7 +664,7 @@ func TestScope_ScopedStore_Good_SetWithTTL_Expires(t *testing.T) {
 
 func TestScope_ScopedStore_Good_Render(t *testing.T) {
 	storeInstance, _ := New(":memory:")
-	defer storeInstance.Close()
+	defer func() { _ = storeInstance.Close() }()
 
 	scopedStore := NewScoped(storeInstance, "tenant-a")
 	assertNoError(t, scopedStore.SetIn("user", "name", "Alice"))
@@ -677,7 +676,7 @@ func TestScope_ScopedStore_Good_Render(t *testing.T) {
 
 func TestScope_ScopedStore_Good_BulkHelpers(t *testing.T) {
 	storeInstance, _ := New(":memory:")
-	defer storeInstance.Close()
+	defer func() { _ = storeInstance.Close() }()
 
 	alphaStore := NewScoped(storeInstance, "tenant-a")
 	betaStore := NewScoped(storeInstance, "tenant-b")
@@ -719,7 +718,7 @@ func TestScope_ScopedStore_Good_BulkHelpers(t *testing.T) {
 
 func TestScope_ScopedStore_Good_GroupsSeqStopsEarly(t *testing.T) {
 	storeInstance, _ := New(":memory:")
-	defer storeInstance.Close()
+	defer func() { _ = storeInstance.Close() }()
 
 	scopedStore := NewScoped(storeInstance, "tenant-a")
 	assertNoError(t, scopedStore.SetIn("alpha", "a", "1"))
@@ -738,7 +737,7 @@ func TestScope_ScopedStore_Good_GroupsSeqStopsEarly(t *testing.T) {
 
 func TestScope_ScopedStore_Good_GroupsSeqSorted(t *testing.T) {
 	storeInstance, _ := New(":memory:")
-	defer storeInstance.Close()
+	defer func() { _ = storeInstance.Close() }()
 
 	scopedStore := NewScoped(storeInstance, "tenant-a")
 	assertNoError(t, scopedStore.SetIn("charlie", "c", "3"))
@@ -756,7 +755,7 @@ func TestScope_ScopedStore_Good_GroupsSeqSorted(t *testing.T) {
 
 func TestScope_ScopedStore_Good_GetSplitAndGetFields(t *testing.T) {
 	storeInstance, _ := New(":memory:")
-	defer storeInstance.Close()
+	defer func() { _ = storeInstance.Close() }()
 
 	scopedStore := NewScoped(storeInstance, "tenant-a")
 	assertNoError(t, scopedStore.SetIn("config", "hosts", "alpha,beta,gamma"))
@@ -783,7 +782,7 @@ func TestScope_ScopedStore_Good_GetSplitAndGetFields(t *testing.T) {
 
 func TestScope_ScopedStore_Good_PurgeExpired(t *testing.T) {
 	storeInstance, _ := New(":memory:")
-	defer storeInstance.Close()
+	defer func() { _ = storeInstance.Close() }()
 
 	scopedStore := NewScoped(storeInstance, "tenant-a")
 	assertNoError(t, scopedStore.SetWithTTL("session", "token", "abc123", 1*time.Millisecond))
@@ -799,7 +798,7 @@ func TestScope_ScopedStore_Good_PurgeExpired(t *testing.T) {
 
 func TestScope_ScopedStore_Good_PurgeExpired_NamespaceLocal(t *testing.T) {
 	storeInstance, _ := New(":memory:")
-	defer storeInstance.Close()
+	defer func() { _ = storeInstance.Close() }()
 
 	alphaStore := NewScoped(storeInstance, "tenant-a")
 	betaStore := NewScoped(storeInstance, "tenant-b")
@@ -825,7 +824,7 @@ func TestScope_ScopedStore_Good_PurgeExpired_NamespaceLocal(t *testing.T) {
 
 func TestScope_Quota_Good_MaxKeys(t *testing.T) {
 	storeInstance, _ := New(":memory:")
-	defer storeInstance.Close()
+	defer func() { _ = storeInstance.Close() }()
 
 	scopedStore, err := NewScopedConfigured(storeInstance, ScopedStoreConfig{
 		Namespace: "tenant-a",
@@ -846,7 +845,7 @@ func TestScope_Quota_Good_MaxKeys(t *testing.T) {
 
 func TestScope_Quota_Bad_QuotaCheckQueryError(t *testing.T) {
 	database, _ := openStubSQLiteDatabase(t, stubSQLiteScenario{})
-	defer database.Close()
+	defer func() { _ = database.Close() }()
 
 	storeInstance := &Store{
 		sqliteDatabase: database,
@@ -866,7 +865,7 @@ func TestScope_Quota_Bad_QuotaCheckQueryError(t *testing.T) {
 
 func TestScope_Quota_Good_MaxKeys_AcrossGroups(t *testing.T) {
 	storeInstance, _ := New(":memory:")
-	defer storeInstance.Close()
+	defer func() { _ = storeInstance.Close() }()
 
 	scopedStore, _ := NewScopedConfigured(storeInstance, ScopedStoreConfig{
 		Namespace: "tenant-a",
@@ -884,7 +883,7 @@ func TestScope_Quota_Good_MaxKeys_AcrossGroups(t *testing.T) {
 
 func TestScope_Quota_Good_UpsertDoesNotCount(t *testing.T) {
 	storeInstance, _ := New(":memory:")
-	defer storeInstance.Close()
+	defer func() { _ = storeInstance.Close() }()
 
 	scopedStore, _ := NewScopedConfigured(storeInstance, ScopedStoreConfig{
 		Namespace: "tenant-a",
@@ -905,7 +904,7 @@ func TestScope_Quota_Good_UpsertDoesNotCount(t *testing.T) {
 
 func TestScope_Quota_Good_ExpiredUpsertDoesNotEmitDeleteEvent(t *testing.T) {
 	storeInstance, _ := New(":memory:")
-	defer storeInstance.Close()
+	defer func() { _ = storeInstance.Close() }()
 
 	scopedStore, _ := NewScopedConfigured(storeInstance, ScopedStoreConfig{
 		Namespace: "tenant-a",
@@ -944,7 +943,7 @@ func TestScope_Quota_Good_ExpiredUpsertDoesNotEmitDeleteEvent(t *testing.T) {
 
 func TestScope_Quota_Good_DeleteAndReInsert(t *testing.T) {
 	storeInstance, _ := New(":memory:")
-	defer storeInstance.Close()
+	defer func() { _ = storeInstance.Close() }()
 
 	scopedStore, _ := NewScopedConfigured(storeInstance, ScopedStoreConfig{
 		Namespace: "tenant-a",
@@ -962,7 +961,7 @@ func TestScope_Quota_Good_DeleteAndReInsert(t *testing.T) {
 
 func TestScope_Quota_Good_ZeroMeansUnlimited(t *testing.T) {
 	storeInstance, _ := New(":memory:")
-	defer storeInstance.Close()
+	defer func() { _ = storeInstance.Close() }()
 
 	scopedStore, _ := NewScopedConfigured(storeInstance, ScopedStoreConfig{
 		Namespace: "tenant-a",
@@ -977,7 +976,7 @@ func TestScope_Quota_Good_ZeroMeansUnlimited(t *testing.T) {
 
 func TestScope_Quota_Good_ExpiredKeysExcluded(t *testing.T) {
 	storeInstance, _ := New(":memory:")
-	defer storeInstance.Close()
+	defer func() { _ = storeInstance.Close() }()
 
 	scopedStore, _ := NewScopedConfigured(storeInstance, ScopedStoreConfig{
 		Namespace: "tenant-a",
@@ -1002,7 +1001,7 @@ func TestScope_Quota_Good_ExpiredKeysExcluded(t *testing.T) {
 
 func TestScope_Quota_Good_SetWithTTL_Enforced(t *testing.T) {
 	storeInstance, _ := New(":memory:")
-	defer storeInstance.Close()
+	defer func() { _ = storeInstance.Close() }()
 
 	scopedStore, _ := NewScopedConfigured(storeInstance, ScopedStoreConfig{
 		Namespace: "tenant-a",
@@ -1022,7 +1021,7 @@ func TestScope_Quota_Good_SetWithTTL_Enforced(t *testing.T) {
 
 func TestScope_Quota_Good_MaxGroups(t *testing.T) {
 	storeInstance, _ := New(":memory:")
-	defer storeInstance.Close()
+	defer func() { _ = storeInstance.Close() }()
 
 	scopedStore, _ := NewScopedConfigured(storeInstance, ScopedStoreConfig{
 		Namespace: "tenant-a",
@@ -1041,7 +1040,7 @@ func TestScope_Quota_Good_MaxGroups(t *testing.T) {
 
 func TestScope_Quota_Good_MaxGroups_ExistingGroupOK(t *testing.T) {
 	storeInstance, _ := New(":memory:")
-	defer storeInstance.Close()
+	defer func() { _ = storeInstance.Close() }()
 
 	scopedStore, _ := NewScopedConfigured(storeInstance, ScopedStoreConfig{
 		Namespace: "tenant-a",
@@ -1058,7 +1057,7 @@ func TestScope_Quota_Good_MaxGroups_ExistingGroupOK(t *testing.T) {
 
 func TestScope_Quota_Good_MaxGroups_DeleteAndRecreate(t *testing.T) {
 	storeInstance, _ := New(":memory:")
-	defer storeInstance.Close()
+	defer func() { _ = storeInstance.Close() }()
 
 	scopedStore, _ := NewScopedConfigured(storeInstance, ScopedStoreConfig{
 		Namespace: "tenant-a",
@@ -1075,7 +1074,7 @@ func TestScope_Quota_Good_MaxGroups_DeleteAndRecreate(t *testing.T) {
 
 func TestScope_Quota_Good_MaxGroups_ZeroUnlimited(t *testing.T) {
 	storeInstance, _ := New(":memory:")
-	defer storeInstance.Close()
+	defer func() { _ = storeInstance.Close() }()
 
 	scopedStore, _ := NewScopedConfigured(storeInstance, ScopedStoreConfig{
 		Namespace: "tenant-a",
@@ -1089,7 +1088,7 @@ func TestScope_Quota_Good_MaxGroups_ZeroUnlimited(t *testing.T) {
 
 func TestScope_Quota_Good_MaxGroups_ExpiredGroupExcluded(t *testing.T) {
 	storeInstance, _ := New(":memory:")
-	defer storeInstance.Close()
+	defer func() { _ = storeInstance.Close() }()
 
 	scopedStore, _ := NewScopedConfigured(storeInstance, ScopedStoreConfig{
 		Namespace: "tenant-a",
@@ -1108,7 +1107,7 @@ func TestScope_Quota_Good_MaxGroups_ExpiredGroupExcluded(t *testing.T) {
 
 func TestScope_Quota_Good_BothLimits(t *testing.T) {
 	storeInstance, _ := New(":memory:")
-	defer storeInstance.Close()
+	defer func() { _ = storeInstance.Close() }()
 
 	scopedStore, _ := NewScopedConfigured(storeInstance, ScopedStoreConfig{
 		Namespace: "tenant-a",
@@ -1128,7 +1127,7 @@ func TestScope_Quota_Good_BothLimits(t *testing.T) {
 
 func TestScope_Quota_Good_DoesNotAffectOtherNamespaces(t *testing.T) {
 	storeInstance, _ := New(":memory:")
-	defer storeInstance.Close()
+	defer func() { _ = storeInstance.Close() }()
 
 	alphaStore, _ := NewScopedConfigured(storeInstance, ScopedStoreConfig{
 		Namespace: "tenant-a",
@@ -1159,7 +1158,7 @@ func TestScope_Quota_Good_DoesNotAffectOtherNamespaces(t *testing.T) {
 
 func TestScope_CountAll_Good_WithPrefix(t *testing.T) {
 	storeInstance, _ := New(":memory:")
-	defer storeInstance.Close()
+	defer func() { _ = storeInstance.Close() }()
 
 	assertNoError(t, storeInstance.Set("ns-a:g1", "k1", "v"))
 	assertNoError(t, storeInstance.Set("ns-a:g1", "k2", "v"))
@@ -1177,7 +1176,7 @@ func TestScope_CountAll_Good_WithPrefix(t *testing.T) {
 
 func TestScope_CountAll_Good_WithPrefix_Wildcards(t *testing.T) {
 	storeInstance, _ := New(":memory:")
-	defer storeInstance.Close()
+	defer func() { _ = storeInstance.Close() }()
 
 	// Add keys in groups that look like wildcards.
 	assertNoError(t, storeInstance.Set("user_1", "k", "v"))
@@ -1201,7 +1200,7 @@ func TestScope_CountAll_Good_WithPrefix_Wildcards(t *testing.T) {
 
 func TestScope_CountAll_Good_EmptyPrefix(t *testing.T) {
 	storeInstance, _ := New(":memory:")
-	defer storeInstance.Close()
+	defer func() { _ = storeInstance.Close() }()
 
 	assertNoError(t, storeInstance.Set("g1", "k1", "v"))
 	assertNoError(t, storeInstance.Set("g2", "k2", "v"))
@@ -1213,7 +1212,7 @@ func TestScope_CountAll_Good_EmptyPrefix(t *testing.T) {
 
 func TestScope_CountAll_Good_ExcludesExpired(t *testing.T) {
 	storeInstance, _ := New(":memory:")
-	defer storeInstance.Close()
+	defer func() { _ = storeInstance.Close() }()
 
 	assertNoError(t, storeInstance.Set("ns:g", "permanent", "v"))
 	assertNoError(t, storeInstance.SetWithTTL("ns:g", "temp", "v", 1*time.Millisecond))
@@ -1226,7 +1225,7 @@ func TestScope_CountAll_Good_ExcludesExpired(t *testing.T) {
 
 func TestScope_CountAll_Good_Empty(t *testing.T) {
 	storeInstance, _ := New(":memory:")
-	defer storeInstance.Close()
+	defer func() { _ = storeInstance.Close() }()
 
 	count, err := storeInstance.CountAll("nonexistent:")
 	assertNoError(t, err)
@@ -1235,8 +1234,7 @@ func TestScope_CountAll_Good_Empty(t *testing.T) {
 
 func TestScope_CountAll_Bad_ClosedStore(t *testing.T) {
 	storeInstance, _ := New(":memory:")
-	storeInstance.Close()
-
+	_ = storeInstance.Close()
 	_, err := storeInstance.CountAll("")
 	assertError(t, err)
 }
@@ -1247,7 +1245,7 @@ func TestScope_CountAll_Bad_ClosedStore(t *testing.T) {
 
 func TestScope_Groups_Good_WithPrefix(t *testing.T) {
 	storeInstance, _ := New(":memory:")
-	defer storeInstance.Close()
+	defer func() { _ = storeInstance.Close() }()
 
 	assertNoError(t, storeInstance.Set("ns-a:g1", "k", "v"))
 	assertNoError(t, storeInstance.Set("ns-a:g2", "k", "v"))
@@ -1263,7 +1261,7 @@ func TestScope_Groups_Good_WithPrefix(t *testing.T) {
 
 func TestScope_Groups_Good_EmptyPrefix(t *testing.T) {
 	storeInstance, _ := New(":memory:")
-	defer storeInstance.Close()
+	defer func() { _ = storeInstance.Close() }()
 
 	assertNoError(t, storeInstance.Set("g1", "k", "v"))
 	assertNoError(t, storeInstance.Set("g2", "k", "v"))
@@ -1276,7 +1274,7 @@ func TestScope_Groups_Good_EmptyPrefix(t *testing.T) {
 
 func TestScope_Groups_Good_Distinct(t *testing.T) {
 	storeInstance, _ := New(":memory:")
-	defer storeInstance.Close()
+	defer func() { _ = storeInstance.Close() }()
 
 	// Multiple keys in the same group should produce one entry.
 	assertNoError(t, storeInstance.Set("g1", "a", "v"))
@@ -1291,7 +1289,7 @@ func TestScope_Groups_Good_Distinct(t *testing.T) {
 
 func TestScope_Groups_Good_ExcludesExpired(t *testing.T) {
 	storeInstance, _ := New(":memory:")
-	defer storeInstance.Close()
+	defer func() { _ = storeInstance.Close() }()
 
 	assertNoError(t, storeInstance.Set("ns:g1", "permanent", "v"))
 	assertNoError(t, storeInstance.SetWithTTL("ns:g2", "temp", "v", 1*time.Millisecond))
@@ -1305,7 +1303,7 @@ func TestScope_Groups_Good_ExcludesExpired(t *testing.T) {
 
 func TestScope_Groups_Good_SortedByGroupName(t *testing.T) {
 	storeInstance, _ := New(":memory:")
-	defer storeInstance.Close()
+	defer func() { _ = storeInstance.Close() }()
 
 	assertNoError(t, storeInstance.Set("charlie", "c", "3"))
 	assertNoError(t, storeInstance.Set("alpha", "a", "1"))
@@ -1318,7 +1316,7 @@ func TestScope_Groups_Good_SortedByGroupName(t *testing.T) {
 
 func TestScope_Groups_Good_Empty(t *testing.T) {
 	storeInstance, _ := New(":memory:")
-	defer storeInstance.Close()
+	defer func() { _ = storeInstance.Close() }()
 
 	groups, err := storeInstance.Groups("nonexistent:")
 	assertNoError(t, err)
@@ -1327,8 +1325,7 @@ func TestScope_Groups_Good_Empty(t *testing.T) {
 
 func TestScope_Groups_Bad_ClosedStore(t *testing.T) {
 	storeInstance, _ := New(":memory:")
-	storeInstance.Close()
-
+	_ = storeInstance.Close()
 	_, err := storeInstance.Groups("")
 	assertError(t, err)
 }
@@ -1338,7 +1335,7 @@ func TestScope_Groups_Bad_ClosedStore(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func keyName(i int) string {
-	return "key-" + string(rune('a'+i%26))
+	return core.Concat("key-", core.Sprint(i))
 }
 
 func rawEntryCount(t *testing.T, storeInstance *Store, group string) int {
