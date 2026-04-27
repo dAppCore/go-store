@@ -97,11 +97,11 @@ func Publish(cfg PublishConfig, w io.Writer) error {
 		return core.E("store.Publish", "HuggingFace token required (--token, HF_TOKEN env, or ~/.huggingface/token)", nil)
 	}
 
-	files, err := collectUploadFiles(cfg.InputDir)
+	files, hasSplit, err := collectUploadFiles(cfg.InputDir)
 	if err != nil {
 		return err
 	}
-	if len(files) == 0 {
+	if !hasSplit {
 		return core.E("store.Publish", core.Sprintf("no Parquet files found in %s", cfg.InputDir), nil)
 	}
 
@@ -150,21 +150,33 @@ func resolveHFToken(explicit string) string {
 	if env := core.Env("HF_TOKEN"); env != "" {
 		return env
 	}
-	home := core.Env("HOME")
-	if home == "" {
-		return ""
+	// Core populates DIR_HOME via os.UserHomeDir while this package keeps the
+	// repository-wide ban on direct os imports.
+	homes := []string{core.Env("DIR_HOME")}
+	if homeEnv := core.Env("HOME"); homeEnv != "" && homeEnv != homes[0] {
+		homes = append(homes, homeEnv)
 	}
-	r := localFs.Read(core.JoinPath(home, ".huggingface", "token"))
-	if !r.OK {
-		return ""
+	for _, home := range homes {
+		if home == "" {
+			continue
+		}
+		r := localFs.Read(core.JoinPath(home, ".huggingface", "token"))
+		if !r.OK {
+			continue
+		}
+		token := core.Trim(r.Value.(string))
+		if token != "" {
+			return token
+		}
 	}
-	return core.Trim(r.Value.(string))
+	return ""
 }
 
 // collectUploadFiles finds Parquet split files and an optional dataset card.
-func collectUploadFiles(inputDir string) ([]uploadEntry, error) {
+func collectUploadFiles(inputDir string) ([]uploadEntry, bool, error) {
 	splits := []string{"train", "valid", "test"}
 	var files []uploadEntry
+	hasSplit := false
 
 	for _, split := range splits {
 		path := core.JoinPath(inputDir, split+".parquet")
@@ -172,6 +184,7 @@ func collectUploadFiles(inputDir string) ([]uploadEntry, error) {
 			continue
 		}
 		files = append(files, uploadEntry{path, core.Sprintf("data/%s.parquet", split)})
+		hasSplit = true
 	}
 
 	// Check for dataset card in parent directory.
@@ -180,7 +193,7 @@ func collectUploadFiles(inputDir string) ([]uploadEntry, error) {
 		files = append(files, uploadEntry{cardPath, "README.md"})
 	}
 
-	return files, nil
+	return files, hasSplit, nil
 }
 
 func ensureHFDatasetRepo(ctx context.Context, token, repoID string, public bool) error {

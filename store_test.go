@@ -1082,6 +1082,27 @@ func TestStore_Close_Bad_DriverCloseError(t *testing.T) {
 	assertContainsString(t, err.Error(), "store.Close")
 }
 
+func TestStore_Close_Bad_MediumSyncFailureRetryable(t *testing.T) {
+	useWorkspaceStateDirectory(t)
+
+	medium := &writeFailOnceMedium{memoryMedium: newMemoryMedium(), failures: 1}
+	storeInstance, err := New("retryable-close.db", WithMedium(medium))
+	assertNoError(t, err)
+	assertNoError(t, storeInstance.Set("g", "k", "v"))
+
+	err = storeInstance.Close()
+	assertError(t, err)
+	assertContainsString(t, err.Error(), "sync medium-backed database")
+	assertFalse(t, storeInstance.IsClosed())
+
+	_, err = storeInstance.Get("g", "k")
+	assertError(t, err)
+
+	assertNoError(t, storeInstance.Close())
+	assertTrue(t, storeInstance.IsClosed())
+	assertTrue(t, medium.Exists("retryable-close.db"))
+}
+
 // ---------------------------------------------------------------------------
 // Test helpers
 // ---------------------------------------------------------------------------
@@ -1598,6 +1619,32 @@ func TestStore_PurgeExpired_Good(t *testing.T) {
 	count, err := storeInstance.Count("g")
 	assertNoError(t, err)
 	assertEqualf(t, 1, count, "only non-expiring key should remain")
+}
+
+func TestStore_PurgeExpired_Good_NotifiesDeletedRows(t *testing.T) {
+	storeInstance, _ := New(":memory:")
+	defer func() { _ = storeInstance.Close() }()
+
+	assertNoError(t, storeInstance.SetWithTTL("g", "expired", "1", 1*time.Millisecond))
+	assertNoError(t, storeInstance.SetWithTTL("g", "live", "2", time.Hour))
+	time.Sleep(5 * time.Millisecond)
+
+	events := storeInstance.Watch("*")
+	defer storeInstance.Unwatch("*", events)
+
+	removed, err := storeInstance.PurgeExpired()
+	assertNoError(t, err)
+	assertEqual(t, int64(1), removed)
+
+	event := <-events
+	assertEqual(t, EventDelete, event.Type)
+	assertEqual(t, "g", event.Group)
+	assertEqual(t, "expired", event.Key)
+	select {
+	case extraEvent := <-events:
+		t.Fatalf("unexpected extra purge event: %#v", extraEvent)
+	default:
+	}
 }
 
 func TestStore_PurgeExpired_Good_NoneExpired(t *testing.T) {

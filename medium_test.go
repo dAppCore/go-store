@@ -114,6 +114,19 @@ func (medium *renameFailMedium) Rename(string, string) error {
 	return core.E("renameFailMedium.Rename", "forced rename failure", nil)
 }
 
+type writeFailOnceMedium struct {
+	*memoryMedium
+	failures int
+}
+
+func (medium *writeFailOnceMedium) Write(path, content string) error {
+	if medium.failures > 0 {
+		medium.failures--
+		return core.E("writeFailOnceMedium.Write", "forced write failure", nil)
+	}
+	return medium.memoryMedium.Write(path, content)
+}
+
 func (medium *memoryMedium) List(path string) ([]fs.DirEntry, error) { return nil, nil }
 
 func (medium *memoryMedium) Stat(path string) (fs.FileInfo, error) {
@@ -460,6 +473,30 @@ func TestMedium_Export_Bad_NilArguments(t *testing.T) {
 	assertError(t, Export(nil, medium, "report.json"))
 	assertError(t, Export(workspace, nil, "report.json"))
 	assertError(t, Export(workspace, medium, ""))
+}
+
+func TestMedium_Export_Bad_JSONPropagatesWorkspaceFailure(t *testing.T) {
+	useWorkspaceStateDirectory(t)
+
+	storeInstance, err := New(":memory:")
+	assertNoError(t, err)
+	defer func() { _ = storeInstance.Close() }()
+
+	workspace, err := storeInstance.NewWorkspace("medium-export-json-closed")
+	assertNoError(t, err)
+	assertNoError(t, workspace.Put("like", map[string]any{"user": "@alice"}))
+	assertNoError(t, workspace.Close())
+
+	medium := newMemoryMedium()
+	assertNoError(t, medium.Write("report.json", `{"previous":true}`))
+
+	err = Export(workspace, medium, "report.json")
+
+	assertError(t, err)
+	assertContainsString(t, err.Error(), "aggregate workspace")
+	content, readErr := medium.Read("report.json")
+	assertNoError(t, readErr)
+	assertEqual(t, `{"previous":true}`, content)
 }
 
 func TestMedium_Compact_Good_MediumRoutesArchive(t *testing.T) {

@@ -4,6 +4,7 @@ package store
 
 import (
 	"bufio"
+	"database/sql"
 	"io"
 	"io/fs"
 
@@ -12,6 +13,27 @@ import (
 
 // localFs provides unrestricted filesystem access for import operations.
 var localFs = (&core.Fs{}).New("/")
+
+type duckDBImportSession interface {
+	exec(query string, args ...any) error
+	queryRowScan(query string, dest any, args ...any) error
+}
+
+type duckDBImportTransaction struct {
+	transaction *sql.Tx
+}
+
+func (session duckDBImportTransaction) exec(query string, args ...any) error {
+	_, err := session.transaction.Exec(query, args...)
+	if err != nil {
+		return core.E("store.duckDBImportTransaction.Exec", "execute query", err)
+	}
+	return nil
+}
+
+func (session duckDBImportTransaction) queryRowScan(query string, dest any, args ...any) error {
+	return session.transaction.QueryRow(query, args...).Scan(dest)
+}
 
 // ScpFunc is a callback for executing SCP file transfers.
 // The function receives remote source and local destination paths.
@@ -77,6 +99,10 @@ type ImportConfig struct {
 //
 //	err := store.ImportAll(db, store.ImportConfig{DataDir: "/Volumes/Data/lem"}, os.Stdout)
 func ImportAll(db *DuckDB, cfg ImportConfig, w io.Writer) error {
+	if db == nil || db.Conn() == nil {
+		return core.E("store.ImportAll", "database is nil", nil)
+	}
+
 	m3Host := cfg.M3Host
 	if m3Host == "" {
 		m3Host = "m3"
@@ -93,14 +119,26 @@ func ImportAll(db *DuckDB, cfg ImportConfig, w io.Writer) error {
 			core.Print(w, "  WARNING: could not pull golden set from M3: %v", err)
 		}
 	}
+	transaction, err := db.Conn().Begin()
+	if err != nil {
+		return core.E("store.ImportAll", "begin import transaction", err)
+	}
+	committed := false
+	defer func() {
+		if !committed {
+			_ = transaction.Rollback()
+		}
+	}()
+	importSession := duckDBImportTransaction{transaction: transaction}
+
 	if isFile(goldenPath) {
-		if err := db.Exec("DROP TABLE IF EXISTS golden_set"); err != nil {
+		if err := importSession.exec("DROP TABLE IF EXISTS golden_set"); err != nil {
 			return core.E("store.ImportAll", "drop golden_set", err)
 		}
-		err := db.Exec(core.Sprintf(`
-			CREATE TABLE golden_set AS
-			SELECT
-				idx::INT AS idx,
+		err := importSession.exec(core.Sprintf(`
+				CREATE TABLE golden_set AS
+				SELECT
+					idx::INT AS idx,
 				seed_id::VARCHAR AS seed_id,
 				domain::VARCHAR AS domain,
 				voice::VARCHAR AS voice,
@@ -115,7 +153,7 @@ func ImportAll(db *DuckDB, cfg ImportConfig, w io.Writer) error {
 			return core.E("store.ImportAll", "import golden_set", err)
 		} else {
 			var n int
-			if err := db.QueryRowScan("SELECT count(*) FROM golden_set", &n); err != nil {
+			if err := importSession.queryRowScan("SELECT count(*) FROM golden_set", &n); err != nil {
 				return core.E("store.ImportAll", "count golden_set", err)
 			}
 			totals["golden_set"] = n
@@ -160,13 +198,13 @@ func ImportAll(db *DuckDB, cfg ImportConfig, w io.Writer) error {
 		}
 	}
 
-	if err := db.Exec("DROP TABLE IF EXISTS training_examples"); err != nil {
+	if err := importSession.exec("DROP TABLE IF EXISTS training_examples"); err != nil {
 		return core.E("store.ImportAll", "drop training_examples", err)
 	}
-	if err := db.Exec(`
-		CREATE TABLE training_examples (
-			source VARCHAR,
-			split VARCHAR,
+	if err := importSession.exec(`
+			CREATE TABLE training_examples (
+				source VARCHAR,
+				split VARCHAR,
 			prompt TEXT,
 			response TEXT,
 			num_turns INT,
@@ -192,7 +230,7 @@ func ImportAll(db *DuckDB, cfg ImportConfig, w io.Writer) error {
 				split = "test"
 			}
 
-			n, err := importTrainingFile(db, local, td.name, split)
+			n, err := importTrainingFile(importSession, local, td.name, split)
 			if err != nil {
 				return core.E("store.ImportAll", core.Sprintf("import training file %s", local), err)
 			}
@@ -224,13 +262,13 @@ func ImportAll(db *DuckDB, cfg ImportConfig, w io.Writer) error {
 		}
 	}
 
-	if err := db.Exec("DROP TABLE IF EXISTS benchmark_results"); err != nil {
+	if err := importSession.exec("DROP TABLE IF EXISTS benchmark_results"); err != nil {
 		return core.E("store.ImportAll", "drop benchmark_results", err)
 	}
-	if err := db.Exec(`
-		CREATE TABLE benchmark_results (
-			source VARCHAR, id VARCHAR, benchmark VARCHAR, model VARCHAR,
-			prompt TEXT, response TEXT, elapsed_seconds DOUBLE, domain VARCHAR
+	if err := importSession.exec(`
+			CREATE TABLE benchmark_results (
+				source VARCHAR, id VARCHAR, benchmark VARCHAR, model VARCHAR,
+				prompt TEXT, response TEXT, elapsed_seconds DOUBLE, domain VARCHAR
 		)
 	`); err != nil {
 		return core.E("store.ImportAll", "create benchmark_results", err)
@@ -241,7 +279,7 @@ func ImportAll(db *DuckDB, cfg ImportConfig, w io.Writer) error {
 		resultDir := core.JoinPath(benchLocal, subdir)
 		matches := core.PathGlob(core.JoinPath(resultDir, "*.jsonl"))
 		for _, jf := range matches {
-			n, err := importBenchmarkFile(db, jf, subdir)
+			n, err := importBenchmarkFile(importSession, jf, subdir)
 			if err != nil {
 				return core.E("store.ImportAll", core.Sprintf("import benchmark file %s", jf), err)
 			}
@@ -259,7 +297,7 @@ func ImportAll(db *DuckDB, cfg ImportConfig, w io.Writer) error {
 			}
 		}
 		if isFile(local) {
-			n, err := importBenchmarkFile(db, local, "benchmark")
+			n, err := importBenchmarkFile(importSession, local, "benchmark")
 			if err != nil {
 				return core.E("store.ImportAll", core.Sprintf("import benchmark file %s", local), err)
 			}
@@ -270,13 +308,13 @@ func ImportAll(db *DuckDB, cfg ImportConfig, w io.Writer) error {
 	core.Print(w, "  benchmark_results: %d rows", benchTotal)
 
 	// ── 4. Benchmark questions ──
-	if err := db.Exec("DROP TABLE IF EXISTS benchmark_questions"); err != nil {
+	if err := importSession.exec("DROP TABLE IF EXISTS benchmark_questions"); err != nil {
 		return core.E("store.ImportAll", "drop benchmark_questions", err)
 	}
-	if err := db.Exec(`
-		CREATE TABLE benchmark_questions (
-			benchmark VARCHAR, id VARCHAR, question TEXT,
-			best_answer TEXT, correct_answers TEXT, incorrect_answers TEXT, category VARCHAR
+	if err := importSession.exec(`
+			CREATE TABLE benchmark_questions (
+				benchmark VARCHAR, id VARCHAR, question TEXT,
+				best_answer TEXT, correct_answers TEXT, incorrect_answers TEXT, category VARCHAR
 		)
 	`); err != nil {
 		return core.E("store.ImportAll", "create benchmark_questions", err)
@@ -286,7 +324,7 @@ func ImportAll(db *DuckDB, cfg ImportConfig, w io.Writer) error {
 	for _, bname := range []string{"truthfulqa", "gsm8k", "do_not_answer", "toxigen"} {
 		local := core.JoinPath(benchLocal, bname+".jsonl")
 		if isFile(local) {
-			n, err := importBenchmarkQuestions(db, local, bname)
+			n, err := importBenchmarkQuestions(importSession, local, bname)
 			if err != nil {
 				return core.E("store.ImportAll", core.Sprintf("import benchmark questions %s", local), err)
 			}
@@ -297,13 +335,13 @@ func ImportAll(db *DuckDB, cfg ImportConfig, w io.Writer) error {
 	core.Print(w, "  benchmark_questions: %d rows", benchQTotal)
 
 	// ── 5. Seeds ──
-	if err := db.Exec("DROP TABLE IF EXISTS seeds"); err != nil {
+	if err := importSession.exec("DROP TABLE IF EXISTS seeds"); err != nil {
 		return core.E("store.ImportAll", "drop seeds", err)
 	}
-	if err := db.Exec(`
-		CREATE TABLE seeds (
-			source_file VARCHAR, region VARCHAR, seed_id VARCHAR, domain VARCHAR, prompt TEXT
-		)
+	if err := importSession.exec(`
+			CREATE TABLE seeds (
+				source_file VARCHAR, region VARCHAR, seed_id VARCHAR, domain VARCHAR, prompt TEXT
+			)
 	`); err != nil {
 		return core.E("store.ImportAll", "create seeds", err)
 	}
@@ -314,7 +352,7 @@ func ImportAll(db *DuckDB, cfg ImportConfig, w io.Writer) error {
 		if !isDir(seedDir) {
 			continue
 		}
-		n, err := importSeeds(db, seedDir)
+		n, err := importSeeds(importSession, seedDir)
 		if err != nil {
 			return core.E("store.ImportAll", core.Sprintf("import seeds %s", seedDir), err)
 		}
@@ -322,6 +360,11 @@ func ImportAll(db *DuckDB, cfg ImportConfig, w io.Writer) error {
 	}
 	totals["seeds"] = seedTotal
 	core.Print(w, "  seeds: %d rows", seedTotal)
+
+	if err := transaction.Commit(); err != nil {
+		return core.E("store.ImportAll", "commit import transaction", err)
+	}
+	committed = true
 
 	// ── Summary ──
 	grandTotal := 0
@@ -339,7 +382,7 @@ func ImportAll(db *DuckDB, cfg ImportConfig, w io.Writer) error {
 	return nil
 }
 
-func importTrainingFile(db *DuckDB, path, source, split string) (int, error) {
+func importTrainingFile(db duckDBImportSession, path, source, split string) (int, error) {
 	r := localFs.Open(path)
 	if !r.OK {
 		return 0, core.E("store.importTrainingFile", core.Sprintf("open %s", path), r.Value.(error))
@@ -351,12 +394,15 @@ func importTrainingFile(db *DuckDB, path, source, split string) (int, error) {
 	scanner := bufio.NewScanner(f)
 	scanner.Buffer(make([]byte, 1024*1024), 1024*1024)
 
+	lineNumber := 0
 	for scanner.Scan() {
+		lineNumber++
 		var rec struct {
 			Messages []ChatMessage `json:"messages"`
 		}
 		if r := core.JSONUnmarshal(scanner.Bytes(), &rec); !r.OK {
-			continue
+			parseErr, _ := r.Value.(error)
+			return count, core.E("store.importTrainingFile", core.Sprintf("parse %s line %d", path, lineNumber), parseErr)
 		}
 
 		prompt := ""
@@ -375,7 +421,7 @@ func importTrainingFile(db *DuckDB, path, source, split string) (int, error) {
 		}
 
 		msgsJSON := core.JSONMarshalString(rec.Messages)
-		if err := db.Exec(`INSERT INTO training_examples VALUES (?, ?, ?, ?, ?, ?, ?)`,
+		if err := db.exec(`INSERT INTO training_examples VALUES (?, ?, ?, ?, ?, ?, ?)`,
 			source, split, prompt, response, assistantCount, msgsJSON, len(response)); err != nil {
 			return count, core.E("store.importTrainingFile", "insert training example", err)
 		}
@@ -387,7 +433,7 @@ func importTrainingFile(db *DuckDB, path, source, split string) (int, error) {
 	return count, nil
 }
 
-func importBenchmarkFile(db *DuckDB, path, source string) (int, error) {
+func importBenchmarkFile(db duckDBImportSession, path, source string) (int, error) {
 	r := localFs.Open(path)
 	if !r.OK {
 		return 0, core.E("store.importBenchmarkFile", core.Sprintf("open %s", path), r.Value.(error))
@@ -399,13 +445,16 @@ func importBenchmarkFile(db *DuckDB, path, source string) (int, error) {
 	scanner := bufio.NewScanner(f)
 	scanner.Buffer(make([]byte, 1024*1024), 1024*1024)
 
+	lineNumber := 0
 	for scanner.Scan() {
+		lineNumber++
 		var rec map[string]any
 		if r := core.JSONUnmarshal(scanner.Bytes(), &rec); !r.OK {
-			continue
+			parseErr, _ := r.Value.(error)
+			return count, core.E("store.importBenchmarkFile", core.Sprintf("parse %s line %d", path, lineNumber), parseErr)
 		}
 
-		if err := db.Exec(`INSERT INTO benchmark_results VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+		if err := db.exec(`INSERT INTO benchmark_results VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
 			source,
 			core.Sprint(rec["id"]),
 			strOrEmpty(rec, "benchmark"),
@@ -425,7 +474,7 @@ func importBenchmarkFile(db *DuckDB, path, source string) (int, error) {
 	return count, nil
 }
 
-func importBenchmarkQuestions(db *DuckDB, path, benchmark string) (int, error) {
+func importBenchmarkQuestions(db duckDBImportSession, path, benchmark string) (int, error) {
 	r := localFs.Open(path)
 	if !r.OK {
 		return 0, core.E("store.importBenchmarkQuestions", core.Sprintf("open %s", path), r.Value.(error))
@@ -437,16 +486,19 @@ func importBenchmarkQuestions(db *DuckDB, path, benchmark string) (int, error) {
 	scanner := bufio.NewScanner(f)
 	scanner.Buffer(make([]byte, 1024*1024), 1024*1024)
 
+	lineNumber := 0
 	for scanner.Scan() {
+		lineNumber++
 		var rec map[string]any
 		if r := core.JSONUnmarshal(scanner.Bytes(), &rec); !r.OK {
-			continue
+			parseErr, _ := r.Value.(error)
+			return count, core.E("store.importBenchmarkQuestions", core.Sprintf("parse %s line %d", path, lineNumber), parseErr)
 		}
 
 		correctJSON := core.JSONMarshalString(rec["correct_answers"])
 		incorrectJSON := core.JSONMarshalString(rec["incorrect_answers"])
 
-		if err := db.Exec(`INSERT INTO benchmark_questions VALUES (?, ?, ?, ?, ?, ?, ?)`,
+		if err := db.exec(`INSERT INTO benchmark_questions VALUES (?, ?, ?, ?, ?, ?, ?)`,
 			benchmark,
 			core.Sprint(rec["id"]),
 			strOrEmpty(rec, "question"),
@@ -465,15 +517,11 @@ func importBenchmarkQuestions(db *DuckDB, path, benchmark string) (int, error) {
 	return count, nil
 }
 
-func importSeeds(db *DuckDB, seedDir string) (int, error) {
+func importSeeds(db duckDBImportSession, seedDir string) (int, error) {
 	count := 0
-	var firstErr error
-	walkDir(seedDir, func(path string) {
-		if firstErr != nil {
-			return
-		}
+	if err := walkDir(seedDir, func(path string) error {
 		if !core.HasSuffix(path, ".json") {
-			return
+			return nil
 		}
 
 		rel := core.TrimPrefix(path, seedDir+"/")
@@ -481,8 +529,7 @@ func importSeeds(db *DuckDB, seedDir string) (int, error) {
 
 		readResult := localFs.Read(path)
 		if !readResult.OK {
-			firstErr = core.E("store.importSeeds", core.Sprintf("read seed file %s", rel), readResult.Value.(error))
-			return
+			return core.E("store.importSeeds", core.Sprintf("read seed file %s", rel), readResult.Value.(error))
 		}
 		data := []byte(readResult.Value.(string))
 
@@ -491,8 +538,7 @@ func importSeeds(db *DuckDB, seedDir string) (int, error) {
 		var raw any
 		if r := core.JSONUnmarshal(data, &raw); !r.OK {
 			err, _ := r.Value.(error)
-			firstErr = core.E("store.importSeeds", core.Sprintf("parse seed file %s", rel), err)
-			return
+			return core.E("store.importSeeds", core.Sprintf("parse seed file %s", rel), err)
 		}
 
 		switch v := raw.(type) {
@@ -516,50 +562,53 @@ func importSeeds(db *DuckDB, seedDir string) (int, error) {
 				if prompt == "" {
 					prompt = strOrEmpty(seed, "question")
 				}
-				if err := db.Exec(`INSERT INTO seeds VALUES (?, ?, ?, ?, ?)`,
+				if err := db.exec(`INSERT INTO seeds VALUES (?, ?, ?, ?, ?)`,
 					rel, region,
 					strOrEmpty(seed, "seed_id"),
 					strOrEmpty(seed, "domain"),
 					prompt,
 				); err != nil {
-					firstErr = core.E("store.importSeeds", "insert seed prompt", err)
-					return
+					return core.E("store.importSeeds", "insert seed prompt", err)
 				}
 				count++
 			case string:
-				if err := db.Exec(`INSERT INTO seeds VALUES (?, ?, ?, ?, ?)`,
+				if err := db.exec(`INSERT INTO seeds VALUES (?, ?, ?, ?, ?)`,
 					rel, region, "", "", seed); err != nil {
-					firstErr = core.E("store.importSeeds", "insert seed string", err)
-					return
+					return core.E("store.importSeeds", "insert seed string", err)
 				}
 				count++
 			}
 		}
-	})
-	if firstErr != nil {
-		return count, firstErr
+		return nil
+	}); err != nil {
+		return count, err
 	}
 	return count, nil
 }
 
 // walkDir recursively visits all regular files under root, calling fn for each.
-func walkDir(root string, fn func(path string)) {
+func walkDir(root string, fn func(path string) error) error {
 	r := localFs.List(root)
 	if !r.OK {
-		return
+		return core.E("store.walkDir", core.Sprintf("list %s", root), r.Value.(error))
 	}
 	entries, ok := r.Value.([]fs.DirEntry)
 	if !ok {
-		return
+		return core.E("store.walkDir", core.Sprintf("list %s returned invalid entries", root), nil)
 	}
 	for _, entry := range entries {
 		full := core.JoinPath(root, entry.Name())
 		if entry.IsDir() {
-			walkDir(full, fn)
+			if err := walkDir(full, fn); err != nil {
+				return err
+			}
 		} else {
-			fn(full)
+			if err := fn(full); err != nil {
+				return err
+			}
 		}
 	}
+	return nil
 }
 
 // strOrEmpty extracts a string value from a map, returning an empty string if

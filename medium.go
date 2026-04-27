@@ -243,7 +243,10 @@ func importCSV(workspace *Workspace, kind, content string) error {
 }
 
 func exportJSON(workspace *Workspace, medium Medium, path string) error {
-	summary := workspace.Aggregate()
+	summary, err := workspace.aggregateFields()
+	if err != nil {
+		return core.E("store.Export", "aggregate workspace", err)
+	}
 	content := core.JSONMarshalString(summary)
 	if err := medium.Write(path, content); err != nil {
 		return core.E("store.Export", "write json", err)

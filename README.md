@@ -94,4 +94,4 @@ go build ./...
 
 ## Licence
 
-European Union Public Licence 1.2 — see [LICENCE](LICENCE) for details.
+European Union Public Licence 1.2 — see [LICENCE.md](LICENCE.md) for details.

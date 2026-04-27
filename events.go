@@ -76,7 +76,7 @@ func (storeInstance *Store) Watch(group string) <-chan Event {
 
 	storeInstance.lifecycleLock.Lock()
 	defer storeInstance.lifecycleLock.Unlock()
-	if storeInstance.isClosed {
+	if storeInstance.isClosed || storeInstance.isClosing {
 		return closedEventChannel()
 	}
 
@@ -97,7 +97,7 @@ func (storeInstance *Store) Unwatch(group string, events <-chan Event) {
 	}
 
 	storeInstance.lifecycleLock.Lock()
-	closed := storeInstance.isClosed
+	closed := storeInstance.isClosed || storeInstance.isClosing
 	storeInstance.lifecycleLock.Unlock()
 	if closed {
 		return
@@ -146,7 +146,7 @@ func (storeInstance *Store) OnChange(callback func(Event)) func() {
 
 	storeInstance.lifecycleLock.Lock()
 	defer storeInstance.lifecycleLock.Unlock()
-	if storeInstance.isClosed {
+	if storeInstance.isClosed || storeInstance.isClosing {
 		return func() {}
 	}
 
@@ -188,7 +188,7 @@ func (storeInstance *Store) notify(event Event) {
 	}
 
 	storeInstance.lifecycleLock.Lock()
-	if storeInstance.isClosed {
+	if storeInstance.isClosed || storeInstance.isClosing {
 		storeInstance.lifecycleLock.Unlock()
 		return
 	}
@@ -210,7 +210,7 @@ func (storeInstance *Store) notify(event Event) {
 	storeInstance.watcherLock.RUnlock()
 
 	storeInstance.lifecycleLock.Lock()
-	if storeInstance.isClosed {
+	if storeInstance.isClosed || storeInstance.isClosing {
 		storeInstance.lifecycleLock.Unlock()
 		return
 	}

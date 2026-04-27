@@ -512,15 +512,11 @@ func (storeTransaction *StoreTransaction) PurgeExpired() (int64, error) {
 	}
 
 	cutoffUnixMilli := time.Now().UnixMilli()
-	expiredEntries, err := listExpiredEntriesMatchingGroupPrefix(storeTransaction.sqliteTransaction, "", cutoffUnixMilli)
-	if err != nil {
-		return 0, core.E("store.Transaction.PurgeExpired", "list expired rows", err)
-	}
-
-	removedRows, err := purgeExpiredMatchingGroupPrefix(storeTransaction.sqliteTransaction, "", cutoffUnixMilli)
+	expiredEntries, err := deleteExpiredEntriesMatchingGroupPrefix(storeTransaction.sqliteTransaction, "", cutoffUnixMilli)
 	if err != nil {
 		return 0, core.E("store.Transaction.PurgeExpired", "delete expired rows", err)
 	}
+	removedRows := int64(len(expiredEntries))
 	if removedRows > 0 {
 		for _, expiredEntry := range expiredEntries {
 			storeTransaction.recordEvent(Event{

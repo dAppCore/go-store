@@ -154,7 +154,9 @@ type Store struct {
 	journalConfiguration    JournalConfiguration
 	medium                  Medium
 	lifecycleLock           sync.Mutex
+	closeLock               sync.Mutex
 	isClosed                bool
+	isClosing               bool
 
 	// Event dispatch state.
 	watchers       map[string][]chan Event
@@ -182,7 +184,7 @@ func (storeInstance *Store) ensureReady(operation string) error {
 	}
 
 	storeInstance.lifecycleLock.Lock()
-	closed := storeInstance.isClosed
+	closed := storeInstance.isClosed || storeInstance.isClosing
 	storeInstance.lifecycleLock.Unlock()
 	if closed {
 		return core.E(operation, "store is closed", nil)
@@ -423,12 +425,15 @@ func (storeInstance *Store) Close() error {
 		return nil
 	}
 
+	storeInstance.closeLock.Lock()
+	defer storeInstance.closeLock.Unlock()
+
 	storeInstance.lifecycleLock.Lock()
 	if storeInstance.isClosed {
 		storeInstance.lifecycleLock.Unlock()
 		return nil
 	}
-	storeInstance.isClosed = true
+	storeInstance.isClosing = true
 	storeInstance.lifecycleLock.Unlock()
 
 	if storeInstance.cancelPurge != nil {
@@ -470,6 +475,7 @@ func (storeInstance *Store) Close() error {
 		storeInstance.sqliteDatabase = storeInstance.db
 	}
 	if storeInstance.sqliteDatabase == nil {
+		storeInstance.markClosed()
 		return orphanCleanupErr
 	}
 	if err := storeInstance.sqliteDatabase.Close(); err != nil {
@@ -478,10 +484,18 @@ func (storeInstance *Store) Close() error {
 	if err := storeInstance.syncMediumBackedDatabase(); err != nil {
 		return core.E("store.Close", "sync medium-backed database", err)
 	}
+	storeInstance.markClosed()
 	if orphanCleanupErr != nil {
 		return core.E("store.Close", "close orphan workspaces", orphanCleanupErr)
 	}
 	return orphanCleanupErr
+}
+
+func (storeInstance *Store) markClosed() {
+	storeInstance.lifecycleLock.Lock()
+	storeInstance.isClosed = true
+	storeInstance.isClosing = false
+	storeInstance.lifecycleLock.Unlock()
 }
 
 func (storeInstance *Store) syncMediumBackedDatabase() error {
@@ -965,15 +979,11 @@ func (storeInstance *Store) PurgeExpired() (int64, error) {
 	}
 
 	cutoffUnixMilli := time.Now().UnixMilli()
-	expiredEntries, err := listExpiredEntriesMatchingGroupPrefix(storeInstance.sqliteDatabase, "", cutoffUnixMilli)
-	if err != nil {
-		return 0, core.E("store.PurgeExpired", "list expired rows", err)
-	}
-
-	removedRows, err := purgeExpiredMatchingGroupPrefix(storeInstance.sqliteDatabase, "", cutoffUnixMilli)
+	expiredEntries, err := deleteExpiredEntriesMatchingGroupPrefix(storeInstance.sqliteDatabase, "", cutoffUnixMilli)
 	if err != nil {
 		return 0, core.E("store.PurgeExpired", "delete expired rows", err)
 	}
+	removedRows := int64(len(expiredEntries))
 	if removedRows > 0 {
 		for _, expiredEntry := range expiredEntries {
 			storeInstance.notify(Event{
@@ -1062,19 +1072,19 @@ type expiredEntryRef struct {
 	key   string
 }
 
-func listExpiredEntriesMatchingGroupPrefix(database schemaDatabase, groupPrefix string, cutoffUnixMilli int64) ([]expiredEntryRef, error) {
+func deleteExpiredEntriesMatchingGroupPrefix(database schemaDatabase, groupPrefix string, cutoffUnixMilli int64) ([]expiredEntryRef, error) {
 	var (
 		rows *sql.Rows
 		err  error
 	)
 	if groupPrefix == "" {
 		rows, err = database.Query(
-			"SELECT "+entryGroupColumn+", "+entryKeyColumn+" FROM "+entriesTableName+" WHERE expires_at IS NOT NULL AND expires_at <= ? ORDER BY "+entryGroupColumn+", "+entryKeyColumn,
+			"DELETE FROM "+entriesTableName+" WHERE expires_at IS NOT NULL AND expires_at <= ? RETURNING "+entryGroupColumn+", "+entryKeyColumn,
 			cutoffUnixMilli,
 		)
 	} else {
 		rows, err = database.Query(
-			"SELECT "+entryGroupColumn+", "+entryKeyColumn+" FROM "+entriesTableName+" WHERE expires_at IS NOT NULL AND expires_at <= ? AND "+entryGroupColumn+" LIKE ? ESCAPE '^' ORDER BY "+entryGroupColumn+", "+entryKeyColumn,
+			"DELETE FROM "+entriesTableName+" WHERE expires_at IS NOT NULL AND expires_at <= ? AND "+entryGroupColumn+" LIKE ? ESCAPE '^' RETURNING "+entryGroupColumn+", "+entryKeyColumn,
 			cutoffUnixMilli, escapeLike(groupPrefix)+"%",
 		)
 	}
@@ -1095,35 +1105,6 @@ func listExpiredEntriesMatchingGroupPrefix(database schemaDatabase, groupPrefix 
 		return nil, err
 	}
 	return expiredEntries, nil
-}
-
-// purgeExpiredMatchingGroupPrefix deletes expired rows globally when
-// groupPrefix is empty, otherwise only rows whose group starts with the given
-// prefix.
-func purgeExpiredMatchingGroupPrefix(database schemaDatabase, groupPrefix string, cutoffUnixMilli int64) (int64, error) {
-	var (
-		deleteResult sql.Result
-		err          error
-	)
-	if groupPrefix == "" {
-		deleteResult, err = database.Exec(
-			"DELETE FROM "+entriesTableName+" WHERE expires_at IS NOT NULL AND expires_at <= ?",
-			cutoffUnixMilli,
-		)
-	} else {
-		deleteResult, err = database.Exec(
-			"DELETE FROM "+entriesTableName+" WHERE expires_at IS NOT NULL AND expires_at <= ? AND "+entryGroupColumn+" LIKE ? ESCAPE '^'",
-			cutoffUnixMilli, escapeLike(groupPrefix)+"%",
-		)
-	}
-	if err != nil {
-		return 0, err
-	}
-	removedRows, rowsAffectedErr := deleteResult.RowsAffected()
-	if rowsAffectedErr != nil {
-		return 0, rowsAffectedErr
-	}
-	return removedRows, nil
 }
 
 type schemaDatabase interface {
