@@ -31,6 +31,7 @@ func TestPublish_Publish_Bad_DatasetCardWithoutParquetSplit(t *testing.T) {
 func TestPublish_ResolveHFToken_Good_UserHomeFallback(t *testing.T) {
 	homeDirectory := t.TempDir()
 	t.Setenv("HF_TOKEN", "")
+	t.Setenv("DIR_HOME", "")
 	t.Setenv("HOME", homeDirectory)
 
 	tokenDirectory := core.JoinPath(homeDirectory, ".huggingface")

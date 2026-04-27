@@ -186,14 +186,14 @@ func ImportAll(db *DuckDB, cfg ImportConfig, w io.Writer) error {
 
 	if !cfg.SkipM3 && cfg.Scp != nil {
 		core.Print(w, "  Pulling training sets from M3...")
-		for _, td := range trainingDirs {
-			for _, rel := range td.files {
-				local := core.JoinPath(trainingRoot, rel)
-				if result := localFs.EnsureDir(core.PathDir(local)); !result.OK {
+		for _, trainingDir := range trainingDirs {
+			for _, relativePath := range trainingDir.files {
+				localPath := core.JoinPath(trainingRoot, relativePath)
+				if result := localFs.EnsureDir(core.PathDir(localPath)); !result.OK {
 					return core.E("store.ImportAll", "ensure training directory", result.Value.(error))
 				}
-				remote := core.Sprintf("%s:/Volumes/Data/lem/%s", m3Host, rel)
-				_ = cfg.Scp(remote, local) // ignore errors, file might not exist
+				remote := core.Sprintf("%s:/Volumes/Data/lem/%s", m3Host, relativePath)
+				_ = cfg.Scp(remote, localPath) // ignore errors, file might not exist
 			}
 		}
 	}
@@ -216,23 +216,23 @@ func ImportAll(db *DuckDB, cfg ImportConfig, w io.Writer) error {
 	}
 
 	trainingTotal := 0
-	for _, td := range trainingDirs {
-		for _, rel := range td.files {
-			local := core.JoinPath(trainingRoot, rel)
-			if !isFile(local) {
+	for _, trainingDir := range trainingDirs {
+		for _, relativePath := range trainingDir.files {
+			localPath := core.JoinPath(trainingRoot, relativePath)
+			if !isFile(localPath) {
 				continue
 			}
 
 			split := "train"
-			if core.Contains(rel, "valid") {
+			if core.Contains(relativePath, "valid") {
 				split = "valid"
-			} else if core.Contains(rel, "test") {
+			} else if core.Contains(relativePath, "test") {
 				split = "test"
 			}
 
-			n, err := importTrainingFile(importSession, local, td.name, split)
+			n, err := importTrainingFile(importSession, localPath, trainingDir.name, split)
 			if err != nil {
-				return core.E("store.ImportAll", core.Sprintf("import training file %s", local), err)
+				return core.E("store.ImportAll", core.Sprintf("import training file %s", localPath), err)
 			}
 			trainingTotal += n
 		}
@@ -242,22 +242,26 @@ func ImportAll(db *DuckDB, cfg ImportConfig, w io.Writer) error {
 
 	// ── 3. Benchmark results ──
 	benchLocal := core.JoinPath(cfg.DataDir, "benchmarks")
-	localFs.EnsureDir(benchLocal)
+	if result := localFs.EnsureDir(benchLocal); !result.OK {
+		return core.E("store.ImportAll", core.Sprintf("ensure benchmark directory %s", benchLocal), result.Value.(error))
+	}
 
 	if !cfg.SkipM3 {
 		core.Print(w, "  Pulling benchmarks from M3...")
 		if cfg.Scp != nil {
-			for _, bname := range []string{"truthfulqa", "gsm8k", "do_not_answer", "toxigen"} {
-				remote := core.Sprintf("%s:/Volumes/Data/lem/benchmarks/%s.jsonl", m3Host, bname)
-				_ = cfg.Scp(remote, core.JoinPath(benchLocal, bname+".jsonl"))
+			for _, benchmarkName := range []string{"truthfulqa", "gsm8k", "do_not_answer", "toxigen"} {
+				remote := core.Sprintf("%s:/Volumes/Data/lem/benchmarks/%s.jsonl", m3Host, benchmarkName)
+				_ = cfg.Scp(remote, core.JoinPath(benchLocal, benchmarkName+".jsonl"))
 			}
 		}
 		if cfg.ScpDir != nil {
-			for _, subdir := range []string{"results", "scale_results", "cross_arch_results", "deepseek-r1-7b"} {
-				localSub := core.JoinPath(benchLocal, subdir)
-				localFs.EnsureDir(localSub)
-				remote := core.Sprintf("%s:/Volumes/Data/lem/benchmarks/%s/", m3Host, subdir)
-				_ = cfg.ScpDir(remote, localSub+"/")
+			for _, benchmarkSubdirectory := range []string{"results", "scale_results", "cross_arch_results", "deepseek-r1-7b"} {
+				localSubdirectory := core.JoinPath(benchLocal, benchmarkSubdirectory)
+				if result := localFs.EnsureDir(localSubdirectory); !result.OK {
+					return core.E("store.ImportAll", core.Sprintf("ensure benchmark subdirectory %s", localSubdirectory), result.Value.(error))
+				}
+				remote := core.Sprintf("%s:/Volumes/Data/lem/benchmarks/%s/", m3Host, benchmarkSubdirectory)
+				_ = cfg.ScpDir(remote, localSubdirectory+"/")
 			}
 		}
 	}
@@ -275,31 +279,31 @@ func ImportAll(db *DuckDB, cfg ImportConfig, w io.Writer) error {
 	}
 
 	benchTotal := 0
-	for _, subdir := range []string{"results", "scale_results", "cross_arch_results", "deepseek-r1-7b"} {
-		resultDir := core.JoinPath(benchLocal, subdir)
+	for _, benchmarkSubdirectory := range []string{"results", "scale_results", "cross_arch_results", "deepseek-r1-7b"} {
+		resultDir := core.JoinPath(benchLocal, benchmarkSubdirectory)
 		matches := core.PathGlob(core.JoinPath(resultDir, "*.jsonl"))
-		for _, jf := range matches {
-			n, err := importBenchmarkFile(importSession, jf, subdir)
+		for _, jsonFile := range matches {
+			n, err := importBenchmarkFile(importSession, jsonFile, benchmarkSubdirectory)
 			if err != nil {
-				return core.E("store.ImportAll", core.Sprintf("import benchmark file %s", jf), err)
+				return core.E("store.ImportAll", core.Sprintf("import benchmark file %s", jsonFile), err)
 			}
 			benchTotal += n
 		}
 	}
 
 	// Also import standalone benchmark files.
-	for _, bfile := range []string{"lem_bench", "lem_ethics", "lem_ethics_allen", "instruction_tuned", "abliterated", "base_pt"} {
-		local := core.JoinPath(benchLocal, bfile+".jsonl")
-		if !isFile(local) {
+	for _, benchmarkFile := range []string{"lem_bench", "lem_ethics", "lem_ethics_allen", "instruction_tuned", "abliterated", "base_pt"} {
+		localPath := core.JoinPath(benchLocal, benchmarkFile+".jsonl")
+		if !isFile(localPath) {
 			if !cfg.SkipM3 && cfg.Scp != nil {
-				remote := core.Sprintf("%s:/Volumes/Data/lem/benchmarks/%s.jsonl", m3Host, bfile)
-				_ = cfg.Scp(remote, local)
+				remote := core.Sprintf("%s:/Volumes/Data/lem/benchmarks/%s.jsonl", m3Host, benchmarkFile)
+				_ = cfg.Scp(remote, localPath)
 			}
 		}
-		if isFile(local) {
-			n, err := importBenchmarkFile(importSession, local, "benchmark")
+		if isFile(localPath) {
+			n, err := importBenchmarkFile(importSession, localPath, "benchmark")
 			if err != nil {
-				return core.E("store.ImportAll", core.Sprintf("import benchmark file %s", local), err)
+				return core.E("store.ImportAll", core.Sprintf("import benchmark file %s", localPath), err)
 			}
 			benchTotal += n
 		}

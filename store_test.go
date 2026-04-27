@@ -415,10 +415,11 @@ func TestStore_Set_Bad_ClosedStore(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestStore_Exists_Good_Present(t *testing.T) {
-	storeInstance, _ := New(":memory:")
+	storeInstance, err := New(":memory:")
+	assertNoError(t, err)
 	defer func() { _ = storeInstance.Close() }()
 
-	_ = storeInstance.Set("config", "colour", "blue")
+	assertNoError(t, storeInstance.Set("config", "colour", "blue"))
 
 	exists, err := storeInstance.Exists("config", "colour")
 	assertNoError(t, err)
@@ -426,7 +427,8 @@ func TestStore_Exists_Good_Present(t *testing.T) {
 }
 
 func TestStore_Exists_Good_Absent(t *testing.T) {
-	storeInstance, _ := New(":memory:")
+	storeInstance, err := New(":memory:")
+	assertNoError(t, err)
 	defer func() { _ = storeInstance.Close() }()
 
 	exists, err := storeInstance.Exists("config", "colour")
@@ -435,10 +437,11 @@ func TestStore_Exists_Good_Absent(t *testing.T) {
 }
 
 func TestStore_Exists_Good_ExpiredKeyReturnsFalse(t *testing.T) {
-	storeInstance, _ := New(":memory:")
+	storeInstance, err := New(":memory:")
+	assertNoError(t, err)
 	defer func() { _ = storeInstance.Close() }()
 
-	_ = storeInstance.SetWithTTL("session", "token", "abc123", 1*time.Millisecond)
+	assertNoError(t, storeInstance.SetWithTTL("session", "token", "abc123", 1*time.Millisecond))
 	time.Sleep(5 * time.Millisecond)
 
 	exists, err := storeInstance.Exists("session", "token")
@@ -447,9 +450,10 @@ func TestStore_Exists_Good_ExpiredKeyReturnsFalse(t *testing.T) {
 }
 
 func TestStore_Exists_Bad_ClosedStore(t *testing.T) {
-	storeInstance, _ := New(":memory:")
-	_ = storeInstance.Close()
-	_, err := storeInstance.Exists("g", "k")
+	storeInstance, err := New(":memory:")
+	assertNoError(t, err)
+	assertNoError(t, storeInstance.Close())
+	_, err = storeInstance.Exists("g", "k")
 	assertError(t, err)
 }
 
@@ -458,10 +462,11 @@ func TestStore_Exists_Bad_ClosedStore(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestStore_GroupExists_Good_Present(t *testing.T) {
-	storeInstance, _ := New(":memory:")
+	storeInstance, err := New(":memory:")
+	assertNoError(t, err)
 	defer func() { _ = storeInstance.Close() }()
 
-	_ = storeInstance.Set("config", "colour", "blue")
+	assertNoError(t, storeInstance.Set("config", "colour", "blue"))
 
 	exists, err := storeInstance.GroupExists("config")
 	assertNoError(t, err)
@@ -469,7 +474,8 @@ func TestStore_GroupExists_Good_Present(t *testing.T) {
 }
 
 func TestStore_GroupExists_Good_Absent(t *testing.T) {
-	storeInstance, _ := New(":memory:")
+	storeInstance, err := New(":memory:")
+	assertNoError(t, err)
 	defer func() { _ = storeInstance.Close() }()
 
 	exists, err := storeInstance.GroupExists("config")
@@ -478,11 +484,12 @@ func TestStore_GroupExists_Good_Absent(t *testing.T) {
 }
 
 func TestStore_GroupExists_Good_EmptyAfterDelete(t *testing.T) {
-	storeInstance, _ := New(":memory:")
+	storeInstance, err := New(":memory:")
+	assertNoError(t, err)
 	defer func() { _ = storeInstance.Close() }()
 
-	_ = storeInstance.Set("config", "colour", "blue")
-	_ = storeInstance.DeleteGroup("config")
+	assertNoError(t, storeInstance.Set("config", "colour", "blue"))
+	assertNoError(t, storeInstance.DeleteGroup("config"))
 
 	exists, err := storeInstance.GroupExists("config")
 	assertNoError(t, err)
@@ -490,9 +497,10 @@ func TestStore_GroupExists_Good_EmptyAfterDelete(t *testing.T) {
 }
 
 func TestStore_GroupExists_Bad_ClosedStore(t *testing.T) {
-	storeInstance, _ := New(":memory:")
-	_ = storeInstance.Close()
-	_, err := storeInstance.GroupExists("config")
+	storeInstance, err := New(":memory:")
+	assertNoError(t, err)
+	assertNoError(t, storeInstance.Close())
+	_, err = storeInstance.GroupExists("config")
 	assertError(t, err)
 }
 
@@ -1622,7 +1630,8 @@ func TestStore_PurgeExpired_Good(t *testing.T) {
 }
 
 func TestStore_PurgeExpired_Good_NotifiesDeletedRows(t *testing.T) {
-	storeInstance, _ := New(":memory:")
+	storeInstance, err := New(":memory:")
+	assertNoError(t, err)
 	defer func() { _ = storeInstance.Close() }()
 
 	assertNoError(t, storeInstance.SetWithTTL("g", "expired", "1", 1*time.Millisecond))
@@ -1636,10 +1645,14 @@ func TestStore_PurgeExpired_Good_NotifiesDeletedRows(t *testing.T) {
 	assertNoError(t, err)
 	assertEqual(t, int64(1), removed)
 
-	event := <-events
-	assertEqual(t, EventDelete, event.Type)
-	assertEqual(t, "g", event.Group)
-	assertEqual(t, "expired", event.Key)
+	select {
+	case event := <-events:
+		assertEqual(t, EventDelete, event.Type)
+		assertEqual(t, "g", event.Group)
+		assertEqual(t, "expired", event.Key)
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for purge delete event")
+	}
 	select {
 	case extraEvent := <-events:
 		t.Fatalf("unexpected extra purge event: %#v", extraEvent)

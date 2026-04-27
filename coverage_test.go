@@ -281,7 +281,7 @@ func TestCoverage_ScopedStore_Bad_GroupsClosedStore(t *testing.T) {
 
 	_, err := scopedStore.Groups("")
 	assertError(t, err)
-	assertContainsString(t, err.Error(), "store.Groups")
+	assertContainsString(t, err.Error(), "store.ScopedStore.Groups")
 }
 
 func TestCoverage_ScopedStore_Bad_GroupsSeqRowsError(t *testing.T) {
