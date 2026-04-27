@@ -1026,6 +1026,23 @@ func TestStore_Close_Good_Idempotent(t *testing.T) {
 	assertNoError(t, storeInstance.Close())
 }
 
+func TestStore_Close_Good_BackfillsDatabaseAlias(t *testing.T) {
+	database, err := sql.Open("sqlite", ":memory:")
+	assertNoError(t, err)
+
+	storeInstance := &Store{
+		db:           database,
+		cancelPurge:  func() {},
+		purgeContext: context.Background(),
+	}
+
+	assertNoError(t, storeInstance.Close())
+
+	_, err = database.Exec("SELECT 1")
+	assertError(t, err)
+	assertContainsString(t, err.Error(), "closed")
+}
+
 func TestStore_Close_Good_OperationsFailAfterClose(t *testing.T) {
 	storeInstance, _ := New(":memory:")
 	assertNoError(t, storeInstance.Close())

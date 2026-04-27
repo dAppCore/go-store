@@ -233,6 +233,28 @@ func TestWorkspace_Commit_Good_EmitsSummaryEvent(t *testing.T) {
 	}
 }
 
+func TestWorkspace_RecoverOrphans_Good_SkipsAlreadyCommittedWorkspaceFile(t *testing.T) {
+	stateDirectory := useWorkspaceStateDirectory(t)
+
+	storeInstance, err := New(":memory:", WithJournal("http://127.0.0.1:8086", "core", "events"))
+	assertNoError(t, err)
+	defer func() { _ = storeInstance.Close() }()
+
+	workspace, err := storeInstance.NewWorkspace("committed-leftover")
+	assertNoError(t, err)
+
+	assertNoError(t, workspace.Put("like", map[string]any{"user": "@alice"}))
+	fields, err := workspace.aggregateFields()
+	assertNoError(t, err)
+	assertNoError(t, storeInstance.commitWorkspaceAggregate(workspace.Name(), fields))
+	assertNoError(t, workspace.closeWithoutRemovingFiles())
+	assertTrue(t, testFilesystem().Exists(workspace.databasePath))
+
+	orphans := storeInstance.RecoverOrphans(stateDirectory)
+	assertLen(t, orphans, 0)
+	assertFalse(t, testFilesystem().Exists(workspace.databasePath))
+}
+
 func TestWorkspace_Discard_Good_Idempotent(t *testing.T) {
 	useWorkspaceStateDirectory(t)
 

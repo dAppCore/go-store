@@ -189,13 +189,18 @@ func loadRecoveredWorkspaces(stateDirectory string, store *Store) []*Workspace {
 	filesystem := (&core.Fs{}).NewUnrestricted()
 	orphanWorkspaces := make([]*Workspace, 0)
 	for _, databasePath := range discoverOrphanWorkspacePaths(stateDirectory) {
+		workspaceName := workspaceNameFromPath(stateDirectory, databasePath)
+		if workspaceCommitMarkerExists(store, workspaceName) {
+			removeWorkspaceDatabaseFiles(filesystem, databasePath)
+			continue
+		}
 		database, err := openWorkspaceDatabase(databasePath)
 		if err != nil {
 			quarantineOrphanWorkspaceFiles(filesystem, stateDirectory, databasePath)
 			continue
 		}
 		orphanWorkspace := &Workspace{
-			name:         workspaceNameFromPath(stateDirectory, databasePath),
+			name:         workspaceName,
 			store:        store,
 			db:           database,
 			databasePath: databasePath,
@@ -326,7 +331,7 @@ func (workspace *Workspace) Commit() core.Result {
 		return core.Result{Value: err, OK: false}
 	}
 	if err := workspace.closeAndRemoveFiles(); err != nil {
-		return core.Result{Value: err, OK: false}
+		return core.Result{Value: cloneAnyMap(fields), OK: true}
 	}
 	return core.Result{Value: cloneAnyMap(fields), OK: true}
 }
@@ -594,6 +599,23 @@ func workspaceQuarantinePathExists(filesystem *core.Fs, databasePath string) boo
 		}
 	}
 	return false
+}
+
+func workspaceCommitMarkerExists(storeInstance *Store, workspaceName string) bool {
+	if storeInstance == nil || workspaceName == "" {
+		return false
+	}
+	exists, err := storeInstance.Exists(workspaceSummaryGroup(workspaceName), "summary")
+	return err == nil && exists
+}
+
+func removeWorkspaceDatabaseFiles(filesystem *core.Fs, databasePath string) {
+	if filesystem == nil || databasePath == "" {
+		return
+	}
+	for _, path := range workspaceDatabaseFilePaths(databasePath) {
+		_ = filesystem.Delete(path)
+	}
 }
 
 func workspaceDatabaseFilePaths(databasePath string) []string {

@@ -4,6 +4,8 @@ import (
 	"reflect"
 	"sort"
 	"testing"
+
+	core "dappco.re/go/core"
 )
 
 func assertNoError(t testing.TB, err error) {
@@ -187,26 +189,7 @@ func assertNotPanics(t testing.TB, fn func()) {
 }
 
 func errIs(err, target error) bool {
-	for err != nil {
-		if err == target {
-			return true
-		}
-		multiUnwrapper, ok := err.(interface{ Unwrap() []error })
-		if ok {
-			for _, childErr := range multiUnwrapper.Unwrap() {
-				if errIs(childErr, target) {
-					return true
-				}
-			}
-			return false
-		}
-		unwrapper, ok := err.(interface{ Unwrap() error })
-		if !ok {
-			return false
-		}
-		err = unwrapper.Unwrap()
-	}
-	return false
+	return core.Is(err, target)
 }
 
 func isNil(value any) bool {

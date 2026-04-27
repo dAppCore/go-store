@@ -309,7 +309,7 @@ func ImportAll(db *DuckDB, cfg ImportConfig, w io.Writer) error {
 	}
 
 	seedTotal := 0
-	seedDirs := []string{core.JoinPath(cfg.DataDir, "seeds"), "/tmp/lem-data/seeds", "/tmp/lem-repo/seeds"}
+	seedDirs := []string{core.JoinPath(cfg.DataDir, "seeds")}
 	for _, seedDir := range seedDirs {
 		if !isDir(seedDir) {
 			continue
@@ -476,19 +476,22 @@ func importSeeds(db *DuckDB, seedDir string) (int, error) {
 			return
 		}
 
+		rel := core.TrimPrefix(path, seedDir+"/")
+		region := core.TrimSuffix(core.PathBase(path), ".json")
+
 		readResult := localFs.Read(path)
 		if !readResult.OK {
+			firstErr = core.E("store.importSeeds", core.Sprintf("read seed file %s", rel), readResult.Value.(error))
 			return
 		}
 		data := []byte(readResult.Value.(string))
-
-		rel := core.TrimPrefix(path, seedDir+"/")
-		region := core.TrimSuffix(core.PathBase(path), ".json")
 
 		// Try parsing as array or object with prompts/seeds field.
 		var seedsList []any
 		var raw any
 		if r := core.JSONUnmarshal(data, &raw); !r.OK {
+			err, _ := r.Value.(error)
+			firstErr = core.E("store.importSeeds", core.Sprintf("parse seed file %s", rel), err)
 			return
 		}
 

@@ -217,11 +217,11 @@ func (storeInstance *Store) Compact(options CompactOptions) core.Result {
 		return core.Result{Value: core.E("store.Compact", "commit archive transaction", err), OK: false}
 	}
 	committed = true
+	stagedOutputPublished = true
 
 	if err := medium.Rename(stagedOutputPath, outputPath); err != nil {
 		return core.Result{Value: core.E("store.Compact", "publish staged archive", err), OK: false}
 	}
-	stagedOutputPublished = true
 
 	return core.Result{Value: outputPath, OK: true}
 }

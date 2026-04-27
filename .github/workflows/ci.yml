@@ -1,5 +1,8 @@
 name: CI
 
+env:
+  CGO_ENABLED: "1"
+
 on:
   push:
     branches: [main, dev]

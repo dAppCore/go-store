@@ -4,6 +4,7 @@ package store
 
 import (
 	"bytes"
+	"context"
 	"io"
 	"io/fs"
 	"net/http"
@@ -46,6 +47,14 @@ type PublishConfig struct {
 	//	cfg.Token // "hf_..."
 	Token string
 
+	// Context controls cancellation for HuggingFace API requests. When nil,
+	// Publish uses context.Background().
+	//
+	// Usage example:
+	//
+	//	cfg.Context = context.Background()
+	Context context.Context
+
 	// DryRun lists files that would be uploaded without actually uploading.
 	//
 	// Usage example:
@@ -73,6 +82,14 @@ type uploadEntry struct {
 func Publish(cfg PublishConfig, w io.Writer) error {
 	if cfg.InputDir == "" {
 		return core.E("store.Publish", "input directory is required", nil)
+	}
+	if cfg.Repo == "" {
+		return core.E("store.Publish", "repository is required", nil)
+	}
+
+	publishContext := cfg.Context
+	if publishContext == nil {
+		publishContext = context.Background()
 	}
 
 	token := resolveHFToken(cfg.Token)
@@ -109,12 +126,12 @@ func Publish(cfg PublishConfig, w io.Writer) error {
 
 	core.Print(w, "Publishing to https://huggingface.co/datasets/%s", cfg.Repo)
 
-	if err := ensureHFDatasetRepo(token, cfg.Repo, cfg.Public); err != nil {
+	if err := ensureHFDatasetRepo(publishContext, token, cfg.Repo, cfg.Public); err != nil {
 		return core.E("store.Publish", "ensure HuggingFace dataset", err)
 	}
 
 	for _, f := range files {
-		if err := uploadFileToHF(token, cfg.Repo, f.local, f.remote); err != nil {
+		if err := uploadFileToHF(publishContext, token, cfg.Repo, f.local, f.remote); err != nil {
 			return core.E("store.Publish", core.Sprintf("upload %s", core.PathBase(f.local)), err)
 		}
 		core.Print(w, "  Uploaded %s -> %s", core.PathBase(f.local), f.remote)
@@ -133,7 +150,7 @@ func resolveHFToken(explicit string) string {
 	if env := core.Env("HF_TOKEN"); env != "" {
 		return env
 	}
-	home := core.Env("DIR_HOME")
+	home := core.Env("HOME")
 	if home == "" {
 		return ""
 	}
@@ -166,7 +183,7 @@ func collectUploadFiles(inputDir string) ([]uploadEntry, error) {
 	return files, nil
 }
 
-func ensureHFDatasetRepo(token, repoID string, public bool) error {
+func ensureHFDatasetRepo(ctx context.Context, token, repoID string, public bool) error {
 	if repoID == "" {
 		return core.E("store.ensureHFDatasetRepo", "repository is required", nil)
 	}
@@ -185,7 +202,7 @@ func ensureHFDatasetRepo(token, repoID string, public bool) error {
 		createPayload["organization"] = organisation
 	}
 
-	createStatus, createBody, err := hfJSONRequest(token, http.MethodPost, "https://huggingface.co/api/repos/create", createPayload)
+	createStatus, createBody, err := hfJSONRequest(ctx, token, http.MethodPost, "https://huggingface.co/api/repos/create", createPayload)
 	if err != nil {
 		return core.E("store.ensureHFDatasetRepo", "create dataset repository", err)
 	}
@@ -194,7 +211,7 @@ func ensureHFDatasetRepo(token, repoID string, public bool) error {
 	}
 
 	settingsURL := core.Sprintf("https://huggingface.co/api/repos/dataset/%s/settings", repoID)
-	settingsStatus, settingsBody, err := hfJSONRequest(token, http.MethodPut, settingsURL, map[string]any{
+	settingsStatus, settingsBody, err := hfJSONRequest(ctx, token, http.MethodPut, settingsURL, map[string]any{
 		"private": !public,
 	})
 	if err != nil {
@@ -214,9 +231,9 @@ func splitHFRepoID(repoID string) (organisation string, name string) {
 	return parts[0], parts[1]
 }
 
-func hfJSONRequest(token, method, url string, payload map[string]any) (int, string, error) {
+func hfJSONRequest(ctx context.Context, token, method, url string, payload map[string]any) (int, string, error) {
 	payloadJSON := core.JSONMarshalString(payload)
-	req, err := http.NewRequest(method, url, bytes.NewBufferString(payloadJSON))
+	req, err := http.NewRequestWithContext(ctx, method, url, bytes.NewBufferString(payloadJSON))
 	if err != nil {
 		return 0, "", core.E("store.hfJSONRequest", "create request", err)
 	}
@@ -241,7 +258,7 @@ func hfJSONRequest(token, method, url string, payload map[string]any) (int, stri
 
 // uploadFileToHF uploads a single file to a HuggingFace dataset repo via the
 // Hub API.
-func uploadFileToHF(token, repoID, localPath, remotePath string) error {
+func uploadFileToHF(ctx context.Context, token, repoID, localPath, remotePath string) error {
 	openResult := localFs.Open(localPath)
 	if !openResult.OK {
 		return core.E("store.uploadFileToHF", core.Sprintf("open %s", localPath), openResult.Value.(error))
@@ -251,7 +268,7 @@ func uploadFileToHF(token, repoID, localPath, remotePath string) error {
 
 	url := core.Sprintf("https://huggingface.co/api/datasets/%s/upload/main/%s", repoID, remotePath)
 
-	req, err := http.NewRequest(http.MethodPut, url, file)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPut, url, file)
 	if err != nil {
 		return core.E("store.uploadFileToHF", "create request", err)
 	}
@@ -261,7 +278,7 @@ func uploadFileToHF(token, repoID, localPath, remotePath string) error {
 		req.ContentLength = stat.Size()
 	}
 
-	client := &http.Client{Timeout: 120 * time.Second}
+	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
 		return core.E("store.uploadFileToHF", "upload request", err)

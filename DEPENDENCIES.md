@@ -16,4 +16,6 @@ workspace recovery behaviour rather than preserving the feature.
 
 This is a CGO and MIT-licensed dependency exception. It must not be used for the
 primary SQLite store path, and new runtime storage features should continue to
-use pure-Go dependencies compatible with EUPL-1.2.
+use pure-Go dependencies compatible with EUPL-1.2. Builds and CI that include
+workspace, import, inventory, or scoring behaviour must run with
+`CGO_ENABLED=1` and a C/C++ toolchain available.

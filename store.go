@@ -463,6 +463,12 @@ func (storeInstance *Store) Close() error {
 	storeInstance.cachedOrphanWorkspaces = nil
 	storeInstance.orphanWorkspaceLock.Unlock()
 
+	if storeInstance.db == nil {
+		storeInstance.db = storeInstance.sqliteDatabase
+	}
+	if storeInstance.sqliteDatabase == nil {
+		storeInstance.sqliteDatabase = storeInstance.db
+	}
 	if storeInstance.sqliteDatabase == nil {
 		return orphanCleanupErr
 	}

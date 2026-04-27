@@ -106,6 +106,14 @@ func (medium *memoryMedium) Rename(oldPath, newPath string) error {
 	return nil
 }
 
+type renameFailMedium struct {
+	*memoryMedium
+}
+
+func (medium *renameFailMedium) Rename(string, string) error {
+	return core.E("renameFailMedium.Rename", "forced rename failure", nil)
+}
+
 func (medium *memoryMedium) List(path string) ([]fs.DirEntry, error) { return nil, nil }
 
 func (medium *memoryMedium) Stat(path string) (fs.FileInfo, error) {
@@ -289,6 +297,67 @@ func TestMedium_Import_Good_CSV(t *testing.T) {
 	assertEqual(t, map[string]any{"findings": 2}, workspace.Aggregate())
 }
 
+func TestMedium_Import_Good_CSVQuotedMultiline(t *testing.T) {
+	useWorkspaceStateDirectory(t)
+
+	storeInstance, err := New(":memory:")
+	assertNoError(t, err)
+	defer func() { _ = storeInstance.Close() }()
+
+	workspace, err := storeInstance.NewWorkspace("medium-import-csv-multiline")
+	assertNoError(t, err)
+	defer workspace.Discard()
+
+	medium := newMemoryMedium()
+	assertNoError(t, medium.Write("notes.csv", "name,note\nAlice,\"hello\nworld\"\n"))
+
+	assertNoError(t, Import(workspace, medium, "notes.csv"))
+
+	assertEqual(t, map[string]any{"notes": 1}, workspace.Aggregate())
+}
+
+func TestMedium_Import_Bad_JSONArrayNonObject(t *testing.T) {
+	useWorkspaceStateDirectory(t)
+
+	storeInstance, err := New(":memory:")
+	assertNoError(t, err)
+	defer func() { _ = storeInstance.Close() }()
+
+	workspace, err := storeInstance.NewWorkspace("medium-import-json-non-object")
+	assertNoError(t, err)
+	defer workspace.Discard()
+
+	medium := newMemoryMedium()
+	assertNoError(t, medium.Write("users.json", `[{"name":"Alice"},"Bob"]`))
+
+	assertError(t, Import(workspace, medium, "users.json"))
+
+	count, err := workspace.Count()
+	assertNoError(t, err)
+	assertEqual(t, 0, count)
+}
+
+func TestMedium_Import_Bad_MalformedCSV(t *testing.T) {
+	useWorkspaceStateDirectory(t)
+
+	storeInstance, err := New(":memory:")
+	assertNoError(t, err)
+	defer func() { _ = storeInstance.Close() }()
+
+	workspace, err := storeInstance.NewWorkspace("medium-import-csv-bad")
+	assertNoError(t, err)
+	defer workspace.Discard()
+
+	medium := newMemoryMedium()
+	assertNoError(t, medium.Write("findings.csv", "tool,severity\ngosec,\"high\n"))
+
+	assertError(t, Import(workspace, medium, "findings.csv"))
+
+	count, err := workspace.Count()
+	assertNoError(t, err)
+	assertEqual(t, 0, count)
+}
+
 func TestMedium_Import_Bad_NilArguments(t *testing.T) {
 	useWorkspaceStateDirectory(t)
 
@@ -414,6 +483,35 @@ func TestMedium_Compact_Good_MediumRoutesArchive(t *testing.T) {
 	assertTrue(t, ok)
 	assertNotEmpty(t, outputPath)
 	assertTruef(t, medium.Exists(outputPath), "compact should write through medium at %s", outputPath)
+}
+
+func TestMedium_Compact_Bad_PreservesStagedArchiveWhenPublishFails(t *testing.T) {
+	useWorkspaceStateDirectory(t)
+	useArchiveOutputDirectory(t)
+
+	medium := &renameFailMedium{memoryMedium: newMemoryMedium()}
+	storeInstance, err := New(":memory:", WithJournal("http://127.0.0.1:8086", "core", "events"), WithMedium(medium))
+	assertNoError(t, err)
+	defer func() { _ = storeInstance.Close() }()
+
+	assertTrue(t, storeInstance.CommitToJournal("jobs", map[string]any{"count": 3}, map[string]string{"workspace": "jobs-1"}).OK)
+
+	result := storeInstance.Compact(CompactOptions{
+		Before: time.Now().Add(time.Minute),
+		Output: "archive/",
+		Format: "gzip",
+	})
+	assertFalse(t, result.OK)
+
+	stagedArchiveFound := false
+	medium.lock.Lock()
+	for path := range medium.files {
+		if core.HasSuffix(path, ".tmp") {
+			stagedArchiveFound = true
+		}
+	}
+	medium.lock.Unlock()
+	assertTrue(t, stagedArchiveFound)
 }
 
 func splitNewlines(content string) []string {

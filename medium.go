@@ -4,6 +4,7 @@ package store
 
 import (
 	"bytes"
+	"encoding/csv"
 
 	core "dappco.re/go/core"
 	coreio "dappco.re/go/core/io"
@@ -15,7 +16,7 @@ import (
 // This is an alias of `dappco.re/go/core/io.Medium`, so callers can pass any
 // upstream medium implementation directly without an adapter.
 //
-// Usage example: `medium, _ := local.New("/tmp/exports"); storeInstance, err := store.New(":memory:", store.WithMedium(medium))`
+// Usage example: `medium, _ := local.New("/tmp/exports"); storeInstance, err := store.NewConfigured(store.StoreConfig{DatabasePath: ":memory:", Medium: medium})`
 type Medium = coreio.Medium
 
 // Usage example: `medium, _ := local.New("/srv/core"); storeInstance, err := store.NewConfigured(store.StoreConfig{DatabasePath: ":memory:", Medium: medium})`
@@ -169,7 +170,10 @@ func importJSON(workspace *Workspace, kind, content string) error {
 		return core.E("store.Import", "parse json", err)
 	}
 
-	records := collectJSONRecords(topLevel)
+	records, err := collectJSONRecords(topLevel)
+	if err != nil {
+		return core.E("store.Import", "normalise json records", err)
+	}
 	for _, record := range records {
 		if err := workspace.Put(kind, record); err != nil {
 			return core.E("store.Import", "put json record", err)
@@ -178,16 +182,18 @@ func importJSON(workspace *Workspace, kind, content string) error {
 	return nil
 }
 
-func collectJSONRecords(value any) []map[string]any {
+func collectJSONRecords(value any) ([]map[string]any, error) {
 	switch shape := value.(type) {
 	case []any:
 		records := make([]map[string]any, 0, len(shape))
-		for _, entry := range shape {
-			if record, ok := entry.(map[string]any); ok {
-				records = append(records, record)
+		for index, entry := range shape {
+			record, ok := entry.(map[string]any)
+			if !ok {
+				return nil, core.E("store.Import", core.Concat("json array element is not an object at index ", core.Sprint(index)), nil)
 			}
+			records = append(records, record)
 		}
-		return records
+		return records, nil
 	case map[string]any:
 		if nested, ok := shape["entries"].([]any); ok {
 			return collectJSONRecords(nested)
@@ -198,26 +204,29 @@ func collectJSONRecords(value any) []map[string]any {
 		if nested, ok := shape["data"].([]any); ok {
 			return collectJSONRecords(nested)
 		}
-		return []map[string]any{shape}
+		return []map[string]any{shape}, nil
 	}
-	return nil
+	return nil, core.E("store.Import", "unsupported json shape", nil)
 }
 
 func importCSV(workspace *Workspace, kind, content string) error {
-	lines := core.Split(content, "\n")
-	if len(lines) == 0 {
+	reader := csv.NewReader(bytes.NewBufferString(content))
+	reader.FieldsPerRecord = -1
+	rows, err := reader.ReadAll()
+	if err != nil {
+		return core.E("store.Import", "parse csv", err)
+	}
+	if len(rows) == 0 {
 		return nil
 	}
-	header := splitCSVLine(lines[0])
+	header := rows[0]
 	if len(header) == 0 {
 		return nil
 	}
-	for _, rawLine := range lines[1:] {
-		line := trimTrailingCarriageReturn(rawLine)
-		if line == "" {
+	for _, fields := range rows[1:] {
+		if len(fields) == 0 {
 			continue
 		}
-		fields := splitCSVLine(line)
 		record := make(map[string]any, len(header))
 		for columnIndex, columnName := range header {
 			if columnIndex < len(fields) {
@@ -231,32 +240,6 @@ func importCSV(workspace *Workspace, kind, content string) error {
 		}
 	}
 	return nil
-}
-
-func splitCSVLine(line string) []string {
-	line = trimTrailingCarriageReturn(line)
-	buffer := &bytes.Buffer{}
-	var (
-		fields   []string
-		inQuotes bool
-	)
-	for index := 0; index < len(line); index++ {
-		character := line[index]
-		switch {
-		case character == '"' && inQuotes && index+1 < len(line) && line[index+1] == '"':
-			buffer.WriteByte('"')
-			index++
-		case character == '"':
-			inQuotes = !inQuotes
-		case character == ',' && !inQuotes:
-			fields = append(fields, buffer.String())
-			buffer.Reset()
-		default:
-			buffer.WriteByte(character)
-		}
-	}
-	fields = append(fields, buffer.String())
-	return fields
 }
 
 func exportJSON(workspace *Workspace, medium Medium, path string) error {
@@ -316,13 +299,6 @@ func exportCSV(workspace *Workspace, medium Medium, path string) error {
 		return core.E("store.Export", "write csv", err)
 	}
 	return nil
-}
-
-func trimTrailingCarriageReturn(value string) string {
-	for len(value) > 0 && value[len(value)-1] == '\r' {
-		value = value[:len(value)-1]
-	}
-	return value
 }
 
 func csvField(value string) string {
