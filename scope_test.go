@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	core "dappco.re/go/core"
+	core "dappco.re/go"
 )
 
 // ---------------------------------------------------------------------------
@@ -35,8 +35,10 @@ func TestScope_ScopedStore_Good_Config(t *testing.T) {
 
 func TestScope_ScopedStore_Good_ConfigZeroValueFromNil(t *testing.T) {
 	var scopedStore *ScopedStore
+	config := scopedStore.Config()
 
-	assertEqual(t, ScopedStoreConfig{}, scopedStore.Config())
+	assertEqual(t, ScopedStoreConfig{}, config)
+	assertEqual(t, "", config.Namespace)
 }
 
 func TestScope_NewScoped_Good_AlphanumericHyphens(t *testing.T) {
@@ -58,7 +60,9 @@ func TestScope_NewScoped_Bad_Empty(t *testing.T) {
 }
 
 func TestScope_NewScoped_Bad_NilStore(t *testing.T) {
-	assertNil(t, NewScoped(nil, "tenant-a"))
+	scopedStore := NewScoped(nil, "tenant-a")
+	assertNil(t, scopedStore)
+	assertEqual(t, "", scopedStore.Namespace())
 }
 
 func TestScope_NewScoped_Bad_InvalidChars(t *testing.T) {

@@ -8,7 +8,7 @@ import (
 	"sync" // Note: AX-6 — internal concurrency primitive; structural for store infrastructure (RFC §4 explicitly mandates).
 	"time"
 
-	core "dappco.re/go/core"
+	core "dappco.re/go"
 )
 
 const (
@@ -208,7 +208,7 @@ func loadRecoveredWorkspaces(stateDirectory string, store *Store) []*Workspace {
 		}
 		aggregate, err := orphanWorkspace.aggregateFieldsWithoutReadiness()
 		if err != nil {
-			_ = orphanWorkspace.closeWithoutRemovingFiles()
+			orphanWorkspace.closeWithoutRemovingFiles()
 			quarantineOrphanWorkspaceFiles(filesystem, stateDirectory, databasePath)
 			continue
 		}
@@ -320,20 +320,20 @@ func (workspace *Workspace) Aggregate() map[string]any {
 // `workspace:NAME/summary` entry, and removes the workspace file.
 func (workspace *Workspace) Commit() core.Result {
 	if err := workspace.ensureReady("store.Workspace.Commit"); err != nil {
-		return core.Result{Value: err, OK: false}
+		return core.Fail(err)
 	}
 
 	fields, err := workspace.aggregateFields()
 	if err != nil {
-		return core.Result{Value: core.E("store.Workspace.Commit", "aggregate workspace", err), OK: false}
+		return core.Fail(core.E("store.Workspace.Commit", "aggregate workspace", err))
 	}
 	if err := workspace.store.commitWorkspaceAggregate(workspace.name, fields); err != nil {
-		return core.Result{Value: err, OK: false}
+		return core.Fail(err)
 	}
 	if err := workspace.closeAndRemoveFiles(); err != nil {
-		return core.Result{Value: cloneAnyMap(fields), OK: true}
+		return core.Ok(cloneAnyMap(fields))
 	}
-	return core.Result{Value: cloneAnyMap(fields), OK: true}
+	return core.Ok(cloneAnyMap(fields))
 }
 
 // Usage example: `workspace.Discard()`
@@ -341,7 +341,7 @@ func (workspace *Workspace) Discard() {
 	if workspace == nil {
 		return
 	}
-	_ = workspace.closeAndRemoveFiles()
+	workspace.closeAndRemoveFiles()
 }
 
 // Usage example: `result := workspace.Query("SELECT entry_kind, COUNT(*) AS count FROM workspace_entries GROUP BY entry_kind")`
@@ -349,20 +349,20 @@ func (workspace *Workspace) Discard() {
 // current buffer state without defining extra result types.
 func (workspace *Workspace) Query(query string) core.Result {
 	if err := workspace.ensureReady("store.Workspace.Query"); err != nil {
-		return core.Result{Value: err, OK: false}
+		return core.Fail(err)
 	}
 
 	rows, err := workspace.db.Query(query)
 	if err != nil {
-		return core.Result{Value: core.E("store.Workspace.Query", "query workspace", err), OK: false}
+		return core.Fail(core.E("store.Workspace.Query", "query workspace", err))
 	}
-	defer func() { _ = rows.Close() }()
+	defer rows.Close()
 
 	rowMaps, err := queryRowsAsMaps(rows)
 	if err != nil {
-		return core.Result{Value: core.E("store.Workspace.Query", "scan rows", err), OK: false}
+		return core.Fail(core.E("store.Workspace.Query", "scan rows", err))
 	}
-	return core.Result{Value: rowMaps, OK: true}
+	return core.Ok(rowMaps)
 }
 
 func (workspace *Workspace) aggregateFields() (map[string]any, error) {
@@ -472,7 +472,7 @@ func (storeInstance *Store) commitWorkspaceAggregate(workspaceName string, field
 	committed := false
 	defer func() {
 		if !committed {
-			_ = transaction.Rollback()
+			transaction.Rollback()
 		}
 	}()
 
@@ -527,19 +527,19 @@ func openWorkspaceDatabase(databasePath string) (*sql.DB, error) {
 	}
 	database.SetMaxOpenConns(1)
 	if err := database.Ping(); err != nil {
-		_ = database.Close()
+		database.Close()
 		return nil, core.E("store.openWorkspaceDatabase", "ping workspace database", err)
 	}
 	if _, err := database.Exec("CREATE SEQUENCE IF NOT EXISTS workspace_entries_entry_id_seq START 1"); err != nil {
-		_ = database.Close()
+		database.Close()
 		return nil, core.E("store.openWorkspaceDatabase", "create workspace entry sequence", err)
 	}
 	if _, err := database.Exec(createWorkspaceEntriesTableSQL); err != nil {
-		_ = database.Close()
+		database.Close()
 		return nil, core.E("store.openWorkspaceDatabase", "create workspace entries table", err)
 	}
 	if _, err := database.Exec(createWorkspaceEntriesViewSQL); err != nil {
-		_ = database.Close()
+		database.Close()
 		return nil, core.E("store.openWorkspaceDatabase", "create workspace entries view", err)
 	}
 	return database, nil
@@ -614,7 +614,7 @@ func removeWorkspaceDatabaseFiles(filesystem *core.Fs, databasePath string) {
 		return
 	}
 	for _, path := range workspaceDatabaseFilePaths(databasePath) {
-		_ = filesystem.Delete(path)
+		filesystem.Delete(path)
 	}
 }
 
@@ -629,7 +629,7 @@ func quarantineWorkspaceFile(filesystem *core.Fs, sourcePath, quarantinePath str
 	if filesystem == nil || !filesystem.Exists(sourcePath) {
 		return
 	}
-	_ = filesystem.Rename(sourcePath, quarantinePath)
+	filesystem.Rename(sourcePath, quarantinePath)
 }
 
 func joinPath(base, name string) string {

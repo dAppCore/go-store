@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	core "dappco.re/go/core"
+	core "dappco.re/go"
 )
 
 func TestTransaction_Transaction_Good_CommitsMultipleWrites(t *testing.T) {

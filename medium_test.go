@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	core "dappco.re/go/core"
+	core "dappco.re/go"
 )
 
 // memoryMedium is an in-memory implementation of `store.Medium` used by the
