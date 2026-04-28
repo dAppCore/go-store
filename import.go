@@ -8,7 +8,7 @@ import (
 	"io"
 	"io/fs"
 
-	core "dappco.re/go/core"
+	core "dappco.re/go"
 )
 
 // localFs provides unrestricted filesystem access for import operations.
@@ -129,7 +129,7 @@ func ImportAll(db *DuckDB, cfg ImportConfig, w io.Writer) error {
 	committed := false
 	defer func() {
 		if !committed {
-			_ = transaction.Rollback()
+			transaction.Rollback()
 		}
 	}()
 	importSession := duckDBImportTransaction{transaction: transaction}
@@ -196,7 +196,9 @@ func ImportAll(db *DuckDB, cfg ImportConfig, w io.Writer) error {
 					return core.E("store.ImportAll", "ensure training directory", result.Value.(error))
 				}
 				remote := core.Sprintf("%s:/Volumes/Data/lem/%s", m3Host, relativePath)
-				_ = cfg.Scp(remote, localPath) // ignore errors, file might not exist
+				if err := cfg.Scp(remote, localPath); err != nil {
+					core.Print(w, "  WARNING: could not pull %s from M3: %v", relativePath, err)
+				}
 			}
 		}
 	}
@@ -254,7 +256,9 @@ func ImportAll(db *DuckDB, cfg ImportConfig, w io.Writer) error {
 		if cfg.Scp != nil {
 			for _, benchmarkName := range []string{"truthfulqa", "gsm8k", "do_not_answer", "toxigen"} {
 				remote := core.Sprintf("%s:/Volumes/Data/lem/benchmarks/%s.jsonl", m3Host, benchmarkName)
-				_ = cfg.Scp(remote, core.JoinPath(benchLocal, benchmarkName+".jsonl"))
+				if err := cfg.Scp(remote, core.JoinPath(benchLocal, benchmarkName+".jsonl")); err != nil {
+					core.Print(w, "  WARNING: could not pull benchmark %s from M3: %v", benchmarkName, err)
+				}
 			}
 		}
 		if cfg.ScpDir != nil {
@@ -264,7 +268,9 @@ func ImportAll(db *DuckDB, cfg ImportConfig, w io.Writer) error {
 					return core.E("store.ImportAll", core.Sprintf("ensure benchmark subdirectory %s", localSubdirectory), result.Value.(error))
 				}
 				remote := core.Sprintf("%s:/Volumes/Data/lem/benchmarks/%s/", m3Host, benchmarkSubdirectory)
-				_ = cfg.ScpDir(remote, localSubdirectory+"/")
+				if err := cfg.ScpDir(remote, localSubdirectory+"/"); err != nil {
+					core.Print(w, "  WARNING: could not pull benchmark directory %s from M3: %v", benchmarkSubdirectory, err)
+				}
 			}
 		}
 	}
@@ -300,7 +306,9 @@ func ImportAll(db *DuckDB, cfg ImportConfig, w io.Writer) error {
 		if !isFile(localPath) {
 			if !cfg.SkipM3 && cfg.Scp != nil {
 				remote := core.Sprintf("%s:/Volumes/Data/lem/benchmarks/%s.jsonl", m3Host, benchmarkFile)
-				_ = cfg.Scp(remote, localPath)
+				if err := cfg.Scp(remote, localPath); err != nil {
+					core.Print(w, "  WARNING: could not pull benchmark file %s from M3: %v", benchmarkFile, err)
+				}
 			}
 		}
 		if isFile(localPath) {

@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"testing"
 
-	core "dappco.re/go/core"
+	core "dappco.re/go"
 )
 
 func TestPublish_Publish_Bad_EmptyRepository(t *testing.T) {

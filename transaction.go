@@ -6,7 +6,7 @@ import (
 	"text/template"
 	"time"
 
-	core "dappco.re/go/core"
+	core "dappco.re/go"
 )
 
 // Usage example: `err := storeInstance.Transaction(func(transaction *store.StoreTransaction) error { return transaction.Set("config", "colour", "blue") })`
@@ -39,7 +39,7 @@ func (storeInstance *Store) Transaction(operation func(*StoreTransaction) error)
 	committed := false
 	defer func() {
 		if !committed {
-			_ = transaction.Rollback()
+			transaction.Rollback()
 		}
 	}()
 

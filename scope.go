@@ -7,7 +7,7 @@ import (
 	"sync" // Note: AX-6 — internal concurrency primitive; structural for store infrastructure (RFC §4 explicitly mandates).
 	"time"
 
-	core "dappco.re/go/core"
+	core "dappco.re/go"
 )
 
 // validNamespace.MatchString("tenant-a") is true; validNamespace.MatchString("tenant_a") is false.

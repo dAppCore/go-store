@@ -5,7 +5,7 @@ package store
 import (
 	"database/sql"
 
-	core "dappco.re/go/core"
+	core "dappco.re/go"
 	_ "github.com/marcboeker/go-duckdb"
 )
 
@@ -57,7 +57,7 @@ func OpenDuckDB(path string) (*DuckDB, error) {
 		return nil, core.E("store.OpenDuckDB", core.Sprintf("open duckdb %s", path), err)
 	}
 	if err := conn.Ping(); err != nil {
-		_ = conn.Close()
+		conn.Close()
 		return nil, core.E("store.OpenDuckDB", core.Sprintf("ping duckdb %s", path), err)
 	}
 	return &DuckDB{conn: conn, path: path}, nil
@@ -74,7 +74,7 @@ func OpenDuckDBReadWrite(path string) (*DuckDB, error) {
 		return nil, core.E("store.OpenDuckDBReadWrite", core.Sprintf("open duckdb %s", path), err)
 	}
 	if err := conn.Ping(); err != nil {
-		_ = conn.Close()
+		conn.Close()
 		return nil, core.E("store.OpenDuckDBReadWrite", core.Sprintf("ping duckdb %s", path), err)
 	}
 	return &DuckDB{conn: conn, path: path}, nil
@@ -282,9 +282,7 @@ func (db *DuckDB) QueryGoldenSet(minChars int) ([]GoldenSetRow, error) {
 	if err != nil {
 		return nil, core.E("store.DuckDB.QueryGoldenSet", "query golden_set", err)
 	}
-	defer func() {
-		_ = rows.Close()
-	}()
+	defer rows.Close()
 
 	var result []GoldenSetRow
 	for rows.Next() {
@@ -336,9 +334,7 @@ func (db *DuckDB) QueryExpansionPrompts(status string, limit int) ([]ExpansionPr
 	if err != nil {
 		return nil, core.E("store.DuckDB.QueryExpansionPrompts", "query expansion_prompts", err)
 	}
-	defer func() {
-		_ = rows.Close()
-	}()
+	defer rows.Close()
 
 	var result []ExpansionPromptRow
 	for rows.Next() {
@@ -392,9 +388,7 @@ func (db *DuckDB) QueryRows(query string, args ...any) ([]map[string]any, error)
 	if err != nil {
 		return nil, core.E("store.DuckDB.QueryRows", "query", err)
 	}
-	defer func() {
-		_ = rows.Close()
-	}()
+	defer rows.Close()
 
 	cols, err := rows.Columns()
 	if err != nil {

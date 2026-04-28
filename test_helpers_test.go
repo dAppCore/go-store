@@ -3,7 +3,7 @@ package store
 import (
 	"testing"
 
-	core "dappco.re/go/core"
+	core "dappco.re/go"
 )
 
 func testFilesystem() *core.Fs {

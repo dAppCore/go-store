@@ -5,7 +5,7 @@ import (
 	"regexp"
 	"time"
 
-	core "dappco.re/go/core"
+	core "dappco.re/go"
 )
 
 const (
@@ -58,10 +58,10 @@ type journalExecutor interface {
 // summary row in `workspace:NAME`.
 func (storeInstance *Store) CommitToJournal(measurement string, fields map[string]any, tags map[string]string) core.Result {
 	if err := storeInstance.ensureReady("store.CommitToJournal"); err != nil {
-		return core.Result{Value: err, OK: false}
+		return core.Fail(err)
 	}
 	if measurement == "" {
-		return core.Result{Value: core.E("store.CommitToJournal", "measurement is empty", nil), OK: false}
+		return core.Fail(core.E("store.CommitToJournal", "measurement is empty", nil))
 	}
 	if fields == nil {
 		fields = map[string]any{}
@@ -70,16 +70,16 @@ func (storeInstance *Store) CommitToJournal(measurement string, fields map[strin
 		tags = map[string]string{}
 	}
 	if err := ensureJournalSchema(storeInstance.sqliteDatabase); err != nil {
-		return core.Result{Value: core.E("store.CommitToJournal", "ensure journal schema", err), OK: false}
+		return core.Fail(core.E("store.CommitToJournal", "ensure journal schema", err))
 	}
 
 	fieldsJSON, err := marshalJSONText(fields, "store.CommitToJournal", "marshal fields")
 	if err != nil {
-		return core.Result{Value: err, OK: false}
+		return core.Fail(err)
 	}
 	tagsJSON, err := marshalJSONText(tags, "store.CommitToJournal", "marshal tags")
 	if err != nil {
-		return core.Result{Value: err, OK: false}
+		return core.Fail(err)
 	}
 
 	committedAt := time.Now().UnixMilli()
@@ -91,29 +91,28 @@ func (storeInstance *Store) CommitToJournal(measurement string, fields map[strin
 		tagsJSON,
 		committedAt,
 	); err != nil {
-		return core.Result{Value: core.E("store.CommitToJournal", "insert journal entry", err), OK: false}
+		return core.Fail(core.E("store.CommitToJournal", "insert journal entry", err))
 	}
 
-	return core.Result{
-		Value: map[string]any{
+	return core.Ok(
+		map[string]any{
 			"bucket":       storeInstance.journalBucket(),
 			"measurement":  measurement,
 			"fields":       cloneAnyMap(fields),
 			"tags":         cloneStringMap(tags),
 			"committed_at": committedAt,
 		},
-		OK: true,
-	}
+	)
 }
 
 // Usage example: `result := storeInstance.QueryJournal(\`from(bucket: "events") |> range(start: -24h) |> filter(fn: (r) => r.workspace == "session-a")\`)`
 // Usage example: `result := storeInstance.QueryJournal("SELECT measurement, committed_at FROM journal_entries ORDER BY committed_at")`
 func (storeInstance *Store) QueryJournal(flux string) core.Result {
 	if err := storeInstance.ensureReady("store.QueryJournal"); err != nil {
-		return core.Result{Value: err, OK: false}
+		return core.Fail(err)
 	}
 	if err := ensureJournalSchema(storeInstance.sqliteDatabase); err != nil {
-		return core.Result{Value: core.E("store.QueryJournal", "ensure journal schema", err), OK: false}
+		return core.Fail(core.E("store.QueryJournal", "ensure journal schema", err))
 	}
 
 	trimmedQuery := core.Trim(flux)
@@ -128,7 +127,7 @@ func (storeInstance *Store) QueryJournal(flux string) core.Result {
 
 	selectSQL, arguments, err := storeInstance.queryJournalFromFlux(trimmedQuery)
 	if err != nil {
-		return core.Result{Value: err, OK: false}
+		return core.Fail(err)
 	}
 	return storeInstance.queryJournalRows(selectSQL, arguments...)
 }
@@ -144,15 +143,15 @@ func isRawSQLJournalQuery(query string) bool {
 func (storeInstance *Store) queryJournalRows(query string, arguments ...any) core.Result {
 	rows, err := storeInstance.sqliteDatabase.Query(query, arguments...)
 	if err != nil {
-		return core.Result{Value: core.E("store.QueryJournal", "query rows", err), OK: false}
+		return core.Fail(core.E("store.QueryJournal", "query rows", err))
 	}
-	defer func() { _ = rows.Close() }()
+	defer rows.Close()
 
 	rowMaps, err := queryRowsAsMaps(rows)
 	if err != nil {
-		return core.Result{Value: core.E("store.QueryJournal", "scan rows", err), OK: false}
+		return core.Fail(core.E("store.QueryJournal", "scan rows", err))
 	}
-	return core.Result{Value: inflateJournalRows(rowMaps), OK: true}
+	return core.Ok(inflateJournalRows(rowMaps))
 }
 
 func (storeInstance *Store) queryJournalFromFlux(flux string) (string, []any, error) {

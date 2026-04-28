@@ -6,8 +6,7 @@ import (
 	"time"
 	"unicode"
 
-	core "dappco.re/go/core"
-	coreio "dappco.re/go/core/io"
+	core "dappco.re/go"
 	"github.com/klauspost/compress/zstd"
 )
 
@@ -25,7 +24,7 @@ type CompactOptions struct {
 	// Usage example: `options := store.CompactOptions{Format: "zstd"}`
 	Format string
 	// Usage example: `medium, _ := s3.New(s3.Options{Bucket: "archive"}); options := store.CompactOptions{Before: time.Now().Add(-90 * 24 * time.Hour), Medium: medium}`
-	// Medium routes the archive write through a coreio.Medium instead of the raw
+	// Medium routes the archive write through a store.Medium instead of the raw
 	// filesystem. When set, Output is the path inside the medium; leave empty
 	// to use `.core/archive/`. When nil, Compact falls back to the store-level
 	// medium (if configured via WithMedium), then to the local filesystem.
@@ -85,15 +84,15 @@ type compactArchiveEntry struct {
 // Usage example: `result := storeInstance.Compact(store.CompactOptions{Before: time.Now().Add(-30 * 24 * time.Hour), Output: "/tmp/archive", Format: "gzip"})`
 func (storeInstance *Store) Compact(options CompactOptions) core.Result {
 	if err := storeInstance.ensureReady("store.Compact"); err != nil {
-		return core.Result{Value: err, OK: false}
+		return core.Fail(err)
 	}
 	if err := ensureJournalSchema(storeInstance.sqliteDatabase); err != nil {
-		return core.Result{Value: core.E("store.Compact", "ensure journal schema", err), OK: false}
+		return core.Fail(core.E("store.Compact", "ensure journal schema", err))
 	}
 
 	options = options.Normalised()
 	if err := options.Validate(); err != nil {
-		return core.Result{Value: core.E("store.Compact", "validate options", err), OK: false}
+		return core.Fail(core.E("store.Compact", "validate options", err))
 	}
 
 	medium := options.Medium
@@ -101,13 +100,13 @@ func (storeInstance *Store) Compact(options CompactOptions) core.Result {
 		medium = storeInstance.medium
 	}
 	if medium == nil {
-		medium = coreio.Local
+		medium = localMedium()
 	}
 	if medium == nil {
-		return core.Result{Value: core.E("store.Compact", "local medium is unavailable", nil), OK: false}
+		return core.Fail(core.E("store.Compact", "local medium is unavailable", nil))
 	}
 	if err := ensureMediumDir(medium, options.Output); err != nil {
-		return core.Result{Value: core.E("store.Compact", "ensure medium archive directory", err), OK: false}
+		return core.Fail(core.E("store.Compact", "ensure medium archive directory", err))
 	}
 
 	rows, queryErr := storeInstance.sqliteDatabase.Query(
@@ -115,11 +114,9 @@ func (storeInstance *Store) Compact(options CompactOptions) core.Result {
 		options.Before.UnixMilli(),
 	)
 	if queryErr != nil {
-		return core.Result{Value: core.E("store.Compact", "query journal rows", queryErr), OK: false}
+		return core.Fail(core.E("store.Compact", "query journal rows", queryErr))
 	}
-	defer func() {
-		_ = rows.Close()
-	}()
+	defer rows.Close()
 
 	var archiveEntries []compactArchiveEntry
 	for rows.Next() {
@@ -132,74 +129,74 @@ func (storeInstance *Store) Compact(options CompactOptions) core.Result {
 			&entry.journalTagsJSON,
 			&entry.journalCommittedAtUnixMilli,
 		); err != nil {
-			return core.Result{Value: core.E("store.Compact", "scan journal row", err), OK: false}
+			return core.Fail(core.E("store.Compact", "scan journal row", err))
 		}
 		archiveEntries = append(archiveEntries, entry)
 	}
 	if err := rows.Err(); err != nil {
-		return core.Result{Value: core.E("store.Compact", "iterate journal rows", err), OK: false}
+		return core.Fail(core.E("store.Compact", "iterate journal rows", err))
 	}
 	if len(archiveEntries) == 0 {
-		return core.Result{Value: "", OK: true}
+		return core.Ok("")
 	}
 
 	outputPath := compactOutputPath(options.Output, options.Format)
 	archiveContent, err := newCompactArchiveBuffer()
 	if err != nil {
-		return core.Result{Value: core.E("store.Compact", "create archive buffer", err), OK: false}
+		return core.Fail(core.E("store.Compact", "create archive buffer", err))
 	}
 	writer, err := archiveWriter(archiveContent, options.Format)
 	if err != nil {
-		return core.Result{Value: err, OK: false}
+		return core.Fail(err)
 	}
 	archiveWriteFinished := false
 	defer func() {
 		if !archiveWriteFinished {
-			_ = writer.Close()
+			writer.Close()
 		}
 	}()
 
 	for _, entry := range archiveEntries {
 		lineMap, err := archiveEntryLine(entry)
 		if err != nil {
-			return core.Result{Value: err, OK: false}
+			return core.Fail(err)
 		}
 		lineJSON, err := marshalJSONText(lineMap, "store.Compact", "marshal archive line")
 		if err != nil {
-			return core.Result{Value: err, OK: false}
+			return core.Fail(err)
 		}
 		if _, err := writer.Write([]byte(lineJSON + "\n")); err != nil {
-			return core.Result{Value: core.E("store.Compact", "write archive line", err), OK: false}
+			return core.Fail(core.E("store.Compact", "write archive line", err))
 		}
 	}
 	if err := writer.Close(); err != nil {
-		return core.Result{Value: core.E("store.Compact", "close archive writer", err), OK: false}
+		return core.Fail(core.E("store.Compact", "close archive writer", err))
 	}
 	archiveWriteFinished = true
 	compressedArchive, err := archiveContent.content()
 	if err != nil {
-		return core.Result{Value: core.E("store.Compact", "read archive buffer", err), OK: false}
+		return core.Fail(core.E("store.Compact", "read archive buffer", err))
 	}
 	stagedOutputPath := core.Concat(outputPath, ".tmp")
 	stagedOutputPublished := false
 	if err := medium.Write(stagedOutputPath, compressedArchive); err != nil {
-		return core.Result{Value: core.E("store.Compact", "write staged archive via medium", err), OK: false}
+		return core.Fail(core.E("store.Compact", "write staged archive via medium", err))
 	}
 	defer func() {
 		if !stagedOutputPublished && medium.Exists(stagedOutputPath) {
-			_ = medium.Delete(stagedOutputPath)
+			medium.Delete(stagedOutputPath)
 		}
 	}()
 
 	transaction, err := storeInstance.sqliteDatabase.Begin()
 	if err != nil {
-		return core.Result{Value: core.E("store.Compact", "begin archive transaction", err), OK: false}
+		return core.Fail(core.E("store.Compact", "begin archive transaction", err))
 	}
 
 	committed := false
 	defer func() {
 		if !committed {
-			_ = transaction.Rollback()
+			transaction.Rollback()
 		}
 	}()
 
@@ -210,20 +207,20 @@ func (storeInstance *Store) Compact(options CompactOptions) core.Result {
 			archivedAt,
 			entry.journalEntryID,
 		); err != nil {
-			return core.Result{Value: core.E("store.Compact", "mark journal row archived", err), OK: false}
+			return core.Fail(core.E("store.Compact", "mark journal row archived", err))
 		}
 	}
 	if err := transaction.Commit(); err != nil {
-		return core.Result{Value: core.E("store.Compact", "commit archive transaction", err), OK: false}
+		return core.Fail(core.E("store.Compact", "commit archive transaction", err))
 	}
 	committed = true
 	stagedOutputPublished = true
 
 	if err := medium.Rename(stagedOutputPath, outputPath); err != nil {
-		return core.Result{Value: core.E("store.Compact", "publish staged archive", err), OK: false}
+		return core.Fail(core.E("store.Compact", "publish staged archive", err))
 	}
 
-	return core.Result{Value: outputPath, OK: true}
+	return core.Ok(outputPath)
 }
 
 func archiveEntryLine(entry compactArchiveEntry) (map[string]any, error) {
@@ -257,20 +254,20 @@ type compactArchiveWriteTarget interface {
 	Write([]byte) (int, error)
 }
 
-type compactArchiveBuffer struct {
+type compactarchivebuffer struct {
 	buffer bytes.Buffer
 }
 
-func newCompactArchiveBuffer() (*compactArchiveBuffer, error) {
-	return &compactArchiveBuffer{}, nil
+func newCompactArchiveBuffer() (*compactarchivebuffer, error) {
+	return &compactarchivebuffer{}, nil
 }
 
 // Usage example: `buffer, _ := newCompactArchiveBuffer(); _, _ = buffer.Write([]byte("archive"))`
-func (buffer *compactArchiveBuffer) Write(data []byte) (int, error) {
+func (buffer *compactarchivebuffer) Write(data []byte) (int, error) {
 	return buffer.buffer.Write(data)
 }
 
-func (buffer *compactArchiveBuffer) content() (string, error) {
+func (buffer *compactarchivebuffer) content() (string, error) {
 	return buffer.buffer.String(), nil
 }
 

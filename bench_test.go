@@ -4,7 +4,7 @@ package store
 import (
 	"testing"
 
-	core "dappco.re/go/core"
+	core "dappco.re/go"
 )
 
 // Supplemental benchmarks beyond the core Set/Get/GetAll/FileBacked benchmarks

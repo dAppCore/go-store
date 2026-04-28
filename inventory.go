@@ -5,7 +5,7 @@ package store
 import (
 	"io"
 
-	core "dappco.re/go/core"
+	core "dappco.re/go"
 )
 
 // TargetTotal is the golden set target size used for progress reporting.

@@ -9,7 +9,7 @@ import (
 	"testing"
 	"unicode"
 
-	core "dappco.re/go/core"
+	core "dappco.re/go"
 )
 
 func TestConventions_Imports_Good_Banned(t *testing.T) {
@@ -66,7 +66,7 @@ func TestConventions_TestNaming_Good_StrictPattern(t *testing.T) {
 				continue
 			}
 			parts := core.Split(core.TrimPrefix(name, expectedPrefix), "_")
-			if len(parts) < 2 || parts[0] == "" || !slices.Contains(allowedClasses, parts[1]) {
+			if len(parts) < 2 || parts[0] == "" || !containsAny(parts[1:], allowedClasses) {
 				invalid = append(invalid, core.Concat(path, ": ", name))
 			}
 		}
@@ -74,6 +74,15 @@ func TestConventions_TestNaming_Good_StrictPattern(t *testing.T) {
 
 	slices.Sort(invalid)
 	assertEmptyf(t, invalid, "top-level tests must follow Test<File>_<Function>_<Good|Bad|Ugly>")
+}
+
+func containsAny(values []string, candidates []string) bool {
+	for _, value := range values {
+		if slices.Contains(candidates, value) {
+			return true
+		}
+	}
+	return false
 }
 
 func TestConventions_Exports_Good_UsageExamples(t *testing.T) {

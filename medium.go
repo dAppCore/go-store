@@ -5,19 +5,195 @@ package store
 import (
 	"bytes"
 	"encoding/csv"
+	goio "io"
+	"io/fs"
 
-	core "dappco.re/go/core"
-	coreio "dappco.re/go/core/io"
+	core "dappco.re/go"
 )
 
 // Medium is the minimal storage transport used by the go-store workspace
 // import and export helpers and by Compact when writing cold archives.
 //
-// This is an alias of `dappco.re/go/core/io.Medium`, so callers can pass any
-// upstream medium implementation directly without an adapter.
+// This structural interface matches the legacy core/io medium contract, so
+// callers can pass any upstream medium implementation directly without an
+// adapter while go-store no longer imports the legacy module path.
 //
 // Usage example: `medium, _ := local.New("/tmp/exports"); storeInstance, err := store.NewConfigured(store.StoreConfig{DatabasePath: ":memory:", Medium: medium})`
-type Medium = coreio.Medium
+type Medium interface {
+	Read(path string) (string, error)
+	Write(path, content string) error
+	WriteMode(path, content string, mode fs.FileMode) error
+	EnsureDir(path string) error
+	IsFile(path string) bool
+	Delete(path string) error
+	DeleteAll(path string) error
+	Rename(oldPath, newPath string) error
+	List(path string) ([]fs.DirEntry, error)
+	Stat(path string) (fs.FileInfo, error)
+	Open(path string) (fs.File, error)
+	Create(path string) (goio.WriteCloser, error)
+	Append(path string) (goio.WriteCloser, error)
+	ReadStream(path string) (goio.ReadCloser, error)
+	WriteStream(path string) (goio.WriteCloser, error)
+	Exists(path string) bool
+	IsDir(path string) bool
+}
+
+type filesystemmedium struct {
+	filesystem *core.Fs
+}
+
+func localMedium() Medium {
+	return &filesystemmedium{filesystem: (&core.Fs{}).NewUnrestricted()}
+}
+
+// Usage example: `content, err := localMedium().Read("archive.jsonl")`
+func (medium *filesystemmedium) Read(path string) (string, error) {
+	result := medium.filesystem.Read(path)
+	if !result.OK {
+		return "", resultError(result)
+	}
+	return result.Value.(string), nil
+}
+
+// Usage example: `err := localMedium().Write("archive.jsonl", payload)`
+func (medium *filesystemmedium) Write(path, content string) error {
+	result := medium.filesystem.Write(path, content)
+	if !result.OK {
+		return resultError(result)
+	}
+	return nil
+}
+
+// Usage example: `err := localMedium().WriteMode("archive.jsonl", payload, 0o600)`
+func (medium *filesystemmedium) WriteMode(path, content string, mode fs.FileMode) error {
+	result := medium.filesystem.WriteMode(path, content, mode)
+	if !result.OK {
+		return resultError(result)
+	}
+	return nil
+}
+
+// Usage example: `err := localMedium().EnsureDir("archives")`
+func (medium *filesystemmedium) EnsureDir(path string) error {
+	result := medium.filesystem.EnsureDir(path)
+	if !result.OK {
+		return resultError(result)
+	}
+	return nil
+}
+
+// Usage example: `exists := localMedium().IsFile("archive.jsonl")`
+func (medium *filesystemmedium) IsFile(path string) bool {
+	return medium.filesystem.IsFile(path)
+}
+
+// Usage example: `err := localMedium().Delete("archive.jsonl")`
+func (medium *filesystemmedium) Delete(path string) error {
+	result := medium.filesystem.Delete(path)
+	if !result.OK {
+		return resultError(result)
+	}
+	return nil
+}
+
+// Usage example: `err := localMedium().DeleteAll("archives")`
+func (medium *filesystemmedium) DeleteAll(path string) error {
+	result := medium.filesystem.DeleteAll(path)
+	if !result.OK {
+		return resultError(result)
+	}
+	return nil
+}
+
+// Usage example: `err := localMedium().Rename("old.jsonl", "new.jsonl")`
+func (medium *filesystemmedium) Rename(oldPath, newPath string) error {
+	result := medium.filesystem.Rename(oldPath, newPath)
+	if !result.OK {
+		return resultError(result)
+	}
+	return nil
+}
+
+// Usage example: `entries, err := localMedium().List("archives")`
+func (medium *filesystemmedium) List(path string) ([]fs.DirEntry, error) {
+	result := medium.filesystem.List(path)
+	if !result.OK {
+		return nil, resultError(result)
+	}
+	return result.Value.([]fs.DirEntry), nil
+}
+
+// Usage example: `info, err := localMedium().Stat("archive.jsonl")`
+func (medium *filesystemmedium) Stat(path string) (fs.FileInfo, error) {
+	result := medium.filesystem.Stat(path)
+	if !result.OK {
+		return nil, resultError(result)
+	}
+	return result.Value.(fs.FileInfo), nil
+}
+
+// Usage example: `file, err := localMedium().Open("archive.jsonl")`
+func (medium *filesystemmedium) Open(path string) (fs.File, error) {
+	result := medium.filesystem.Open(path)
+	if !result.OK {
+		return nil, resultError(result)
+	}
+	return result.Value.(fs.File), nil
+}
+
+// Usage example: `writer, err := localMedium().Create("archive.jsonl")`
+func (medium *filesystemmedium) Create(path string) (goio.WriteCloser, error) {
+	result := medium.filesystem.Create(path)
+	if !result.OK {
+		return nil, resultError(result)
+	}
+	return result.Value.(goio.WriteCloser), nil
+}
+
+// Usage example: `writer, err := localMedium().Append("archive.jsonl")`
+func (medium *filesystemmedium) Append(path string) (goio.WriteCloser, error) {
+	result := medium.filesystem.Append(path)
+	if !result.OK {
+		return nil, resultError(result)
+	}
+	return result.Value.(goio.WriteCloser), nil
+}
+
+// Usage example: `reader, err := localMedium().ReadStream("archive.jsonl")`
+func (medium *filesystemmedium) ReadStream(path string) (goio.ReadCloser, error) {
+	result := medium.filesystem.ReadStream(path)
+	if !result.OK {
+		return nil, resultError(result)
+	}
+	return result.Value.(goio.ReadCloser), nil
+}
+
+// Usage example: `writer, err := localMedium().WriteStream("archive.jsonl")`
+func (medium *filesystemmedium) WriteStream(path string) (goio.WriteCloser, error) {
+	result := medium.filesystem.WriteStream(path)
+	if !result.OK {
+		return nil, resultError(result)
+	}
+	return result.Value.(goio.WriteCloser), nil
+}
+
+// Usage example: `exists := localMedium().Exists("archive.jsonl")`
+func (medium *filesystemmedium) Exists(path string) bool {
+	return medium.filesystem.Exists(path)
+}
+
+// Usage example: `isDirectory := localMedium().IsDir("archives")`
+func (medium *filesystemmedium) IsDir(path string) bool {
+	return medium.filesystem.IsDir(path)
+}
+
+func resultError(result core.Result) error {
+	if err, ok := result.Value.(error); ok {
+		return err
+	}
+	return core.E("store.Medium", core.Sprint(result.Value), nil)
+}
 
 // Usage example: `medium, _ := local.New("/srv/core"); storeInstance, err := store.NewConfigured(store.StoreConfig{DatabasePath: ":memory:", Medium: medium})`
 // WithMedium installs an io.Medium-compatible transport on the Store so that

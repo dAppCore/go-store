@@ -9,7 +9,7 @@ import (
 	"time"
 	"unicode"
 
-	core "dappco.re/go/core"
+	core "dappco.re/go"
 	influxdb2 "github.com/influxdata/influxdb-client-go/v2"
 	_ "modernc.org/sqlite"
 )
@@ -383,15 +383,15 @@ func openSQLiteStore(operation, databasePath string, medium Medium) (*Store, err
 	// pool hands out different connections for each call.
 	sqliteDatabase.SetMaxOpenConns(1)
 	if _, err := sqliteDatabase.Exec("PRAGMA journal_mode=WAL"); err != nil {
-		_ = sqliteDatabase.Close()
+		sqliteDatabase.Close()
 		return nil, core.E(operation, "set WAL journal mode", err)
 	}
 	if _, err := sqliteDatabase.Exec("PRAGMA busy_timeout=5000"); err != nil {
-		_ = sqliteDatabase.Close()
+		sqliteDatabase.Close()
 		return nil, core.E(operation, "set busy timeout", err)
 	}
 	if err := ensureSchema(sqliteDatabase); err != nil {
-		_ = sqliteDatabase.Close()
+		sqliteDatabase.Close()
 		return nil, core.E(operation, "ensure schema", err)
 	}
 
@@ -519,11 +519,11 @@ func (storeInstance *Store) syncMediumBackedDatabase() error {
 	}
 
 	if storeInstance.sqliteStorageDirectory != "" {
-		_ = filesystem.DeleteAll(storeInstance.sqliteStorageDirectory)
+		filesystem.DeleteAll(storeInstance.sqliteStorageDirectory)
 		return nil
 	}
 	for _, path := range []string{storeInstance.sqliteStoragePath + "-wal", storeInstance.sqliteStoragePath + "-shm"} {
-		_ = filesystem.Delete(path)
+		filesystem.Delete(path)
 	}
 	return nil
 }

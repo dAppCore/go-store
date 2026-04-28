@@ -2,7 +2,7 @@
 
 package store
 
-import core "dappco.re/go/core"
+import core "dappco.re/go"
 
 // ChatMessage represents a single message in a chat conversation, used for
 // reading JSONL training data during data import.

@@ -3,8 +3,7 @@ module dappco.re/go/store
 go 1.26.0
 
 require (
-	dappco.re/go/core v0.8.0-alpha.1
-	dappco.re/go/core/io v0.4.2
+	dappco.re/go v0.9.0
 	github.com/influxdata/influxdb-client-go/v2 v2.14.0 // Note: InfluxDB storage client; no core equivalent
 	github.com/klauspost/compress v1.18.5 // Note: compression codecs for storage payloads; no core equivalent
 	modernc.org/sqlite v1.47.0 // Note: pure-Go SQLite driver; no core equivalent

@@ -10,7 +10,7 @@ import (
 	"net/http"
 	"time"
 
-	core "dappco.re/go/core"
+	core "dappco.re/go"
 )
 
 // PublishConfig holds options for the publish operation.
@@ -258,9 +258,7 @@ func hfJSONRequest(ctx context.Context, token, method, url string, payload map[s
 	if err != nil {
 		return 0, "", core.E("store.hfJSONRequest", "send request", err)
 	}
-	defer func() {
-		_ = resp.Body.Close()
-	}()
+	defer resp.Body.Close()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -277,7 +275,7 @@ func uploadFileToHF(ctx context.Context, token, repoID, localPath, remotePath st
 		return core.E("store.uploadFileToHF", core.Sprintf("open %s", localPath), openResult.Value.(error))
 	}
 	file := openResult.Value.(fs.File)
-	defer func() { _ = file.Close() }()
+	defer file.Close()
 
 	url := core.Sprintf("https://huggingface.co/api/datasets/%s/upload/main/%s", repoID, remotePath)
 
@@ -296,9 +294,7 @@ func uploadFileToHF(ctx context.Context, token, repoID, localPath, remotePath st
 	if err != nil {
 		return core.E("store.uploadFileToHF", "upload request", err)
 	}
-	defer func() {
-		_ = resp.Body.Close()
-	}()
+	defer resp.Body.Close()
 
 	if resp.StatusCode >= 300 {
 		body, readErr := io.ReadAll(resp.Body)

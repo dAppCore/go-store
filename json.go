@@ -6,7 +6,7 @@
 // Internally uses core/go JSON primitives.
 package store
 
-import core "dappco.re/go/core"
+import core "dappco.re/go"
 
 // RawMessage is a raw encoded JSON value.
 // Use in structs where the JSON should be stored as-is without re-encoding.
