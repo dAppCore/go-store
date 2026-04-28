@@ -5,7 +5,7 @@ import (
 	store "dappco.re/go/store"
 )
 
-func TestInventoryV090_PrintDuckDBInventory_Good(t *T) {
+func TestInventory_PrintDuckDBInventory_Good(t *T) {
 	database := ax7DuckDB(t)
 	ax7SeedDuckDB(t, database)
 	output := NewBuffer()
@@ -14,7 +14,7 @@ func TestInventoryV090_PrintDuckDBInventory_Good(t *T) {
 	AssertContains(t, output.String(), "DuckDB Inventory")
 }
 
-func TestInventoryV090_PrintDuckDBInventory_Bad(t *T) {
+func TestInventory_PrintDuckDBInventory_Bad(t *T) {
 	database := ax7DuckDB(t)
 	RequireNoError(t, database.Close())
 	output := NewBuffer()
@@ -23,7 +23,7 @@ func TestInventoryV090_PrintDuckDBInventory_Bad(t *T) {
 	AssertContains(t, output.String(), "TOTAL")
 }
 
-func TestInventoryV090_PrintDuckDBInventory_Ugly(t *T) {
+func TestInventory_PrintDuckDBInventory_Ugly(t *T) {
 	database := ax7DuckDB(t)
 	RequireNoError(t, database.EnsureScoringTables())
 	output := NewBuffer()

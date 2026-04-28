@@ -568,3 +568,82 @@ func splitNewlines(content string) []string {
 	}
 	return result
 }
+
+func TestMedium_WithMedium_Bad(t *T) {
+	storeInstance, err := New(":memory:", WithMedium(nil))
+	RequireNoError(t, err)
+	defer storeInstance.Close()
+	AssertNil(t, storeInstance.Medium())
+}
+
+func TestMedium_WithMedium_Ugly(t *T) {
+	option := WithMedium(newAX7Medium())
+	AssertNotPanics(t, func() { option(nil) })
+	AssertNotNil(t, option)
+}
+
+func TestMedium_Store_Medium_Good(t *T) {
+	medium := newAX7Medium()
+	storeInstance, err := NewConfigured(StoreConfig{DatabasePath: ":memory:", Medium: medium})
+	RequireNoError(t, err)
+	defer storeInstance.Close()
+	AssertSame(t, medium, storeInstance.Medium())
+}
+
+func TestMedium_Store_Medium_Bad(t *T) {
+	var storeInstance *Store
+	medium := storeInstance.Medium()
+	AssertNil(t, medium)
+}
+
+func TestMedium_Store_Medium_Ugly(t *T) {
+	storeInstance := ax7Store(t)
+	medium := storeInstance.Medium()
+	AssertNil(t, medium)
+}
+
+func TestMedium_Import_Good(t *T) {
+	_, workspace := ax7Workspace(t)
+	medium := newAX7Medium()
+	RequireNoError(t, medium.Write("records.jsonl", `{"name":"alice"}`))
+	err := Import(workspace, medium, "records.jsonl")
+	AssertNoError(t, err)
+	AssertEqual(t, 1, len(workspace.Aggregate()))
+}
+
+func TestMedium_Import_Bad(t *T) {
+	medium := newAX7Medium()
+	err := Import(nil, medium, "records.jsonl")
+	AssertError(t, err)
+}
+
+func TestMedium_Import_Ugly(t *T) {
+	_, workspace := ax7Workspace(t)
+	medium := newAX7Medium()
+	RequireNoError(t, medium.Write("records.csv", "name\nalice\n"))
+	err := Import(workspace, medium, "records.csv")
+	AssertNoError(t, err)
+}
+
+func TestMedium_Export_Good(t *T) {
+	_, workspace := ax7Workspace(t)
+	medium := newAX7Medium()
+	RequireNoError(t, workspace.Put("entry", map[string]any{"name": "alice"}))
+	err := Export(workspace, medium, "out/report.json")
+	AssertNoError(t, err)
+	AssertTrue(t, medium.Exists("out/report.json"))
+}
+
+func TestMedium_Export_Bad(t *T) {
+	medium := newAX7Medium()
+	err := Export(nil, medium, "report.json")
+	AssertError(t, err)
+}
+
+func TestMedium_Export_Ugly(t *T) {
+	_, workspace := ax7Workspace(t)
+	medium := newAX7Medium()
+	RequireNoError(t, workspace.Put("entry", map[string]any{"name": "alice"}))
+	err := Export(workspace, medium, "report.jsonl")
+	AssertNoError(t, err)
+}
