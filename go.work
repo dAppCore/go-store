@@ -1,0 +1,11 @@
+go 1.26.0
+
+// Workspace mode for development: pulls local code from external/ checkouts.
+//
+// CI and release verification use GOWORK=off so go/go.mod remains the
+// reproducible contract.
+
+use (
+	./go
+	./external/go
+)
