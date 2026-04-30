@@ -73,73 +73,97 @@ func PrintDuckDBInventory(db *DuckDB, w io.Writer) error {
 func gatherDuckDBDetails(db *DuckDB, counts map[string]int) map[string]*duckDBTableDetail {
 	details := make(map[string]*duckDBTableDetail)
 
-	// golden_set: progress towards target
-	if count, ok := counts["golden_set"]; ok {
-		pct := float64(count) / float64(TargetTotal) * 100
-		details["golden_set"] = &duckDBTableDetail{
-			notes: []string{core.Sprintf("%.1f%% of %d target", pct, TargetTotal)},
-		}
+	if detail := goldenSetDetail(counts); detail != nil {
+		details["golden_set"] = detail
 	}
-
-	// training_examples: distinct sources
-	if _, ok := counts["training_examples"]; ok {
-		rows, err := db.QueryRows("SELECT COUNT(DISTINCT source) AS n FROM training_examples")
-		if err == nil && len(rows) > 0 {
-			n := duckDBToInt(rows[0]["n"])
-			details["training_examples"] = &duckDBTableDetail{
-				notes: []string{core.Sprintf("%d sources", n)},
-			}
-		}
+	if detail := trainingExamplesDetail(db, counts); detail != nil {
+		details["training_examples"] = detail
 	}
-
-	// prompts: distinct domains and voices
-	if _, ok := counts["prompts"]; ok {
-		d := &duckDBTableDetail{}
-		rows, err := db.QueryRows("SELECT COUNT(DISTINCT domain) AS n FROM prompts")
-		if err == nil && len(rows) > 0 {
-			d.notes = append(d.notes, core.Sprintf("%d domains", duckDBToInt(rows[0]["n"])))
-		}
-		rows, err = db.QueryRows("SELECT COUNT(DISTINCT voice) AS n FROM prompts")
-		if err == nil && len(rows) > 0 {
-			d.notes = append(d.notes, core.Sprintf("%d voices", duckDBToInt(rows[0]["n"])))
-		}
-		if len(d.notes) > 0 {
-			details["prompts"] = d
-		}
+	if detail := promptsDetail(db, counts); detail != nil {
+		details["prompts"] = detail
 	}
-
-	// gemini_responses: group by source_model
-	if _, ok := counts["gemini_responses"]; ok {
-		rows, err := db.QueryRows(
-			"SELECT source_model, COUNT(*) AS n FROM gemini_responses GROUP BY source_model ORDER BY n DESC",
-		)
-		if err == nil && len(rows) > 0 {
-			var parts []string
-			for _, row := range rows {
-				model := duckDBStrVal(row, "source_model")
-				n := duckDBToInt(row["n"])
-				if model != "" {
-					parts = append(parts, core.Sprintf("%s:%d", model, n))
-				}
-			}
-			if len(parts) > 0 {
-				details["gemini_responses"] = &duckDBTableDetail{notes: parts}
-			}
-		}
+	if detail := geminiResponsesDetail(db, counts); detail != nil {
+		details["gemini_responses"] = detail
 	}
-
-	// benchmark_results: distinct source categories
-	if _, ok := counts["benchmark_results"]; ok {
-		rows, err := db.QueryRows("SELECT COUNT(DISTINCT source) AS n FROM benchmark_results")
-		if err == nil && len(rows) > 0 {
-			n := duckDBToInt(rows[0]["n"])
-			details["benchmark_results"] = &duckDBTableDetail{
-				notes: []string{core.Sprintf("%d categories", n)},
-			}
-		}
+	if detail := benchmarkResultsDetail(db, counts); detail != nil {
+		details["benchmark_results"] = detail
 	}
 
 	return details
+}
+
+func goldenSetDetail(counts map[string]int) *duckDBTableDetail {
+	count, ok := counts["golden_set"]
+	if !ok {
+		return nil
+	}
+	pct := float64(count) / float64(TargetTotal) * 100
+	return &duckDBTableDetail{notes: []string{core.Sprintf("%.1f%% of %d target", pct, TargetTotal)}}
+}
+
+func trainingExamplesDetail(db *DuckDB, counts map[string]int) *duckDBTableDetail {
+	if _, ok := counts["training_examples"]; !ok {
+		return nil
+	}
+	rows, err := db.QueryRows("SELECT COUNT(DISTINCT source) AS n FROM training_examples")
+	if err != nil || len(rows) == 0 {
+		return nil
+	}
+	return &duckDBTableDetail{notes: []string{core.Sprintf("%d sources", duckDBToInt(rows[0]["n"]))}}
+}
+
+func promptsDetail(db *DuckDB, counts map[string]int) *duckDBTableDetail {
+	if _, ok := counts["prompts"]; !ok {
+		return nil
+	}
+	detail := &duckDBTableDetail{}
+	appendDistinctPromptCount(db, detail, "domain", "domains")
+	appendDistinctPromptCount(db, detail, "voice", "voices")
+	if len(detail.notes) == 0 {
+		return nil
+	}
+	return detail
+}
+
+func appendDistinctPromptCount(db *DuckDB, detail *duckDBTableDetail, column, label string) {
+	rows, err := db.QueryRows(core.Sprintf("SELECT COUNT(DISTINCT %s) AS n FROM prompts", column))
+	if err == nil && len(rows) > 0 {
+		detail.notes = append(detail.notes, core.Sprintf("%d %s", duckDBToInt(rows[0]["n"]), label))
+	}
+}
+
+func geminiResponsesDetail(db *DuckDB, counts map[string]int) *duckDBTableDetail {
+	if _, ok := counts["gemini_responses"]; !ok {
+		return nil
+	}
+	rows, err := db.QueryRows(
+		"SELECT source_model, COUNT(*) AS n FROM gemini_responses GROUP BY source_model ORDER BY n DESC",
+	)
+	if err != nil || len(rows) == 0 {
+		return nil
+	}
+	var parts []string
+	for _, row := range rows {
+		model := duckDBStrVal(row, "source_model")
+		if model != "" {
+			parts = append(parts, core.Sprintf("%s:%d", model, duckDBToInt(row["n"])))
+		}
+	}
+	if len(parts) == 0 {
+		return nil
+	}
+	return &duckDBTableDetail{notes: parts}
+}
+
+func benchmarkResultsDetail(db *DuckDB, counts map[string]int) *duckDBTableDetail {
+	if _, ok := counts["benchmark_results"]; !ok {
+		return nil
+	}
+	rows, err := db.QueryRows("SELECT COUNT(DISTINCT source) AS n FROM benchmark_results")
+	if err != nil || len(rows) == 0 {
+		return nil
+	}
+	return &duckDBTableDetail{notes: []string{core.Sprintf("%d categories", duckDBToInt(rows[0]["n"]))}}
 }
 
 // duckDBToInt converts a DuckDB value to int. DuckDB returns integers as int64

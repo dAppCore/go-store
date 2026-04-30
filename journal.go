@@ -57,11 +57,11 @@ type journalExecutor interface {
 // Workspace.Commit uses this same journal write path before it updates the
 // summary row in `workspace:NAME`.
 func (storeInstance *Store) CommitToJournal(measurement string, fields map[string]any, tags map[string]string) core.Result {
-	if err := storeInstance.ensureReady("store.CommitToJournal"); err != nil {
+	if err := storeInstance.ensureReady(opCommitToJournal); err != nil {
 		return core.Fail(err)
 	}
 	if measurement == "" {
-		return core.Fail(core.E("store.CommitToJournal", "measurement is empty", nil))
+		return core.Fail(core.E(opCommitToJournal, "measurement is empty", nil))
 	}
 	if fields == nil {
 		fields = map[string]any{}
@@ -70,14 +70,14 @@ func (storeInstance *Store) CommitToJournal(measurement string, fields map[strin
 		tags = map[string]string{}
 	}
 	if err := ensureJournalSchema(storeInstance.sqliteDatabase); err != nil {
-		return core.Fail(core.E("store.CommitToJournal", "ensure journal schema", err))
+		return core.Fail(core.E(opCommitToJournal, "ensure journal schema", err))
 	}
 
-	fieldsJSON, err := marshalJSONText(fields, "store.CommitToJournal", "marshal fields")
+	fieldsJSON, err := marshalJSONText(fields, opCommitToJournal, "marshal fields")
 	if err != nil {
 		return core.Fail(err)
 	}
-	tagsJSON, err := marshalJSONText(tags, "store.CommitToJournal", "marshal tags")
+	tagsJSON, err := marshalJSONText(tags, opCommitToJournal, "marshal tags")
 	if err != nil {
 		return core.Fail(err)
 	}
@@ -91,7 +91,7 @@ func (storeInstance *Store) CommitToJournal(measurement string, fields map[strin
 		tagsJSON,
 		committedAt,
 	); err != nil {
-		return core.Fail(core.E("store.CommitToJournal", "insert journal entry", err))
+		return core.Fail(core.E(opCommitToJournal, "insert journal entry", err))
 	}
 
 	return core.Ok(
@@ -108,11 +108,11 @@ func (storeInstance *Store) CommitToJournal(measurement string, fields map[strin
 // Usage example: `result := storeInstance.QueryJournal(\`from(bucket: "events") |> range(start: -24h) |> filter(fn: (r) => r.workspace == "session-a")\`)`
 // Usage example: `result := storeInstance.QueryJournal("SELECT measurement, committed_at FROM journal_entries ORDER BY committed_at")`
 func (storeInstance *Store) QueryJournal(flux string) core.Result {
-	if err := storeInstance.ensureReady("store.QueryJournal"); err != nil {
+	if err := storeInstance.ensureReady(opQueryJournal); err != nil {
 		return core.Fail(err)
 	}
 	if err := ensureJournalSchema(storeInstance.sqliteDatabase); err != nil {
-		return core.Fail(core.E("store.QueryJournal", "ensure journal schema", err))
+		return core.Fail(core.E(opQueryJournal, "ensure journal schema", err))
 	}
 
 	trimmedQuery := core.Trim(flux)
@@ -143,13 +143,13 @@ func isRawSQLJournalQuery(query string) bool {
 func (storeInstance *Store) queryJournalRows(query string, arguments ...any) core.Result {
 	rows, err := storeInstance.sqliteDatabase.Query(query, arguments...)
 	if err != nil {
-		return core.Fail(core.E("store.QueryJournal", "query rows", err))
+		return core.Fail(core.E(opQueryJournal, "query rows", err))
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	rowMaps, err := queryRowsAsMaps(rows)
 	if err != nil {
-		return core.Fail(core.E("store.QueryJournal", "scan rows", err))
+		return core.Fail(core.E(opQueryJournal, "scan rows", err))
 	}
 	return core.Ok(inflateJournalRows(rowMaps))
 }
@@ -160,58 +160,100 @@ func (storeInstance *Store) queryJournalFromFlux(flux string) (string, []any, er
 	queryBuilder.WriteString(journalEntriesTableName)
 	queryBuilder.WriteString(" WHERE archived_at IS NULL")
 
+	filters, err := journalFluxSQLFilters(flux)
+	if err != nil {
+		return "", nil, err
+	}
 	var queryArguments []any
-	if bucket := quotedSubmatch(journalBucketPattern, flux); bucket != "" {
-		queryBuilder.WriteString(" AND bucket_name = ?")
-		queryArguments = append(queryArguments, bucket)
-	}
-	if measurement := firstQuotedSubmatch(journalMeasurementPatterns, flux); measurement != "" {
-		queryBuilder.WriteString(" AND measurement = ?")
-		queryArguments = append(queryArguments, measurement)
-	}
-
-	startRange, stopRange := journalRangeBounds(flux)
-	if startRange != "" {
-		startTime, err := parseFluxTime(core.Trim(startRange))
-		if err != nil {
-			return "", nil, core.E("store.QueryJournal", "parse range", err)
-		}
-		queryBuilder.WriteString(" AND committed_at >= ?")
-		queryArguments = append(queryArguments, startTime.UnixMilli())
-	}
-	if stopRange != "" {
-		stopTime, err := parseFluxTime(core.Trim(stopRange))
-		if err != nil {
-			return "", nil, core.E("store.QueryJournal", "parse range", err)
-		}
-		queryBuilder.WriteString(" AND committed_at < ?")
-		queryArguments = append(queryArguments, stopTime.UnixMilli())
-	}
-
-	for _, pattern := range journalBucketEqualityPatterns {
-		bucketMatches := pattern.FindAllStringSubmatch(flux, -1)
-		for _, match := range bucketMatches {
-			if len(match) < 2 {
-				continue
-			}
-			queryBuilder.WriteString(" AND bucket_name = ?")
-			queryArguments = append(queryArguments, match[1])
-		}
-	}
-
-	for _, filter := range journalEqualityFilters(flux) {
-		if filter.stringCompare {
-			queryBuilder.WriteString(" AND (CAST(json_extract(tags_json, '$.\"' || ? || '\"') AS TEXT) = ? OR CAST(json_extract(fields_json, '$.\"' || ? || '\"') AS TEXT) = ?)")
-			queryArguments = append(queryArguments, filter.columnName, filter.filterValue, filter.columnName, filter.filterValue)
-			continue
-		}
-
-		queryBuilder.WriteString(" AND json_extract(fields_json, '$.\"' || ? || '\"') = ?")
-		queryArguments = append(queryArguments, filter.columnName, filter.filterValue)
+	for _, filter := range filters {
+		queryBuilder.WriteString(filter.clause)
+		queryArguments = append(queryArguments, filter.args...)
 	}
 
 	queryBuilder.WriteString(" ORDER BY committed_at, entry_id")
 	return queryBuilder.String(), queryArguments, nil
+}
+
+type journalSQLFilter struct {
+	clause string
+	args   []any
+}
+
+func journalFluxSQLFilters(flux string) ([]journalSQLFilter, error) {
+	var filters []journalSQLFilter
+	filters = append(filters, journalNamedFluxFilters(flux)...)
+	rangeFilters, err := journalRangeSQLFilters(flux)
+	if err != nil {
+		return nil, err
+	}
+	filters = append(filters, rangeFilters...)
+	filters = append(filters, journalBucketEqualitySQLFilters(flux)...)
+	filters = append(filters, journalEqualitySQLFilters(flux)...)
+	return filters, nil
+}
+
+func journalNamedFluxFilters(flux string) []journalSQLFilter {
+	var filters []journalSQLFilter
+	if bucket := quotedSubmatch(journalBucketPattern, flux); bucket != "" {
+		filters = append(filters, journalSQLFilter{clause: " AND bucket_name = ?", args: []any{bucket}})
+	}
+	if measurement := firstQuotedSubmatch(journalMeasurementPatterns, flux); measurement != "" {
+		filters = append(filters, journalSQLFilter{clause: " AND measurement = ?", args: []any{measurement}})
+	}
+	return filters
+}
+
+func journalRangeSQLFilters(flux string) ([]journalSQLFilter, error) {
+	startRange, stopRange := journalRangeBounds(flux)
+	var filters []journalSQLFilter
+	if startRange != "" {
+		startTime, err := parseFluxTime(core.Trim(startRange))
+		if err != nil {
+			return nil, core.E(opQueryJournal, "parse range", err)
+		}
+		filters = append(filters, journalSQLFilter{clause: " AND committed_at >= ?", args: []any{startTime.UnixMilli()}})
+	}
+	if stopRange != "" {
+		stopTime, err := parseFluxTime(core.Trim(stopRange))
+		if err != nil {
+			return nil, core.E(opQueryJournal, "parse range", err)
+		}
+		filters = append(filters, journalSQLFilter{clause: " AND committed_at < ?", args: []any{stopTime.UnixMilli()}})
+	}
+	return filters, nil
+}
+
+func journalBucketEqualitySQLFilters(flux string) []journalSQLFilter {
+	var filters []journalSQLFilter
+	for _, pattern := range journalBucketEqualityPatterns {
+		for _, match := range pattern.FindAllStringSubmatch(flux, -1) {
+			if len(match) >= 2 {
+				filters = append(filters, journalSQLFilter{clause: " AND bucket_name = ?", args: []any{match[1]}})
+			}
+		}
+	}
+	return filters
+}
+
+func journalEqualitySQLFilters(flux string) []journalSQLFilter {
+	var filters []journalSQLFilter
+	for _, filter := range journalEqualityFilters(flux) {
+		filters = append(filters, journalEqualitySQLFilter(filter))
+	}
+	return filters
+}
+
+func journalEqualitySQLFilter(filter journalEqualityFilter) journalSQLFilter {
+	if filter.stringCompare {
+		return journalSQLFilter{
+			clause: " AND (CAST(json_extract(tags_json, '$.\"' || ? || '\"') AS TEXT) = ? OR CAST(json_extract(fields_json, '$.\"' || ? || '\"') AS TEXT) = ?)",
+			args:   []any{filter.columnName, filter.filterValue, filter.columnName, filter.filterValue},
+		}
+	}
+	return journalSQLFilter{
+		clause: " AND json_extract(fields_json, '$.\"' || ? || '\"') = ?",
+		args:   []any{filter.columnName, filter.filterValue},
+	}
 }
 
 func (storeInstance *Store) journalBucket() string {
@@ -239,7 +281,7 @@ func commitJournalEntry(
 	committedAt int64,
 ) error {
 	_, err := executor.Exec(
-		"INSERT INTO "+journalEntriesTableName+" (bucket_name, measurement, fields_json, tags_json, committed_at, archived_at) VALUES (?, ?, ?, ?, ?, NULL)",
+		sqlInsertIntoPrefix+journalEntriesTableName+" (bucket_name, measurement, fields_json, tags_json, committed_at, archived_at) VALUES (?, ?, ?, ?, ?, NULL)",
 		bucket,
 		measurement,
 		fieldsJSON,
@@ -427,42 +469,57 @@ func normaliseRowValue(value any) any {
 
 func journalEqualityFilters(flux string) []journalEqualityFilter {
 	var filters []journalEqualityFilter
-	appendFilter := func(columnName string, filterValue any, stringCompare bool) {
-		if columnName == "_measurement" || columnName == "measurement" || columnName == "_bucket" || columnName == "bucket" || columnName == "bucket_name" {
-			return
-		}
-		filters = append(filters, journalEqualityFilter{
-			columnName:    columnName,
-			filterValue:   filterValue,
-			stringCompare: stringCompare,
-		})
-	}
+	filters = append(filters, journalStringEqualityFilters(flux)...)
+	filters = append(filters, journalScalarEqualityFilters(flux)...)
+	return filters
+}
 
+func journalStringEqualityFilters(flux string) []journalEqualityFilter {
+	var filters []journalEqualityFilter
 	for _, pattern := range journalStringEqualityPatterns {
-		matches := pattern.FindAllStringSubmatch(flux, -1)
-		for _, match := range matches {
-			if len(match) < 3 {
-				continue
+		for _, match := range pattern.FindAllStringSubmatch(flux, -1) {
+			if len(match) >= 3 {
+				filters = appendJournalEqualityFilter(filters, match[1], match[2], true)
 			}
-			appendFilter(match[1], match[2], true)
 		}
 	}
+	return filters
+}
 
+func journalScalarEqualityFilters(flux string) []journalEqualityFilter {
+	var filters []journalEqualityFilter
 	for _, pattern := range journalScalarEqualityPatterns {
-		matches := pattern.FindAllStringSubmatch(flux, -1)
-		for _, match := range matches {
+		for _, match := range pattern.FindAllStringSubmatch(flux, -1) {
 			if len(match) < 3 {
 				continue
 			}
 			filterValue, ok := parseJournalScalarValue(match[2])
-			if !ok {
-				continue
+			if ok {
+				filters = appendJournalEqualityFilter(filters, match[1], filterValue, false)
 			}
-			appendFilter(match[1], filterValue, false)
 		}
 	}
-
 	return filters
+}
+
+func appendJournalEqualityFilter(filters []journalEqualityFilter, columnName string, filterValue any, stringCompare bool) []journalEqualityFilter {
+	if isReservedJournalFilterColumn(columnName) {
+		return filters
+	}
+	return append(filters, journalEqualityFilter{
+		columnName:    columnName,
+		filterValue:   filterValue,
+		stringCompare: stringCompare,
+	})
+}
+
+func isReservedJournalFilterColumn(columnName string) bool {
+	switch columnName {
+	case "_measurement", "measurement", "_bucket", "bucket", "bucket_name":
+		return true
+	default:
+		return false
+	}
 }
 
 func parseJournalScalarValue(value string) (any, bool) {
@@ -483,39 +540,16 @@ func parseJournalScalarValue(value string) (any, bool) {
 }
 
 func parseJournalInt64(value string) (int64, error) {
-	if value == "" {
-		return 0, core.E("store.parseJournalInt64", "integer value is empty", nil)
+	prefix, err := parseJournalNumberPrefix(value, opParseJournalInt64, "integer")
+	if err != nil {
+		return 0, err
 	}
-
-	negative := false
-	index := 0
-	if value[0] == '-' || value[0] == '+' {
-		negative = value[0] == '-'
-		index++
-		if index == len(value) {
-			return 0, core.E("store.parseJournalInt64", "integer value has no digits", nil)
-		}
+	limit := journalIntegerLimit(prefix.negative)
+	parsed, err := parseJournalUnsignedInteger(value, prefix.index, limit)
+	if err != nil {
+		return 0, err
 	}
-
-	limit := uint64(1<<63 - 1)
-	if negative {
-		limit = uint64(1 << 63)
-	}
-
-	var parsed uint64
-	for ; index < len(value); index++ {
-		character := value[index]
-		if character < '0' || character > '9' {
-			return 0, core.E("store.parseJournalInt64", "integer value contains non-digit characters", nil)
-		}
-		digit := uint64(character - '0')
-		if parsed > (limit-digit)/10 {
-			return 0, core.E("store.parseJournalInt64", "integer value is out of range", nil)
-		}
-		parsed = parsed*10 + digit
-	}
-
-	if negative {
+	if prefix.negative {
 		if parsed == uint64(1<<63) {
 			return -1 << 63, nil
 		}
@@ -525,55 +559,104 @@ func parseJournalInt64(value string) (int64, error) {
 }
 
 func parseJournalFloat64(value string) (float64, error) {
-	if value == "" {
-		return 0, core.E("store.parseJournalFloat64", "float value is empty", nil)
+	prefix, err := parseJournalNumberPrefix(value, opParseJournalFloat64, "float")
+	if err != nil {
+		return 0, err
 	}
-
-	negative := false
-	index := 0
-	if value[0] == '-' || value[0] == '+' {
-		negative = value[0] == '-'
-		index++
-		if index == len(value) {
-			return 0, core.E("store.parseJournalFloat64", "float value has no digits", nil)
-		}
+	parsed, index, digits, err := parseJournalFloatWhole(value, prefix.index)
+	if err != nil {
+		return 0, err
 	}
-
-	var parsed float64
-	digits := 0
-	for index < len(value) && value[index] >= '0' && value[index] <= '9' {
-		parsed = parsed*10 + float64(value[index]-'0')
-		if parsed > maxJournalFloat64 {
-			return 0, core.E("store.parseJournalFloat64", "float value is out of range", nil)
-		}
-		digits++
-		index++
-	}
-
-	if index < len(value) && value[index] == '.' {
-		index++
-		scale := 0.1
-		for index < len(value) && value[index] >= '0' && value[index] <= '9' {
-			parsed += float64(value[index]-'0') * scale
-			scale /= 10
-			digits++
-			index++
-		}
-	}
-
+	parsed, index, digits = parseJournalFloatFraction(value, index, parsed, digits)
 	if digits == 0 {
-		return 0, core.E("store.parseJournalFloat64", "float value has no digits", nil)
+		return 0, core.E(opParseJournalFloat64, "float value has no digits", nil)
 	}
 	if index != len(value) {
-		return 0, core.E("store.parseJournalFloat64", "float value contains invalid characters", nil)
+		return 0, core.E(opParseJournalFloat64, "float value contains invalid characters", nil)
 	}
-	if negative {
+	if prefix.negative {
 		return -parsed, nil
 	}
 	return parsed, nil
 }
 
 const maxJournalFloat64 = 1.79769313486231570814527423731704357e+308
+
+type journalNumberPrefix struct {
+	negative bool
+	index    int
+}
+
+func parseJournalNumberPrefix(value, operation, valueName string) (journalNumberPrefix, error) {
+	if value == "" {
+		return journalNumberPrefix{}, core.E(operation, core.Concat(valueName, " value is empty"), nil)
+	}
+	prefix := journalNumberPrefix{}
+	if value[0] == '-' || value[0] == '+' {
+		prefix.negative = value[0] == '-'
+		prefix.index = 1
+		if prefix.index == len(value) {
+			return journalNumberPrefix{}, core.E(operation, core.Concat(valueName, " value has no digits"), nil)
+		}
+	}
+	return prefix, nil
+}
+
+func journalIntegerLimit(negative bool) uint64 {
+	if negative {
+		return uint64(1 << 63)
+	}
+	return uint64(1<<63 - 1)
+}
+
+func parseJournalUnsignedInteger(value string, index int, limit uint64) (uint64, error) {
+	var parsed uint64
+	for ; index < len(value); index++ {
+		character := value[index]
+		if character < '0' || character > '9' {
+			return 0, core.E(opParseJournalInt64, "integer value contains non-digit characters", nil)
+		}
+		digit := uint64(character - '0')
+		if parsed > (limit-digit)/10 {
+			return 0, core.E(opParseJournalInt64, "integer value is out of range", nil)
+		}
+		parsed = parsed*10 + digit
+	}
+	return parsed, nil
+}
+
+func parseJournalFloatWhole(value string, index int) (float64, int, int, error) {
+	var parsed float64
+	digits := 0
+	for index < len(value) && isJournalDigit(value[index]) {
+		parsed = parsed*10 + float64(value[index]-'0')
+		if parsed > maxJournalFloat64 {
+			return 0, index, digits, core.E(opParseJournalFloat64, "float value is out of range", nil)
+		}
+		digits++
+		index++
+	}
+	return parsed, index, digits, nil
+}
+
+func parseJournalFloatFraction(value string, index int, parsed float64, digits int) (float64, int, int) {
+	if index >= len(value) || value[index] != '.' {
+		return parsed, index, digits
+	}
+	index++
+	scale := 0.1
+	for index < len(value) && isJournalDigit(value[index]) {
+		parsed += float64(value[index]-'0') * scale
+		scale /= 10
+		digits++
+		index++
+	}
+	return parsed, index, digits
+}
+
+func isJournalDigit(character byte) bool {
+	return character >= '0' && character <= '9'
+}
 
 func cloneAnyMap(input map[string]any) map[string]any {
 	if input == nil {

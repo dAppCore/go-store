@@ -83,40 +83,77 @@ type compactArchiveEntry struct {
 
 // Usage example: `result := storeInstance.Compact(store.CompactOptions{Before: time.Now().Add(-30 * 24 * time.Hour), Output: "/tmp/archive", Format: "gzip"})`
 func (storeInstance *Store) Compact(options CompactOptions) core.Result {
-	if err := storeInstance.ensureReady("store.Compact"); err != nil {
+	if err := storeInstance.ensureReady(opCompact); err != nil {
 		return core.Fail(err)
 	}
 	if err := ensureJournalSchema(storeInstance.sqliteDatabase); err != nil {
-		return core.Fail(core.E("store.Compact", "ensure journal schema", err))
+		return core.Fail(core.E(opCompact, "ensure journal schema", err))
 	}
 
 	options = options.Normalised()
 	if err := options.Validate(); err != nil {
-		return core.Fail(core.E("store.Compact", "validate options", err))
+		return core.Fail(core.E(opCompact, "validate options", err))
 	}
 
-	medium := options.Medium
+	medium := storeInstance.compactMedium(options)
 	if medium == nil {
-		medium = storeInstance.medium
-	}
-	if medium == nil {
-		medium = localMedium()
-	}
-	if medium == nil {
-		return core.Fail(core.E("store.Compact", "local medium is unavailable", nil))
+		return core.Fail(core.E(opCompact, "local medium is unavailable", nil))
 	}
 	if err := ensureMediumDir(medium, options.Output); err != nil {
-		return core.Fail(core.E("store.Compact", "ensure medium archive directory", err))
+		return core.Fail(core.E(opCompact, "ensure medium archive directory", err))
 	}
 
+	archiveEntries, err := storeInstance.compactArchiveEntries(options.Before)
+	if err != nil {
+		return core.Fail(err)
+	}
+	if len(archiveEntries) == 0 {
+		return core.Ok("")
+	}
+
+	archiveContent, err := compactArchiveContent(archiveEntries, options.Format)
+	if err != nil {
+		return core.Fail(err)
+	}
+	outputPath := compactOutputPath(options.Output, options.Format)
+	stagedOutputPath := core.Concat(outputPath, ".tmp")
+	stagedOutputPublished := false
+	if err := medium.Write(stagedOutputPath, archiveContent); err != nil {
+		return core.Fail(core.E(opCompact, "write staged archive via medium", err))
+	}
+	defer cleanupStagedCompactArchive(medium, stagedOutputPath, &stagedOutputPublished)
+
+	if err := storeInstance.markCompactEntriesArchived(archiveEntries); err != nil {
+		return core.Fail(err)
+	}
+	stagedOutputPublished = true
+
+	if err := medium.Rename(stagedOutputPath, outputPath); err != nil {
+		return core.Fail(core.E(opCompact, "publish staged archive", err))
+	}
+
+	return core.Ok(outputPath)
+}
+
+func (storeInstance *Store) compactMedium(options CompactOptions) Medium {
+	if options.Medium != nil {
+		return options.Medium
+	}
+	if storeInstance.medium != nil {
+		return storeInstance.medium
+	}
+	return localMedium()
+}
+
+func (storeInstance *Store) compactArchiveEntries(before time.Time) ([]compactArchiveEntry, error) {
 	rows, queryErr := storeInstance.sqliteDatabase.Query(
 		"SELECT entry_id, bucket_name, measurement, fields_json, tags_json, committed_at FROM "+journalEntriesTableName+" WHERE archived_at IS NULL AND committed_at < ? ORDER BY committed_at, entry_id",
-		options.Before.UnixMilli(),
+		before.UnixMilli(),
 	)
 	if queryErr != nil {
-		return core.Fail(core.E("store.Compact", "query journal rows", queryErr))
+		return nil, core.E(opCompact, "query journal rows", queryErr)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var archiveEntries []compactArchiveEntry
 	for rows.Next() {
@@ -129,111 +166,103 @@ func (storeInstance *Store) Compact(options CompactOptions) core.Result {
 			&entry.journalTagsJSON,
 			&entry.journalCommittedAtUnixMilli,
 		); err != nil {
-			return core.Fail(core.E("store.Compact", "scan journal row", err))
+			return nil, core.E(opCompact, "scan journal row", err)
 		}
 		archiveEntries = append(archiveEntries, entry)
 	}
 	if err := rows.Err(); err != nil {
-		return core.Fail(core.E("store.Compact", "iterate journal rows", err))
+		return nil, core.E(opCompact, "iterate journal rows", err)
 	}
-	if len(archiveEntries) == 0 {
-		return core.Ok("")
-	}
+	return archiveEntries, nil
+}
 
-	outputPath := compactOutputPath(options.Output, options.Format)
+func compactArchiveContent(archiveEntries []compactArchiveEntry, format string) (string, error) {
 	archiveContent, err := newCompactArchiveBuffer()
 	if err != nil {
-		return core.Fail(core.E("store.Compact", "create archive buffer", err))
+		return "", core.E(opCompact, "create archive buffer", err)
 	}
-	writer, err := archiveWriter(archiveContent, options.Format)
+	writer, err := archiveWriter(archiveContent, format)
 	if err != nil {
-		return core.Fail(err)
+		return "", err
 	}
 	archiveWriteFinished := false
 	defer func() {
 		if !archiveWriteFinished {
-			writer.Close()
+			_ = writer.Close()
 		}
 	}()
 
 	for _, entry := range archiveEntries {
 		lineMap, err := archiveEntryLine(entry)
 		if err != nil {
-			return core.Fail(err)
+			return "", err
 		}
-		lineJSON, err := marshalJSONText(lineMap, "store.Compact", "marshal archive line")
+		lineJSON, err := marshalJSONText(lineMap, opCompact, "marshal archive line")
 		if err != nil {
-			return core.Fail(err)
+			return "", err
 		}
 		if _, err := writer.Write([]byte(lineJSON + "\n")); err != nil {
-			return core.Fail(core.E("store.Compact", "write archive line", err))
+			return "", core.E(opCompact, "write archive line", err)
 		}
 	}
 	if err := writer.Close(); err != nil {
-		return core.Fail(core.E("store.Compact", "close archive writer", err))
+		return "", core.E(opCompact, "close archive writer", err)
 	}
 	archiveWriteFinished = true
 	compressedArchive, err := archiveContent.content()
 	if err != nil {
-		return core.Fail(core.E("store.Compact", "read archive buffer", err))
+		return "", core.E(opCompact, "read archive buffer", err)
 	}
-	stagedOutputPath := core.Concat(outputPath, ".tmp")
-	stagedOutputPublished := false
-	if err := medium.Write(stagedOutputPath, compressedArchive); err != nil {
-		return core.Fail(core.E("store.Compact", "write staged archive via medium", err))
-	}
-	defer func() {
-		if !stagedOutputPublished && medium.Exists(stagedOutputPath) {
-			medium.Delete(stagedOutputPath)
-		}
-	}()
+	return compressedArchive, nil
+}
 
+func cleanupStagedCompactArchive(medium Medium, stagedOutputPath string, published *bool) {
+	if !*published && medium.Exists(stagedOutputPath) {
+		_ = medium.Delete(stagedOutputPath)
+	}
+}
+
+func (storeInstance *Store) markCompactEntriesArchived(archiveEntries []compactArchiveEntry) error {
 	transaction, err := storeInstance.sqliteDatabase.Begin()
 	if err != nil {
-		return core.Fail(core.E("store.Compact", "begin archive transaction", err))
+		return core.E(opCompact, "begin archive transaction", err)
 	}
 
 	committed := false
 	defer func() {
 		if !committed {
-			transaction.Rollback()
+			_ = transaction.Rollback()
 		}
 	}()
 
 	archivedAt := time.Now().UnixMilli()
 	for _, entry := range archiveEntries {
 		if _, err := transaction.Exec(
-			"UPDATE "+journalEntriesTableName+" SET archived_at = ? WHERE entry_id = ?",
+			sqlUpdatePrefix+journalEntriesTableName+" SET archived_at = ? WHERE entry_id = ?",
 			archivedAt,
 			entry.journalEntryID,
 		); err != nil {
-			return core.Fail(core.E("store.Compact", "mark journal row archived", err))
+			return core.E(opCompact, "mark journal row archived", err)
 		}
 	}
 	if err := transaction.Commit(); err != nil {
-		return core.Fail(core.E("store.Compact", "commit archive transaction", err))
+		return core.E(opCompact, "commit archive transaction", err)
 	}
 	committed = true
-	stagedOutputPublished = true
-
-	if err := medium.Rename(stagedOutputPath, outputPath); err != nil {
-		return core.Fail(core.E("store.Compact", "publish staged archive", err))
-	}
-
-	return core.Ok(outputPath)
+	return nil
 }
 
 func archiveEntryLine(entry compactArchiveEntry) (map[string]any, error) {
 	fields := make(map[string]any)
 	fieldsResult := core.JSONUnmarshalString(entry.journalFieldsJSON, &fields)
 	if !fieldsResult.OK {
-		return nil, core.E("store.Compact", "unmarshal fields", fieldsResult.Value.(error))
+		return nil, core.E(opCompact, "unmarshal fields", fieldsResult.Value.(error))
 	}
 
 	tags := make(map[string]string)
 	tagsResult := core.JSONUnmarshalString(entry.journalTagsJSON, &tags)
 	if !tagsResult.OK {
-		return nil, core.E("store.Compact", "unmarshal tags", tagsResult.Value.(error))
+		return nil, core.E(opCompact, "unmarshal tags", tagsResult.Value.(error))
 	}
 
 	return map[string]any{
@@ -278,16 +307,16 @@ func archiveWriter(writer compactArchiveWriteTarget, format string) (compactArch
 	case "zstd":
 		zstdWriter, err := zstd.NewWriter(writer)
 		if err != nil {
-			return nil, core.E("store.Compact", "create zstd writer", err)
+			return nil, core.E(opCompact, "create zstd writer", err)
 		}
 		return zstdWriter, nil
 	default:
-		return nil, core.E("store.Compact", core.Concat("unsupported archive format: ", format), nil)
+		return nil, core.E(opCompact, core.Concat("unsupported archive format: ", format), nil)
 	}
 }
 
 func compactOutputPath(outputDirectory, format string) string {
-	extension := ".jsonl"
+	extension := jsonlExtension
 	if format == "gzip" {
 		extension = ".jsonl.gz"
 	}

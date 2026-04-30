@@ -27,6 +27,75 @@ const (
 	entryKeyColumn          = "entry_key"
 	entryValueColumn        = "entry_value"
 	defaultPurgeInterval    = 60 * time.Second
+	memoryDatabasePath      = ":memory:"
+	sqliteWALPragma         = "PRAGMA journal_mode=WAL"
+
+	opStoreConfigValidate          = "store.StoreConfig.Validate"
+	opJournalConfigurationValidate = "store.JournalConfiguration.Validate"
+	opNew                          = "store.New"
+	opClose                        = "store.Close"
+	opGet                          = "store.Get"
+	opDelete                       = "store.Delete"
+	opDeleteGroup                  = "store.DeleteGroup"
+	opDeletePrefix                 = "store.DeletePrefix"
+	opGetPage                      = "store.GetPage"
+	opAll                          = "store.All"
+	opRender                       = "store.Render"
+	opGroupsSeq                    = "store.GroupsSeq"
+	opEnsureSchema                 = "store.ensureSchema"
+	opCompact                      = "store.Compact"
+	opDuckDBQueryRows              = "store.DuckDB.QueryRows"
+	opDuckDBEnsureScoringTables    = "store.DuckDB.EnsureScoringTables"
+	opImportAll                    = "store.ImportAll"
+	opImportTrainingFile           = "store.importTrainingFile"
+	opImportBenchmarkFile          = "store.importBenchmarkFile"
+	opImportBenchmarkQuestions     = "store.importBenchmarkQuestions"
+	opImportSeeds                  = "store.importSeeds"
+	opCommitToJournal              = "store.CommitToJournal"
+	opQueryJournal                 = "store.QueryJournal"
+	opParseJournalInt64            = "store.parseJournalInt64"
+	opParseJournalFloat64          = "store.parseJournalFloat64"
+	opMarshalIndent                = "store.MarshalIndent"
+	opImport                       = "store.Import"
+	opExport                       = "store.Export"
+	opPublish                      = "store.Publish"
+	opEnsureHFDatasetRepo          = "store.ensureHFDatasetRepo"
+	opHFJSONRequest                = "store.hfJSONRequest"
+	opUploadFileToHF               = "store.uploadFileToHF"
+	opNewScopedConfigured          = "store.NewScopedConfigured"
+	opScopedStoreTransaction       = "store.ScopedStore.Transaction"
+	opTransaction                  = "store.Transaction"
+	opTransactionGet               = "store.Transaction.Get"
+	opTransactionDelete            = "store.Transaction.Delete"
+	opTransactionDeleteGroup       = "store.Transaction.DeleteGroup"
+	opTransactionDeletePrefix      = "store.Transaction.DeletePrefix"
+	opTransactionGetPage           = "store.Transaction.GetPage"
+	opTransactionAll               = "store.Transaction.All"
+	opTransactionGroupsSeq         = "store.Transaction.GroupsSeq"
+	opTransactionRender            = "store.Transaction.Render"
+	opNewWorkspace                 = "store.NewWorkspace"
+	opWorkspacePut                 = "store.Workspace.Put"
+	opWorkspaceCommit              = "store.Workspace.Commit"
+	opWorkspaceQuery               = "store.Workspace.Query"
+	opOpenWorkspaceDatabase        = "store.openWorkspaceDatabase"
+	sqlSelect                      = "SELECT "
+	sqlWhere                       = " WHERE "
+	sqlFrom                        = " FROM "
+	sqlDeleteFrom                  = "DELETE FROM "
+	sqlSelectCountFrom             = "SELECT COUNT(*) FROM "
+	sqlSelectDistinct              = "SELECT DISTINCT "
+	sqlInsertIntoPrefix            = "INSERT INTO "
+	sqlUpdatePrefix                = "UPDATE "
+	rowsIterationMessage           = "rows iteration"
+	jsonlExtension                 = ".jsonl"
+	duckDBExtension                = ".duckdb"
+	openPathFormat                 = "open %s"
+	parsePathLineFormat            = "parse %s line %d"
+	exampleTenantA                 = "tenant-a"
+	exampleTenant42                = "tenant-42"
+	scopedStoreNilMessage          = "scoped store is nil"
+	quotaCheckContext              = "quota check"
+	workspaceEntryInsertValuesSQL  = " (entry_kind, entry_data, created_at) VALUES (?, ?, ?)"
 )
 
 // Usage example: `storeInstance, err := store.NewConfigured(store.StoreConfig{DatabasePath: "/tmp/go-store.db", Journal: store.JournalConfiguration{EndpointURL: "http://127.0.0.1:8086", Organisation: "core", BucketName: "events"}, PurgeInterval: 30 * time.Second})`
@@ -70,18 +139,18 @@ func (storeConfig StoreConfig) Normalised() StoreConfig {
 func (storeConfig StoreConfig) Validate() error {
 	if storeConfig.DatabasePath == "" {
 		return core.E(
-			"store.StoreConfig.Validate",
+			opStoreConfigValidate,
 			"database path is empty",
 			nil,
 		)
 	}
 	if storeConfig.Journal != (JournalConfiguration{}) {
 		if err := storeConfig.Journal.Validate(); err != nil {
-			return core.E("store.StoreConfig.Validate", "journal config", err)
+			return core.E(opStoreConfigValidate, "journal config", err)
 		}
 	}
 	if storeConfig.PurgeInterval < 0 {
-		return core.E("store.StoreConfig.Validate", "purge interval must be zero or positive", nil)
+		return core.E(opStoreConfigValidate, "purge interval must be zero or positive", nil)
 	}
 	return nil
 }
@@ -104,19 +173,19 @@ func (journalConfig JournalConfiguration) Validate() error {
 	switch {
 	case journalConfig.EndpointURL == "":
 		return core.E(
-			"store.JournalConfiguration.Validate",
+			opJournalConfigurationValidate,
 			`endpoint URL is empty; use values like "http://127.0.0.1:8086"`,
 			nil,
 		)
 	case journalConfig.Organisation == "":
 		return core.E(
-			"store.JournalConfiguration.Validate",
+			opJournalConfigurationValidate,
 			`organisation is empty; use values like "core"`,
 			nil,
 		)
 	case journalConfig.BucketName == "":
 		return core.E(
-			"store.JournalConfiguration.Validate",
+			opJournalConfigurationValidate,
 			`bucket name is empty; use values like "events"`,
 			nil,
 		)
@@ -347,7 +416,7 @@ func New(databasePath string, options ...StoreOption) (*Store, error) {
 	storeConfig.WorkspaceStateDirectory = scratch.WorkspaceStateDirectory()
 	storeConfig.Medium = scratch.medium
 
-	storeInstance, err := openConfiguredStore("store.New", storeConfig)
+	storeInstance, err := openConfiguredStore(opNew, storeConfig)
 	if err != nil {
 		return nil, err
 	}
@@ -355,44 +424,18 @@ func New(databasePath string, options ...StoreOption) (*Store, error) {
 }
 
 func openSQLiteStore(operation, databasePath string, medium Medium) (*Store, error) {
-	sqliteStoragePath := databasePath
-	sqliteStorageDirectory := ""
-	mediumBacked := medium != nil && databasePath != "" && databasePath != ":memory:"
-	if mediumBacked {
-		filesystem := (&core.Fs{}).NewUnrestricted()
-		sqliteStorageDirectory = filesystem.TempDir("go-store")
-		sqliteStoragePath = core.Path(sqliteStorageDirectory, "store.db")
-		if medium.Exists(databasePath) {
-			content, err := medium.Read(databasePath)
-			if err != nil {
-				return nil, core.E(operation, "read database from medium", err)
-			}
-			if result := filesystem.Write(sqliteStoragePath, content); !result.OK {
-				return nil, core.E(operation, "seed sqlite file from medium", result.Value.(error))
-			}
-		}
+	storage, err := prepareSQLiteStorage(operation, databasePath, medium)
+	if err != nil {
+		return nil, err
 	}
 
-	sqliteDatabase, err := sql.Open("sqlite", sqliteStoragePath)
+	sqliteDatabase, err := sql.Open("sqlite", storage.path)
 	if err != nil {
 		return nil, core.E(operation, "open database", err)
 	}
-	// Serialise all access through a single connection. SQLite only supports
-	// one writer at a time; using a pool causes SQLITE_BUSY under contention
-	// because pragmas (journal_mode, busy_timeout) are per-connection and the
-	// pool hands out different connections for each call.
-	sqliteDatabase.SetMaxOpenConns(1)
-	if _, err := sqliteDatabase.Exec("PRAGMA journal_mode=WAL"); err != nil {
-		sqliteDatabase.Close()
-		return nil, core.E(operation, "set WAL journal mode", err)
-	}
-	if _, err := sqliteDatabase.Exec("PRAGMA busy_timeout=5000"); err != nil {
-		sqliteDatabase.Close()
-		return nil, core.E(operation, "set busy timeout", err)
-	}
-	if err := ensureSchema(sqliteDatabase); err != nil {
-		sqliteDatabase.Close()
-		return nil, core.E(operation, "ensure schema", err)
+	if err := configureSQLiteDatabase(operation, sqliteDatabase); err != nil {
+		_ = sqliteDatabase.Close()
+		return nil, err
 	}
 
 	purgeContext, cancel := context.WithCancel(context.Background())
@@ -404,12 +447,58 @@ func openSQLiteStore(operation, databasePath string, medium Medium) (*Store, err
 		purgeContext:            purgeContext,
 		cancelPurge:             cancel,
 		purgeInterval:           defaultPurgeInterval,
-		sqliteStoragePath:       sqliteStoragePath,
-		sqliteStorageDirectory:  sqliteStorageDirectory,
-		mediumBacked:            mediumBacked,
+		sqliteStoragePath:       storage.path,
+		sqliteStorageDirectory:  storage.directory,
+		mediumBacked:            storage.mediumBacked,
 		medium:                  medium,
 		watchers:                make(map[string][]chan Event),
 	}, nil
+}
+
+type sqliteStorageConfig struct {
+	path         string
+	directory    string
+	mediumBacked bool
+}
+
+func prepareSQLiteStorage(operation, databasePath string, medium Medium) (sqliteStorageConfig, error) {
+	storage := sqliteStorageConfig{path: databasePath}
+	storage.mediumBacked = medium != nil && databasePath != "" && databasePath != memoryDatabasePath
+	if !storage.mediumBacked {
+		return storage, nil
+	}
+	filesystem := (&core.Fs{}).NewUnrestricted()
+	storage.directory = filesystem.TempDir("go-store")
+	storage.path = core.Path(storage.directory, "store.db")
+	if !medium.Exists(databasePath) {
+		return storage, nil
+	}
+	content, err := medium.Read(databasePath)
+	if err != nil {
+		return sqliteStorageConfig{}, core.E(operation, "read database from medium", err)
+	}
+	if result := filesystem.Write(storage.path, content); !result.OK {
+		return sqliteStorageConfig{}, core.E(operation, "seed sqlite file from medium", result.Value.(error))
+	}
+	return storage, nil
+}
+
+func configureSQLiteDatabase(operation string, sqliteDatabase *sql.DB) error {
+	// Serialise all access through a single connection. SQLite only supports
+	// one writer at a time; using a pool causes SQLITE_BUSY under contention
+	// because pragmas (journal_mode, busy_timeout) are per-connection and the
+	// pool hands out different connections for each call.
+	sqliteDatabase.SetMaxOpenConns(1)
+	if _, err := sqliteDatabase.Exec(sqliteWALPragma); err != nil {
+		return core.E(operation, "set WAL journal mode", err)
+	}
+	if _, err := sqliteDatabase.Exec("PRAGMA busy_timeout=5000"); err != nil {
+		return core.E(operation, "set busy timeout", err)
+	}
+	if err := ensureSchema(sqliteDatabase); err != nil {
+		return core.E(operation, "ensure schema", err)
+	}
+	return nil
 }
 
 func (storeInstance *Store) workspaceStateDirectoryPath() string {
@@ -479,14 +568,14 @@ func (storeInstance *Store) Close() error {
 		return orphanCleanupErr
 	}
 	if err := storeInstance.sqliteDatabase.Close(); err != nil {
-		return core.E("store.Close", "database close", err)
+		return core.E(opClose, "database close", err)
 	}
 	if err := storeInstance.syncMediumBackedDatabase(); err != nil {
-		return core.E("store.Close", "sync medium-backed database", err)
+		return core.E(opClose, "sync medium-backed database", err)
 	}
 	storeInstance.markClosed()
 	if orphanCleanupErr != nil {
-		return core.E("store.Close", "close orphan workspaces", orphanCleanupErr)
+		return core.E(opClose, "close orphan workspaces", orphanCleanupErr)
 	}
 	return orphanCleanupErr
 }
@@ -502,7 +591,7 @@ func (storeInstance *Store) syncMediumBackedDatabase() error {
 	if storeInstance == nil || !storeInstance.mediumBacked || storeInstance.medium == nil {
 		return nil
 	}
-	if storeInstance.databasePath == "" || storeInstance.databasePath == ":memory:" {
+	if storeInstance.databasePath == "" || storeInstance.databasePath == memoryDatabasePath {
 		return nil
 	}
 	if storeInstance.sqliteStoragePath == "" {
@@ -519,38 +608,38 @@ func (storeInstance *Store) syncMediumBackedDatabase() error {
 	}
 
 	if storeInstance.sqliteStorageDirectory != "" {
-		filesystem.DeleteAll(storeInstance.sqliteStorageDirectory)
+		_ = filesystem.DeleteAll(storeInstance.sqliteStorageDirectory)
 		return nil
 	}
 	for _, path := range []string{storeInstance.sqliteStoragePath + "-wal", storeInstance.sqliteStoragePath + "-shm"} {
-		filesystem.Delete(path)
+		_ = filesystem.Delete(path)
 	}
 	return nil
 }
 
 // Usage example: `colourValue, err := storeInstance.Get("config", "colour")`
 func (storeInstance *Store) Get(group, key string) (string, error) {
-	if err := storeInstance.ensureReady("store.Get"); err != nil {
+	if err := storeInstance.ensureReady(opGet); err != nil {
 		return "", err
 	}
 
 	var value string
 	var expiresAt sql.NullInt64
 	err := storeInstance.sqliteDatabase.QueryRow(
-		"SELECT "+entryValueColumn+", expires_at FROM "+entriesTableName+" WHERE "+entryGroupColumn+" = ? AND "+entryKeyColumn+" = ?",
+		sqlSelect+entryValueColumn+", expires_at FROM "+entriesTableName+sqlWhere+entryGroupColumn+" = ? AND "+entryKeyColumn+" = ?",
 		group, key,
 	).Scan(&value, &expiresAt)
 	if err == sql.ErrNoRows {
-		return "", core.E("store.Get", core.Concat(group, "/", key), NotFoundError)
+		return "", core.E(opGet, core.Concat(group, "/", key), NotFoundError)
 	}
 	if err != nil {
-		return "", core.E("store.Get", "query row", err)
+		return "", core.E(opGet, "query row", err)
 	}
 	if expiresAt.Valid && expiresAt.Int64 <= time.Now().UnixMilli() {
 		if err := storeInstance.Delete(group, key); err != nil {
-			return "", core.E("store.Get", "delete expired row", err)
+			return "", core.E(opGet, "delete expired row", err)
 		}
-		return "", core.E("store.Get", core.Concat(group, "/", key), NotFoundError)
+		return "", core.E(opGet, core.Concat(group, "/", key), NotFoundError)
 	}
 	return value, nil
 }
@@ -562,7 +651,7 @@ func (storeInstance *Store) Set(group, key, value string) error {
 	}
 
 	_, err := storeInstance.sqliteDatabase.Exec(
-		"INSERT INTO "+entriesTableName+" ("+entryGroupColumn+", "+entryKeyColumn+", "+entryValueColumn+", expires_at) VALUES (?, ?, ?, NULL) "+
+		sqlInsertIntoPrefix+entriesTableName+" ("+entryGroupColumn+", "+entryKeyColumn+", "+entryValueColumn+", expires_at) VALUES (?, ?, ?, NULL) "+
 			"ON CONFLICT("+entryGroupColumn+", "+entryKeyColumn+") DO UPDATE SET "+entryValueColumn+" = excluded."+entryValueColumn+", expires_at = NULL",
 		group, key, value,
 	)
@@ -581,7 +670,7 @@ func (storeInstance *Store) SetWithTTL(group, key, value string, timeToLive time
 
 	expiresAt := time.Now().Add(timeToLive).UnixMilli()
 	_, err := storeInstance.sqliteDatabase.Exec(
-		"INSERT INTO "+entriesTableName+" ("+entryGroupColumn+", "+entryKeyColumn+", "+entryValueColumn+", expires_at) VALUES (?, ?, ?, ?) "+
+		sqlInsertIntoPrefix+entriesTableName+" ("+entryGroupColumn+", "+entryKeyColumn+", "+entryValueColumn+", expires_at) VALUES (?, ?, ?, ?) "+
 			"ON CONFLICT("+entryGroupColumn+", "+entryKeyColumn+") DO UPDATE SET "+entryValueColumn+" = excluded."+entryValueColumn+", expires_at = excluded.expires_at",
 		group, key, value, expiresAt,
 	)
@@ -594,17 +683,17 @@ func (storeInstance *Store) SetWithTTL(group, key, value string, timeToLive time
 
 // Usage example: `if err := storeInstance.Delete("config", "colour"); err != nil { return }`
 func (storeInstance *Store) Delete(group, key string) error {
-	if err := storeInstance.ensureReady("store.Delete"); err != nil {
+	if err := storeInstance.ensureReady(opDelete); err != nil {
 		return err
 	}
 
-	deleteResult, err := storeInstance.sqliteDatabase.Exec("DELETE FROM "+entriesTableName+" WHERE "+entryGroupColumn+" = ? AND "+entryKeyColumn+" = ?", group, key)
+	deleteResult, err := storeInstance.sqliteDatabase.Exec(sqlDeleteFrom+entriesTableName+sqlWhere+entryGroupColumn+" = ? AND "+entryKeyColumn+" = ?", group, key)
 	if err != nil {
-		return core.E("store.Delete", "delete row", err)
+		return core.E(opDelete, "delete row", err)
 	}
 	deletedRows, rowsAffectedError := deleteResult.RowsAffected()
 	if rowsAffectedError != nil {
-		return core.E("store.Delete", "count deleted rows", rowsAffectedError)
+		return core.E(opDelete, "count deleted rows", rowsAffectedError)
 	}
 	if deletedRows > 0 {
 		storeInstance.notify(Event{Type: EventDelete, Group: group, Key: key, Timestamp: time.Now()})
@@ -644,7 +733,7 @@ func (storeInstance *Store) Count(group string) (int, error) {
 
 	var count int
 	err := storeInstance.sqliteDatabase.QueryRow(
-		"SELECT COUNT(*) FROM "+entriesTableName+" WHERE "+entryGroupColumn+" = ? AND (expires_at IS NULL OR expires_at > ?)",
+		sqlSelectCountFrom+entriesTableName+sqlWhere+entryGroupColumn+" = ? AND (expires_at IS NULL OR expires_at > ?)",
 		group, time.Now().UnixMilli(),
 	).Scan(&count)
 	if err != nil {
@@ -655,17 +744,17 @@ func (storeInstance *Store) Count(group string) (int, error) {
 
 // Usage example: `if err := storeInstance.DeleteGroup("cache"); err != nil { return }`
 func (storeInstance *Store) DeleteGroup(group string) error {
-	if err := storeInstance.ensureReady("store.DeleteGroup"); err != nil {
+	if err := storeInstance.ensureReady(opDeleteGroup); err != nil {
 		return err
 	}
 
-	deleteResult, err := storeInstance.sqliteDatabase.Exec("DELETE FROM "+entriesTableName+" WHERE "+entryGroupColumn+" = ?", group)
+	deleteResult, err := storeInstance.sqliteDatabase.Exec(sqlDeleteFrom+entriesTableName+sqlWhere+entryGroupColumn+" = ?", group)
 	if err != nil {
-		return core.E("store.DeleteGroup", "delete group", err)
+		return core.E(opDeleteGroup, "delete group", err)
 	}
 	deletedRows, rowsAffectedError := deleteResult.RowsAffected()
 	if rowsAffectedError != nil {
-		return core.E("store.DeleteGroup", "count deleted rows", rowsAffectedError)
+		return core.E(opDeleteGroup, "count deleted rows", rowsAffectedError)
 	}
 	if deletedRows > 0 {
 		storeInstance.notify(Event{Type: EventDeleteGroup, Group: group, Timestamp: time.Now()})
@@ -675,7 +764,7 @@ func (storeInstance *Store) DeleteGroup(group string) error {
 
 // Usage example: `if err := storeInstance.DeletePrefix("tenant-a:"); err != nil { return }`
 func (storeInstance *Store) DeletePrefix(groupPrefix string) error {
-	if err := storeInstance.ensureReady("store.DeletePrefix"); err != nil {
+	if err := storeInstance.ensureReady(opDeletePrefix); err != nil {
 		return err
 	}
 
@@ -683,16 +772,16 @@ func (storeInstance *Store) DeletePrefix(groupPrefix string) error {
 	var err error
 	if groupPrefix == "" {
 		rows, err = storeInstance.sqliteDatabase.Query(
-			"SELECT DISTINCT " + entryGroupColumn + " FROM " + entriesTableName + " ORDER BY " + entryGroupColumn,
+			sqlSelectDistinct + entryGroupColumn + sqlFrom + entriesTableName + " ORDER BY " + entryGroupColumn,
 		)
 	} else {
 		rows, err = storeInstance.sqliteDatabase.Query(
-			"SELECT DISTINCT "+entryGroupColumn+" FROM "+entriesTableName+" WHERE "+entryGroupColumn+" LIKE ? ESCAPE '^' ORDER BY "+entryGroupColumn,
+			sqlSelectDistinct+entryGroupColumn+sqlFrom+entriesTableName+sqlWhere+entryGroupColumn+" LIKE ? ESCAPE '^' ORDER BY "+entryGroupColumn,
 			escapeLike(groupPrefix)+"%",
 		)
 	}
 	if err != nil {
-		return core.E("store.DeletePrefix", "list groups", err)
+		return core.E(opDeletePrefix, "list groups", err)
 	}
 	defer func() { _ = rows.Close() }()
 
@@ -700,16 +789,16 @@ func (storeInstance *Store) DeletePrefix(groupPrefix string) error {
 	for rows.Next() {
 		var groupName string
 		if err := rows.Scan(&groupName); err != nil {
-			return core.E("store.DeletePrefix", "scan group name", err)
+			return core.E(opDeletePrefix, "scan group name", err)
 		}
 		groupNames = append(groupNames, groupName)
 	}
 	if err := rows.Err(); err != nil {
-		return core.E("store.DeletePrefix", "iterate groups", err)
+		return core.E(opDeletePrefix, "iterate groups", err)
 	}
 	for _, groupName := range groupNames {
 		if err := storeInstance.DeleteGroup(groupName); err != nil {
-			return core.E("store.DeletePrefix", "delete group", err)
+			return core.E(opDeletePrefix, "delete group", err)
 		}
 	}
 	return nil
@@ -741,22 +830,22 @@ func (storeInstance *Store) GetAll(group string) (map[string]string, error) {
 
 // Usage example: `page, err := storeInstance.GetPage("config", 0, 25); if err != nil { return }; for _, entry := range page { fmt.Println(entry.Key, entry.Value) }`
 func (storeInstance *Store) GetPage(group string, offset, limit int) ([]KeyValue, error) {
-	if err := storeInstance.ensureReady("store.GetPage"); err != nil {
+	if err := storeInstance.ensureReady(opGetPage); err != nil {
 		return nil, err
 	}
 	if offset < 0 {
-		return nil, core.E("store.GetPage", "offset must be zero or positive", nil)
+		return nil, core.E(opGetPage, "offset must be zero or positive", nil)
 	}
 	if limit < 0 {
-		return nil, core.E("store.GetPage", "limit must be zero or positive", nil)
+		return nil, core.E(opGetPage, "limit must be zero or positive", nil)
 	}
 
 	rows, err := storeInstance.sqliteDatabase.Query(
-		"SELECT "+entryKeyColumn+", "+entryValueColumn+" FROM "+entriesTableName+" WHERE "+entryGroupColumn+" = ? AND (expires_at IS NULL OR expires_at > ?) ORDER BY "+entryKeyColumn+" LIMIT ? OFFSET ?",
+		sqlSelect+entryKeyColumn+", "+entryValueColumn+sqlFrom+entriesTableName+sqlWhere+entryGroupColumn+" = ? AND (expires_at IS NULL OR expires_at > ?) ORDER BY "+entryKeyColumn+" LIMIT ? OFFSET ?",
 		group, time.Now().UnixMilli(), limit, offset,
 	)
 	if err != nil {
-		return nil, core.E("store.GetPage", "query rows", err)
+		return nil, core.E(opGetPage, "query rows", err)
 	}
 	defer func() { _ = rows.Close() }()
 
@@ -764,12 +853,12 @@ func (storeInstance *Store) GetPage(group string, offset, limit int) ([]KeyValue
 	for rows.Next() {
 		var entry KeyValue
 		if err := rows.Scan(&entry.Key, &entry.Value); err != nil {
-			return nil, core.E("store.GetPage", "scan row", err)
+			return nil, core.E(opGetPage, "scan row", err)
 		}
 		page = append(page, entry)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, core.E("store.GetPage", "rows iteration", err)
+		return nil, core.E(opGetPage, rowsIterationMessage, err)
 	}
 	return page, nil
 }
@@ -777,36 +866,40 @@ func (storeInstance *Store) GetPage(group string, offset, limit int) ([]KeyValue
 // Usage example: `for entry, err := range storeInstance.AllSeq("config") { if err != nil { break }; fmt.Println(entry.Key, entry.Value) }`
 func (storeInstance *Store) AllSeq(group string) iter.Seq2[KeyValue, error] {
 	return func(yield func(KeyValue, error) bool) {
-		if err := storeInstance.ensureReady("store.All"); err != nil {
+		if err := storeInstance.ensureReady(opAll); err != nil {
 			yield(KeyValue{}, err)
 			return
 		}
 
 		rows, err := storeInstance.sqliteDatabase.Query(
-			"SELECT "+entryKeyColumn+", "+entryValueColumn+" FROM "+entriesTableName+" WHERE "+entryGroupColumn+" = ? AND (expires_at IS NULL OR expires_at > ?) ORDER BY "+entryKeyColumn,
+			sqlSelect+entryKeyColumn+", "+entryValueColumn+sqlFrom+entriesTableName+sqlWhere+entryGroupColumn+" = ? AND (expires_at IS NULL OR expires_at > ?) ORDER BY "+entryKeyColumn,
 			group, time.Now().UnixMilli(),
 		)
 		if err != nil {
-			yield(KeyValue{}, core.E("store.All", "query rows", err))
+			yield(KeyValue{}, core.E(opAll, "query rows", err))
 			return
 		}
 		defer func() { _ = rows.Close() }()
 
-		for rows.Next() {
-			var entry KeyValue
-			if err := rows.Scan(&entry.Key, &entry.Value); err != nil {
-				if !yield(KeyValue{}, core.E("store.All", "scan row", err)) {
-					return
-				}
-				continue
-			}
-			if !yield(entry, nil) {
+		yieldKeyValueRows(rows, opAll, yield)
+	}
+}
+
+func yieldKeyValueRows(rows *sql.Rows, operation string, yield func(KeyValue, error) bool) {
+	for rows.Next() {
+		var entry KeyValue
+		if err := rows.Scan(&entry.Key, &entry.Value); err != nil {
+			if !yield(KeyValue{}, core.E(operation, "scan row", err)) {
 				return
 			}
+			continue
 		}
-		if err := rows.Err(); err != nil {
-			yield(KeyValue{}, core.E("store.All", "rows iteration", err))
+		if !yield(entry, nil) {
+			return
 		}
+	}
+	if err := rows.Err(); err != nil {
+		yield(KeyValue{}, core.E(operation, rowsIterationMessage, err))
 	}
 }
 
@@ -843,25 +936,25 @@ func (storeInstance *Store) GetFields(group, key string) (iter.Seq[string], erro
 
 // Usage example: `renderedTemplate, err := storeInstance.Render("Hello {{ .name }}", "user")`
 func (storeInstance *Store) Render(templateSource, group string) (string, error) {
-	if err := storeInstance.ensureReady("store.Render"); err != nil {
+	if err := storeInstance.ensureReady(opRender); err != nil {
 		return "", err
 	}
 
 	templateData := make(map[string]string)
 	for entry, err := range storeInstance.All(group) {
 		if err != nil {
-			return "", core.E("store.Render", "iterate rows", err)
+			return "", core.E(opRender, "iterate rows", err)
 		}
 		templateData[entry.Key] = entry.Value
 	}
 
 	renderTemplate, err := template.New("render").Parse(templateSource)
 	if err != nil {
-		return "", core.E("store.Render", "parse template", err)
+		return "", core.E(opRender, "parse template", err)
 	}
 	builder := core.NewBuilder()
 	if err := renderTemplate.Execute(builder, templateData); err != nil {
-		return "", core.E("store.Render", "execute template", err)
+		return "", core.E(opRender, "execute template", err)
 	}
 	return builder.String(), nil
 }
@@ -876,12 +969,12 @@ func (storeInstance *Store) CountAll(groupPrefix string) (int, error) {
 	var err error
 	if groupPrefix == "" {
 		err = storeInstance.sqliteDatabase.QueryRow(
-			"SELECT COUNT(*) FROM "+entriesTableName+" WHERE (expires_at IS NULL OR expires_at > ?)",
+			sqlSelectCountFrom+entriesTableName+" WHERE (expires_at IS NULL OR expires_at > ?)",
 			time.Now().UnixMilli(),
 		).Scan(&count)
 	} else {
 		err = storeInstance.sqliteDatabase.QueryRow(
-			"SELECT COUNT(*) FROM "+entriesTableName+" WHERE "+entryGroupColumn+" LIKE ? ESCAPE '^' AND (expires_at IS NULL OR expires_at > ?)",
+			sqlSelectCountFrom+entriesTableName+sqlWhere+entryGroupColumn+" LIKE ? ESCAPE '^' AND (expires_at IS NULL OR expires_at > ?)",
 			escapeLike(groupPrefix)+"%", time.Now().UnixMilli(),
 		).Scan(&count)
 	}
@@ -913,7 +1006,7 @@ func (storeInstance *Store) Groups(groupPrefix ...string) ([]string, error) {
 func (storeInstance *Store) GroupsSeq(groupPrefix ...string) iter.Seq2[string, error] {
 	actualGroupPrefix := firstStringOrEmpty(groupPrefix)
 	return func(yield func(string, error) bool) {
-		if err := storeInstance.ensureReady("store.GroupsSeq"); err != nil {
+		if err := storeInstance.ensureReady(opGroupsSeq); err != nil {
 			yield("", err)
 			return
 		}
@@ -923,36 +1016,40 @@ func (storeInstance *Store) GroupsSeq(groupPrefix ...string) iter.Seq2[string, e
 		now := time.Now().UnixMilli()
 		if actualGroupPrefix == "" {
 			rows, err = storeInstance.sqliteDatabase.Query(
-				"SELECT DISTINCT "+entryGroupColumn+" FROM "+entriesTableName+" WHERE (expires_at IS NULL OR expires_at > ?) ORDER BY "+entryGroupColumn,
+				sqlSelectDistinct+entryGroupColumn+sqlFrom+entriesTableName+" WHERE (expires_at IS NULL OR expires_at > ?) ORDER BY "+entryGroupColumn,
 				now,
 			)
 		} else {
 			rows, err = storeInstance.sqliteDatabase.Query(
-				"SELECT DISTINCT "+entryGroupColumn+" FROM "+entriesTableName+" WHERE "+entryGroupColumn+" LIKE ? ESCAPE '^' AND (expires_at IS NULL OR expires_at > ?) ORDER BY "+entryGroupColumn,
+				sqlSelectDistinct+entryGroupColumn+sqlFrom+entriesTableName+sqlWhere+entryGroupColumn+" LIKE ? ESCAPE '^' AND (expires_at IS NULL OR expires_at > ?) ORDER BY "+entryGroupColumn,
 				escapeLike(actualGroupPrefix)+"%", now,
 			)
 		}
 		if err != nil {
-			yield("", core.E("store.GroupsSeq", "query group names", err))
+			yield("", core.E(opGroupsSeq, "query group names", err))
 			return
 		}
 		defer func() { _ = rows.Close() }()
 
-		for rows.Next() {
-			var groupName string
-			if err := rows.Scan(&groupName); err != nil {
-				if !yield("", core.E("store.GroupsSeq", "scan group name", err)) {
-					return
-				}
-				continue
-			}
-			if !yield(groupName, nil) {
+		yieldGroupRows(rows, opGroupsSeq, yield)
+	}
+}
+
+func yieldGroupRows(rows *sql.Rows, operation string, yield func(string, error) bool) {
+	for rows.Next() {
+		var groupName string
+		if err := rows.Scan(&groupName); err != nil {
+			if !yield("", core.E(operation, "scan group name", err)) {
 				return
 			}
+			continue
 		}
-		if err := rows.Err(); err != nil {
-			yield("", core.E("store.GroupsSeq", "rows iteration", err))
+		if !yield(groupName, nil) {
+			return
 		}
+	}
+	if err := rows.Err(); err != nil {
+		yield("", core.E(operation, rowsIterationMessage, err))
 	}
 }
 
@@ -983,18 +1080,14 @@ func (storeInstance *Store) PurgeExpired() (int64, error) {
 	if err != nil {
 		return 0, core.E("store.PurgeExpired", "delete expired rows", err)
 	}
-	removedRows := int64(len(expiredEntries))
-	if removedRows > 0 {
-		for _, expiredEntry := range expiredEntries {
-			storeInstance.notify(Event{
-				Type:      EventDelete,
-				Group:     expiredEntry.group,
-				Key:       expiredEntry.key,
-				Timestamp: time.Now(),
-			})
-		}
+	storeInstance.notifyExpiredEntries(expiredEntries)
+	return int64(len(expiredEntries)), nil
+}
+
+func (storeInstance *Store) notifyExpiredEntries(expiredEntries []expiredEntryRef) {
+	for _, expiredEntry := range expiredEntries {
+		storeInstance.notify(eventFromExpiredEntry(expiredEntry))
 	}
-	return removedRows, nil
 }
 
 // New(":memory:", store.WithPurgeInterval(20*time.Millisecond)) starts a
@@ -1072,6 +1165,15 @@ type expiredEntryRef struct {
 	key   string
 }
 
+func eventFromExpiredEntry(expiredEntry expiredEntryRef) Event {
+	return Event{
+		Type:      EventDelete,
+		Group:     expiredEntry.group,
+		Key:       expiredEntry.key,
+		Timestamp: time.Now(),
+	}
+}
+
 func deleteExpiredEntriesMatchingGroupPrefix(database schemaDatabase, groupPrefix string, cutoffUnixMilli int64) ([]expiredEntryRef, error) {
 	var (
 		rows *sql.Rows
@@ -1079,12 +1181,12 @@ func deleteExpiredEntriesMatchingGroupPrefix(database schemaDatabase, groupPrefi
 	)
 	if groupPrefix == "" {
 		rows, err = database.Query(
-			"DELETE FROM "+entriesTableName+" WHERE expires_at IS NOT NULL AND expires_at <= ? RETURNING "+entryGroupColumn+", "+entryKeyColumn,
+			sqlDeleteFrom+entriesTableName+" WHERE expires_at IS NOT NULL AND expires_at <= ? RETURNING "+entryGroupColumn+", "+entryKeyColumn,
 			cutoffUnixMilli,
 		)
 	} else {
 		rows, err = database.Query(
-			"DELETE FROM "+entriesTableName+" WHERE expires_at IS NOT NULL AND expires_at <= ? AND "+entryGroupColumn+" LIKE ? ESCAPE '^' RETURNING "+entryGroupColumn+", "+entryKeyColumn,
+			sqlDeleteFrom+entriesTableName+" WHERE expires_at IS NOT NULL AND expires_at <= ? AND "+entryGroupColumn+" LIKE ? ESCAPE '^' RETURNING "+entryGroupColumn+", "+entryKeyColumn,
 			cutoffUnixMilli, escapeLike(groupPrefix)+"%",
 		)
 	}
@@ -1126,21 +1228,21 @@ const createEntriesTableSQL = `CREATE TABLE IF NOT EXISTS entries (
 func ensureSchema(database *sql.DB) error {
 	entriesTableExists, err := tableExists(database, entriesTableName)
 	if err != nil {
-		return core.E("store.ensureSchema", "schema", err)
+		return core.E(opEnsureSchema, "schema", err)
 	}
 
 	legacyEntriesTableExists, err := tableExists(database, legacyKeyValueTableName)
 	if err != nil {
-		return core.E("store.ensureSchema", "schema", err)
+		return core.E(opEnsureSchema, "schema", err)
 	}
 
 	if entriesTableExists {
 		if err := ensureExpiryColumn(database); err != nil {
-			return core.E("store.ensureSchema", "migration", err)
+			return core.E(opEnsureSchema, "migration", err)
 		}
 		if legacyEntriesTableExists {
 			if err := migrateLegacyEntriesTable(database); err != nil {
-				return core.E("store.ensureSchema", "migration", err)
+				return core.E(opEnsureSchema, "migration", err)
 			}
 		}
 		return nil
@@ -1148,13 +1250,13 @@ func ensureSchema(database *sql.DB) error {
 
 	if legacyEntriesTableExists {
 		if err := migrateLegacyEntriesTable(database); err != nil {
-			return core.E("store.ensureSchema", "migration", err)
+			return core.E(opEnsureSchema, "migration", err)
 		}
 		return nil
 	}
 
 	if _, err := database.Exec(createEntriesTableSQL); err != nil {
-		return core.E("store.ensureSchema", "schema", err)
+		return core.E(opEnsureSchema, "schema", err)
 	}
 	return nil
 }

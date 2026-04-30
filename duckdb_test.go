@@ -9,7 +9,7 @@ func TestDuckdb_OpenDuckDBReadWrite_Good(t *T) {
 	path := Path(t.TempDir(), "rw.duckdb")
 	database, err := store.OpenDuckDBReadWrite(path)
 	RequireNoError(t, err)
-	defer database.Close()
+	defer func() { _ = database.Close() }()
 	AssertEqual(t, path, database.Path())
 }
 
@@ -23,7 +23,7 @@ func TestDuckdb_OpenDuckDBReadWrite_Ugly(t *T) {
 	path := Path(t.TempDir(), "with space.duckdb")
 	database, err := store.OpenDuckDBReadWrite(path)
 	RequireNoError(t, err)
-	defer database.Close()
+	defer func() { _ = database.Close() }()
 	AssertContains(t, database.Path(), "space")
 }
 
@@ -34,7 +34,7 @@ func TestDuckdb_OpenDuckDB_Good(t *T) {
 	RequireNoError(t, writer.Close())
 	reader, err := store.OpenDuckDB(path)
 	RequireNoError(t, err)
-	defer reader.Close()
+	defer func() { _ = reader.Close() }()
 	AssertEqual(t, path, reader.Path())
 }
 
@@ -51,7 +51,7 @@ func TestDuckdb_OpenDuckDB_Ugly(t *T) {
 	RequireNoError(t, writer.Close())
 	reader, err := store.OpenDuckDB(path)
 	RequireNoError(t, err)
-	defer reader.Close()
+	defer func() { _ = reader.Close() }()
 	AssertContains(t, reader.Path(), "spaced")
 }
 
@@ -94,7 +94,7 @@ func TestDuckdb_DuckDB_Path_Ugly(t *T) {
 	path := Path(t.TempDir(), "custom.duckdb")
 	database, err := store.OpenDuckDBReadWrite(path)
 	RequireNoError(t, err)
-	defer database.Close()
+	defer func() { _ = database.Close() }()
 	AssertEqual(t, path, database.Path())
 }
 

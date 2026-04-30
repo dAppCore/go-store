@@ -50,7 +50,7 @@ func (scopedConfig ScopedStoreConfig) Validate() error {
 	if !validNamespace.MatchString(scopedConfig.Namespace) {
 		return core.E(
 			"store.ScopedStoreConfig.Validate",
-			core.Sprintf("namespace %q is invalid; use names like %q or %q", scopedConfig.Namespace, "tenant-a", "tenant-42"),
+			core.Sprintf("namespace %q is invalid; use names like %q or %q", scopedConfig.Namespace, exampleTenantA, exampleTenant42),
 			nil,
 		)
 	}
@@ -101,14 +101,14 @@ func NewScoped(storeInstance *Store, namespace string) *ScopedStore {
 // option chain.
 func NewScopedConfigured(storeInstance *Store, scopedConfig ScopedStoreConfig) (*ScopedStore, error) {
 	if storeInstance == nil {
-		return nil, core.E("store.NewScopedConfigured", "store instance is nil", nil)
+		return nil, core.E(opNewScopedConfigured, "store instance is nil", nil)
 	}
 	if err := scopedConfig.Validate(); err != nil {
-		return nil, core.E("store.NewScopedConfigured", "validate config", err)
+		return nil, core.E(opNewScopedConfigured, "validate config", err)
 	}
 	scopedStore := NewScoped(storeInstance, scopedConfig.Namespace)
 	if scopedStore == nil {
-		return nil, core.E("store.NewScopedConfigured", "construct scoped store", nil)
+		return nil, core.E(opNewScopedConfigured, "construct scoped store", nil)
 	}
 	scopedStore.MaxKeys = scopedConfig.Quota.MaxKeys
 	scopedStore.MaxGroups = scopedConfig.Quota.MaxGroups
@@ -143,7 +143,7 @@ func (scopedStore *ScopedStore) trimNamespacePrefix(groupName string) string {
 
 func (scopedStore *ScopedStore) ensureReady(operation string) error {
 	if scopedStore == nil {
-		return core.E(operation, "scoped store is nil", nil)
+		return core.E(operation, scopedStoreNilMessage, nil)
 	}
 	if scopedStore.store == nil {
 		return core.E(operation, "scoped store store is nil", nil)
@@ -409,18 +409,8 @@ func (scopedStore *ScopedStore) PurgeExpired() (int64, error) {
 	if err != nil {
 		return 0, core.E("store.ScopedStore.PurgeExpired", "delete expired rows", err)
 	}
-	removedRows := int64(len(expiredEntries))
-	if removedRows > 0 {
-		for _, expiredEntry := range expiredEntries {
-			scopedStore.store.notify(Event{
-				Type:      EventDelete,
-				Group:     expiredEntry.group,
-				Key:       expiredEntry.key,
-				Timestamp: time.Now(),
-			})
-		}
-	}
-	return removedRows, nil
+	scopedStore.store.notifyExpiredEntries(expiredEntries)
+	return int64(len(expiredEntries)), nil
 }
 
 // Usage example: `events := scopedStore.Watch("config")`
@@ -536,10 +526,10 @@ func (scopedStore *ScopedStore) localiseWatchedEvent(event Event) (Event, bool) 
 // `tenant-a:config`.
 func (scopedStore *ScopedStore) OnChange(callback func(Event)) func() {
 	if scopedStore == nil || callback == nil {
-		return func() {}
+		return noopUnregister
 	}
 	if scopedStore.store == nil {
-		return func() {}
+		return noopUnregister
 	}
 
 	namespacePrefix := scopedStore.namespacePrefix()
@@ -564,13 +554,13 @@ type ScopedStoreTransaction struct {
 // Usage example: `err := scopedStore.Transaction(func(transaction *store.ScopedStoreTransaction) error { return transaction.Set("theme", "dark") })`
 func (scopedStore *ScopedStore) Transaction(operation func(*ScopedStoreTransaction) error) error {
 	if scopedStore == nil {
-		return core.E("store.ScopedStore.Transaction", "scoped store is nil", nil)
+		return core.E(opScopedStoreTransaction, scopedStoreNilMessage, nil)
 	}
 	if operation == nil {
-		return core.E("store.ScopedStore.Transaction", "operation is nil", nil)
+		return core.E(opScopedStoreTransaction, "operation is nil", nil)
 	}
 	if scopedStore.store == nil {
-		return core.E("store.ScopedStore.Transaction", "scoped store store is nil", nil)
+		return core.E(opScopedStoreTransaction, "scoped store store is nil", nil)
 	}
 
 	return scopedStore.store.Transaction(func(storeTransaction *StoreTransaction) error {
@@ -830,32 +820,21 @@ func (scopedStoreTransaction *ScopedStoreTransaction) PurgeExpired() (int64, err
 	if err != nil {
 		return 0, core.E("store.ScopedStoreTransaction.PurgeExpired", "delete expired rows", err)
 	}
-	removedRows := int64(len(expiredEntries))
-	if removedRows > 0 {
-		for _, expiredEntry := range expiredEntries {
-			scopedStoreTransaction.storeTransaction.recordEvent(Event{
-				Type:      EventDelete,
-				Group:     expiredEntry.group,
-				Key:       expiredEntry.key,
-				Timestamp: time.Now(),
-			})
-		}
-	}
-	return removedRows, nil
+	scopedStoreTransaction.storeTransaction.recordExpiredEntries(expiredEntries)
+	return int64(len(expiredEntries)), nil
 }
 
 func (scopedStoreTransaction *ScopedStoreTransaction) checkQuota(operation, group, key string) error {
-	return enforceQuota(
-		operation,
-		group,
-		key,
-		scopedStoreTransaction.scopedStore.namespacePrefix(),
-		scopedStoreTransaction.scopedStore.namespacedGroup(group),
-		scopedStoreTransaction.scopedStore.MaxKeys,
-		scopedStoreTransaction.scopedStore.MaxGroups,
-		scopedStoreTransaction.storeTransaction.sqliteTransaction,
-		scopedStoreTransaction.storeTransaction,
-	)
+	return enforceQuota(quotaCheck{
+		operation:       operation,
+		key:             key,
+		namespacePrefix: scopedStoreTransaction.scopedStore.namespacePrefix(),
+		namespacedGroup: scopedStoreTransaction.scopedStore.namespacedGroup(group),
+		maxKeys:         scopedStoreTransaction.scopedStore.MaxKeys,
+		maxGroups:       scopedStoreTransaction.scopedStore.MaxGroups,
+		queryable:       scopedStoreTransaction.storeTransaction.sqliteTransaction,
+		counter:         scopedStoreTransaction.storeTransaction,
+	})
 }
 
 type quotaCounter interface {
@@ -864,62 +843,86 @@ type quotaCounter interface {
 	GroupsSeq(groupPrefix ...string) iter.Seq2[string, error]
 }
 
-func enforceQuota(
-	operation, group, key, namespacePrefix, namespacedGroup string,
-	maxKeys, maxGroups int,
-	queryable keyExistenceQuery,
-	counter quotaCounter,
-) error {
-	if maxKeys == 0 && maxGroups == 0 {
+type quotaCheck struct {
+	operation       string
+	key             string
+	namespacePrefix string
+	namespacedGroup string
+	maxKeys         int
+	maxGroups       int
+	queryable       keyExistenceQuery
+	counter         quotaCounter
+}
+
+func enforceQuota(check quotaCheck) error {
+	if check.maxKeys == 0 && check.maxGroups == 0 {
 		return nil
 	}
 
-	exists, err := liveEntryExists(queryable, namespacedGroup, key)
+	exists, err := liveEntryExists(check.queryable, check.namespacedGroup, check.key)
 	if err != nil {
-		// A database error occurred, not just a "not found" result.
-		return core.E(operation, "quota check", err)
+		return core.E(check.operation, quotaCheckContext, err)
 	}
 	if exists {
-		// Key exists - this is an upsert, no quota check needed.
 		return nil
 	}
 
-	if maxKeys > 0 {
-		keyCount, err := counter.CountAll(namespacePrefix)
-		if err != nil {
-			return core.E(operation, "quota check", err)
-		}
-		if keyCount >= maxKeys {
-			return core.E(operation, core.Sprintf("key limit (%d)", maxKeys), QuotaExceededError)
-		}
+	if err := enforceKeyQuota(check); err != nil {
+		return err
 	}
+	return enforceGroupQuota(check)
+}
 
-	if maxGroups > 0 {
-		existingGroupCount, err := counter.Count(namespacedGroup)
-		if err != nil {
-			return core.E(operation, "quota check", err)
-		}
-		if existingGroupCount == 0 {
-			knownGroupCount := 0
-			for _, iterationErr := range counter.GroupsSeq(namespacePrefix) {
-				if iterationErr != nil {
-					return core.E(operation, "quota check", iterationErr)
-				}
-				knownGroupCount++
-			}
-			if knownGroupCount >= maxGroups {
-				return core.E(operation, core.Sprintf("group limit (%d)", maxGroups), QuotaExceededError)
-			}
-		}
+func enforceKeyQuota(check quotaCheck) error {
+	if check.maxKeys <= 0 {
+		return nil
 	}
-
+	keyCount, err := check.counter.CountAll(check.namespacePrefix)
+	if err != nil {
+		return core.E(check.operation, quotaCheckContext, err)
+	}
+	if keyCount >= check.maxKeys {
+		return core.E(check.operation, core.Sprintf("key limit (%d)", check.maxKeys), QuotaExceededError)
+	}
 	return nil
+}
+
+func enforceGroupQuota(check quotaCheck) error {
+	if check.maxGroups <= 0 {
+		return nil
+	}
+	existingGroupCount, err := check.counter.Count(check.namespacedGroup)
+	if err != nil {
+		return core.E(check.operation, quotaCheckContext, err)
+	}
+	if existingGroupCount > 0 {
+		return nil
+	}
+	knownGroupCount, err := countKnownGroups(check.counter, check.namespacePrefix)
+	if err != nil {
+		return core.E(check.operation, quotaCheckContext, err)
+	}
+	if knownGroupCount >= check.maxGroups {
+		return core.E(check.operation, core.Sprintf("group limit (%d)", check.maxGroups), QuotaExceededError)
+	}
+	return nil
+}
+
+func countKnownGroups(counter quotaCounter, namespacePrefix string) (int, error) {
+	knownGroupCount := 0
+	for _, iterationErr := range counter.GroupsSeq(namespacePrefix) {
+		if iterationErr != nil {
+			return 0, iterationErr
+		}
+		knownGroupCount++
+	}
+	return knownGroupCount, nil
 }
 
 func liveEntryExists(queryable keyExistenceQuery, group, key string) (bool, error) {
 	var exists int
 	err := queryable.QueryRow(
-		"SELECT 1 FROM "+entriesTableName+" WHERE "+entryGroupColumn+" = ? AND "+entryKeyColumn+" = ? AND (expires_at IS NULL OR expires_at > ?) LIMIT 1",
+		"SELECT 1 FROM "+entriesTableName+sqlWhere+entryGroupColumn+" = ? AND "+entryKeyColumn+" = ? AND (expires_at IS NULL OR expires_at > ?) LIMIT 1",
 		group,
 		key,
 		time.Now().UnixMilli(),

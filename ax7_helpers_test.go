@@ -41,7 +41,7 @@ var (
 
 func ax7Store(t *T) *Store {
 	t.Helper()
-	storeInstance, err := New(":memory:", WithPurgeInterval(24*Hour))
+	storeInstance, err := New(testMemoryDatabasePath, WithPurgeInterval(24*Hour))
 	RequireNoError(t, err)
 	t.Cleanup(func() { _ = storeInstance.Close() })
 	return storeInstance
@@ -51,7 +51,7 @@ func ax7ConfiguredStore(t *T) (*Store, string) {
 	t.Helper()
 	stateDirectory := t.TempDir()
 	storeInstance, err := NewConfigured(StoreConfig{
-		DatabasePath:            ":memory:",
+		DatabasePath:            testMemoryDatabasePath,
 		PurgeInterval:           24 * Hour,
 		WorkspaceStateDirectory: stateDirectory,
 	})
@@ -63,7 +63,7 @@ func ax7ConfiguredStore(t *T) (*Store, string) {
 func ax7Workspace(t *T) (*Store, *Workspace) {
 	t.Helper()
 	storeInstance, _ := ax7ConfiguredStore(t)
-	workspace, err := storeInstance.NewWorkspace("ax7-workspace")
+	workspace, err := storeInstance.NewWorkspace(testAX7WorkspaceName)
 	RequireNoError(t, err)
 	t.Cleanup(func() { workspace.Discard() })
 	return storeInstance, workspace
@@ -71,7 +71,7 @@ func ax7Workspace(t *T) (*Store, *Workspace) {
 
 func ax7ScopedStore(t *T) *ScopedStore {
 	t.Helper()
-	scopedStore, err := NewScopedConfigured(ax7Store(t), ScopedStoreConfig{Namespace: "tenant-a"})
+	scopedStore, err := NewScopedConfigured(ax7Store(t), ScopedStoreConfig{Namespace: testTenantA})
 	RequireNoError(t, err)
 	return scopedStore
 }
@@ -79,7 +79,7 @@ func ax7ScopedStore(t *T) *ScopedStore {
 func ax7QuotaScopedStore(t *T, maxKeys, maxGroups int) *ScopedStore {
 	t.Helper()
 	scopedStore, err := NewScopedConfigured(ax7Store(t), ScopedStoreConfig{
-		Namespace: "tenant-a",
+		Namespace: testTenantA,
 		Quota:     QuotaConfig{MaxKeys: maxKeys, MaxGroups: maxGroups},
 	})
 	RequireNoError(t, err)
@@ -95,6 +95,7 @@ func ax7DuckDB(t *T) *DuckDB {
 	return database
 }
 
+//nolint:unused // Compatibility helper kept for generated test lanes.
 func ax7SeedDuckDB(t *T, database *DuckDB) {
 	t.Helper()
 	RequireNoError(t, database.Exec(`CREATE TABLE IF NOT EXISTS golden_set (idx INTEGER, seed_id VARCHAR, domain VARCHAR, voice VARCHAR, prompt VARCHAR, response VARCHAR, gen_time DOUBLE, char_count INTEGER)`))

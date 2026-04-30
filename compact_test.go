@@ -14,17 +14,17 @@ import (
 func TestCompact_Compact_Good_GzipArchive(t *testing.T) {
 	outputDirectory := useArchiveOutputDirectory(t)
 
-	storeInstance, err := New(":memory:", WithJournal("http://127.0.0.1:8086", "core", "events"))
+	storeInstance, err := New(testMemoryDatabasePath, WithJournal(testJournalEndpoint, "core", "events"))
 	assertNoError(t, err)
 	defer func() { _ = storeInstance.Close() }()
 
-	assertTrue(t, storeInstance.CommitToJournal("session-a", map[string]any{"like": 1}, map[string]string{"workspace": "session-a"}).OK)
-	assertTrue(t, storeInstance.CommitToJournal("session-b", map[string]any{"like": 2}, map[string]string{"workspace": "session-b"}).OK)
+	assertTrue(t, storeInstance.CommitToJournal(testSessionA, map[string]any{"like": 1}, map[string]string{"workspace": testSessionA}).OK)
+	assertTrue(t, storeInstance.CommitToJournal(testSessionB, map[string]any{"like": 2}, map[string]string{"workspace": testSessionB}).OK)
 
 	_, err = storeInstance.sqliteDatabase.Exec(
-		"UPDATE "+journalEntriesTableName+" SET committed_at = ? WHERE measurement = ?",
+		testSQLUpdatePrefix+journalEntriesTableName+testSetCommittedAtByMeasurementSQL,
 		time.Now().Add(-48*time.Hour).UnixMilli(),
-		"session-a",
+		testSessionA,
 	)
 	assertNoError(t, err)
 
@@ -33,10 +33,10 @@ func TestCompact_Compact_Good_GzipArchive(t *testing.T) {
 		Output: outputDirectory,
 		Format: "gzip",
 	})
-	assertTruef(t, result.OK, "compact failed: %v", result.Value)
+	assertTruef(t, result.OK, testCompactFailedFormat, result.Value)
 
 	archivePath, ok := result.Value.(string)
-	assertTruef(t, ok, "unexpected archive path type: %T", result.Value)
+	assertTruef(t, ok, testUnexpectedArchivePathTypeFormat, result.Value)
 	assertTrue(t, testFilesystem().Exists(archivePath))
 
 	archiveData := requireCoreReadBytes(t, archivePath)
@@ -53,27 +53,27 @@ func TestCompact_Compact_Good_GzipArchive(t *testing.T) {
 
 	archivedRow := make(map[string]any)
 	unmarshalResult := core.JSONUnmarshalString(lines[0], &archivedRow)
-	assertTruef(t, unmarshalResult.OK, "archive line unmarshal failed: %v", unmarshalResult.Value)
-	assertEqual(t, "session-a", archivedRow["measurement"])
+	assertTruef(t, unmarshalResult.OK, testArchiveLineUnmarshalFailedFormat, unmarshalResult.Value)
+	assertEqual(t, testSessionA, archivedRow["measurement"])
 
 	remainingRows := requireResultRows(t, storeInstance.QueryJournal(""))
 	assertLen(t, remainingRows, 1)
-	assertEqual(t, "session-b", remainingRows[0]["measurement"])
+	assertEqual(t, testSessionB, remainingRows[0]["measurement"])
 }
 
 func TestCompact_Compact_Good_ZstdArchive(t *testing.T) {
 	outputDirectory := useArchiveOutputDirectory(t)
 
-	storeInstance, err := New(":memory:", WithJournal("http://127.0.0.1:8086", "core", "events"))
+	storeInstance, err := New(testMemoryDatabasePath, WithJournal(testJournalEndpoint, "core", "events"))
 	assertNoError(t, err)
 	defer func() { _ = storeInstance.Close() }()
 
-	assertTrue(t, storeInstance.CommitToJournal("session-a", map[string]any{"like": 1}, map[string]string{"workspace": "session-a"}).OK)
+	assertTrue(t, storeInstance.CommitToJournal(testSessionA, map[string]any{"like": 1}, map[string]string{"workspace": testSessionA}).OK)
 
 	_, err = storeInstance.sqliteDatabase.Exec(
-		"UPDATE "+journalEntriesTableName+" SET committed_at = ? WHERE measurement = ?",
+		testSQLUpdatePrefix+journalEntriesTableName+testSetCommittedAtByMeasurementSQL,
 		time.Now().Add(-48*time.Hour).UnixMilli(),
-		"session-a",
+		testSessionA,
 	)
 	assertNoError(t, err)
 
@@ -82,10 +82,10 @@ func TestCompact_Compact_Good_ZstdArchive(t *testing.T) {
 		Output: outputDirectory,
 		Format: "zstd",
 	})
-	assertTruef(t, result.OK, "compact failed: %v", result.Value)
+	assertTruef(t, result.OK, testCompactFailedFormat, result.Value)
 
 	archivePath, ok := result.Value.(string)
-	assertTruef(t, ok, "unexpected archive path type: %T", result.Value)
+	assertTruef(t, ok, testUnexpectedArchivePathTypeFormat, result.Value)
 	assertTrue(t, testFilesystem().Exists(archivePath))
 	assertContainsString(t, archivePath, ".jsonl.zst")
 
@@ -101,14 +101,14 @@ func TestCompact_Compact_Good_ZstdArchive(t *testing.T) {
 
 	archivedRow := make(map[string]any)
 	unmarshalResult := core.JSONUnmarshalString(lines[0], &archivedRow)
-	assertTruef(t, unmarshalResult.OK, "archive line unmarshal failed: %v", unmarshalResult.Value)
-	assertEqual(t, "session-a", archivedRow["measurement"])
+	assertTruef(t, unmarshalResult.OK, testArchiveLineUnmarshalFailedFormat, unmarshalResult.Value)
+	assertEqual(t, testSessionA, archivedRow["measurement"])
 }
 
 func TestCompact_Compact_Good_NoRows(t *testing.T) {
 	outputDirectory := useArchiveOutputDirectory(t)
 
-	storeInstance, err := New(":memory:")
+	storeInstance, err := New(testMemoryDatabasePath)
 	assertNoError(t, err)
 	defer func() { _ = storeInstance.Close() }()
 
@@ -117,31 +117,31 @@ func TestCompact_Compact_Good_NoRows(t *testing.T) {
 		Output: outputDirectory,
 		Format: "gzip",
 	})
-	assertTruef(t, result.OK, "compact failed: %v", result.Value)
+	assertTruef(t, result.OK, testCompactFailedFormat, result.Value)
 	assertEqual(t, "", result.Value)
 }
 
 func TestCompact_Compact_Good_DeterministicOrderingForSameTimestamp(t *testing.T) {
 	outputDirectory := useArchiveOutputDirectory(t)
 
-	storeInstance, err := New(":memory:", WithJournal("http://127.0.0.1:8086", "core", "events"))
+	storeInstance, err := New(testMemoryDatabasePath, WithJournal(testJournalEndpoint, "core", "events"))
 	assertNoError(t, err)
 	defer func() { _ = storeInstance.Close() }()
 	assertNoError(t, ensureJournalSchema(storeInstance.sqliteDatabase))
 
 	committedAt := time.Now().Add(-48 * time.Hour).UnixMilli()
-	assertNoError(t, commitJournalEntry(storeInstance.sqliteDatabase, "events", "session-b", `{"like":2}`, `{"workspace":"session-b"}`, committedAt))
-	assertNoError(t, commitJournalEntry(storeInstance.sqliteDatabase, "events", "session-a", `{"like":1}`, `{"workspace":"session-a"}`, committedAt))
+	assertNoError(t, commitJournalEntry(storeInstance.sqliteDatabase, "events", testSessionB, `{"like":2}`, `{"workspace":"session-b"}`, committedAt))
+	assertNoError(t, commitJournalEntry(storeInstance.sqliteDatabase, "events", testSessionA, `{"like":1}`, `{"workspace":"session-a"}`, committedAt))
 
 	result := storeInstance.Compact(CompactOptions{
 		Before: time.Now().Add(-24 * time.Hour),
 		Output: outputDirectory,
 		Format: "gzip",
 	})
-	assertTruef(t, result.OK, "compact failed: %v", result.Value)
+	assertTruef(t, result.OK, testCompactFailedFormat, result.Value)
 
 	archivePath, ok := result.Value.(string)
-	assertTruef(t, ok, "unexpected archive path type: %T", result.Value)
+	assertTruef(t, ok, testUnexpectedArchivePathTypeFormat, result.Value)
 
 	archiveData := requireCoreReadBytes(t, archivePath)
 	reader, err := gzip.NewReader(bytes.NewReader(archiveData))
@@ -157,13 +157,13 @@ func TestCompact_Compact_Good_DeterministicOrderingForSameTimestamp(t *testing.T
 
 	firstArchivedRow := make(map[string]any)
 	unmarshalResult := core.JSONUnmarshalString(lines[0], &firstArchivedRow)
-	assertTruef(t, unmarshalResult.OK, "archive line unmarshal failed: %v", unmarshalResult.Value)
-	assertEqual(t, "session-b", firstArchivedRow["measurement"])
+	assertTruef(t, unmarshalResult.OK, testArchiveLineUnmarshalFailedFormat, unmarshalResult.Value)
+	assertEqual(t, testSessionB, firstArchivedRow["measurement"])
 
 	secondArchivedRow := make(map[string]any)
 	unmarshalResult = core.JSONUnmarshalString(lines[1], &secondArchivedRow)
-	assertTruef(t, unmarshalResult.OK, "archive line unmarshal failed: %v", unmarshalResult.Value)
-	assertEqual(t, "session-a", secondArchivedRow["measurement"])
+	assertTruef(t, unmarshalResult.OK, testArchiveLineUnmarshalFailedFormat, unmarshalResult.Value)
+	assertEqual(t, testSessionA, secondArchivedRow["measurement"])
 }
 
 func TestCompact_CompactOptions_Good_Normalised(t *testing.T) {

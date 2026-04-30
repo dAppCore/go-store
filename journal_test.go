@@ -6,12 +6,12 @@ import (
 )
 
 func TestJournal_CommitToJournal_Good_WithQueryJournalSQL(t *testing.T) {
-	storeInstance, err := New(":memory:", WithJournal("http://127.0.0.1:8086", "core", "events"))
+	storeInstance, err := New(testMemoryDatabasePath, WithJournal(testJournalEndpoint, "core", "events"))
 	assertNoError(t, err)
 	defer func() { _ = storeInstance.Close() }()
 
-	first := storeInstance.CommitToJournal("session-a", map[string]any{"like": 4}, map[string]string{"workspace": "session-a"})
-	second := storeInstance.CommitToJournal("session-b", map[string]any{"profile_match": 2}, map[string]string{"workspace": "session-b"})
+	first := storeInstance.CommitToJournal(testSessionA, map[string]any{"like": 4}, map[string]string{"workspace": testSessionA})
+	second := storeInstance.CommitToJournal(testSessionB, map[string]any{"profile_match": 2}, map[string]string{"workspace": testSessionB})
 	assertTruef(t, first.OK, "first journal commit failed: %v", first.Value)
 	assertTruef(t, second.OK, "second journal commit failed: %v", second.Value)
 
@@ -21,49 +21,49 @@ func TestJournal_CommitToJournal_Good_WithQueryJournalSQL(t *testing.T) {
 	)
 	assertLen(t, rows, 2)
 	assertEqual(t, "events", rows[0]["bucket_name"])
-	assertEqual(t, "session-a", rows[0]["measurement"])
+	assertEqual(t, testSessionA, rows[0]["measurement"])
 
 	fields, ok := rows[0]["fields"].(map[string]any)
-	assertTruef(t, ok, "unexpected fields type: %T", rows[0]["fields"])
+	assertTruef(t, ok, testUnexpectedFieldsTypeFormat, rows[0]["fields"])
 	assertEqual(t, float64(4), fields["like"])
 
 	tags, ok := rows[1]["tags"].(map[string]string)
-	assertTruef(t, ok, "unexpected tags type: %T", rows[1]["tags"])
-	assertEqual(t, "session-b", tags["workspace"])
+	assertTruef(t, ok, testUnexpectedTagsTypeFormat, rows[1]["tags"])
+	assertEqual(t, testSessionB, tags["workspace"])
 }
 
 func TestJournal_CommitToJournal_Good_ResultCopiesInputMaps(t *testing.T) {
-	storeInstance, err := New(":memory:", WithJournal("http://127.0.0.1:8086", "core", "events"))
+	storeInstance, err := New(testMemoryDatabasePath, WithJournal(testJournalEndpoint, "core", "events"))
 	assertNoError(t, err)
 	defer func() { _ = storeInstance.Close() }()
 
 	fields := map[string]any{"like": 4}
-	tags := map[string]string{"workspace": "session-a"}
+	tags := map[string]string{"workspace": testSessionA}
 
-	result := storeInstance.CommitToJournal("session-a", fields, tags)
+	result := storeInstance.CommitToJournal(testSessionA, fields, tags)
 	assertTruef(t, result.OK, "journal commit failed: %v", result.Value)
 
 	fields["like"] = 99
-	tags["workspace"] = "session-b"
+	tags["workspace"] = testSessionB
 
 	value, ok := result.Value.(map[string]any)
 	assertTruef(t, ok, "unexpected result type: %T", result.Value)
 
 	resultFields, ok := value["fields"].(map[string]any)
-	assertTruef(t, ok, "unexpected fields type: %T", value["fields"])
+	assertTruef(t, ok, testUnexpectedFieldsTypeFormat, value["fields"])
 	assertEqual(t, 4, resultFields["like"])
 
 	resultTags, ok := value["tags"].(map[string]string)
-	assertTruef(t, ok, "unexpected tags type: %T", value["tags"])
-	assertEqual(t, "session-a", resultTags["workspace"])
+	assertTruef(t, ok, testUnexpectedTagsTypeFormat, value["tags"])
+	assertEqual(t, testSessionA, resultTags["workspace"])
 }
 
 func TestJournal_QueryJournal_Good_RawSQLWithCTE(t *testing.T) {
-	storeInstance, err := New(":memory:", WithJournal("http://127.0.0.1:8086", "core", "events"))
+	storeInstance, err := New(testMemoryDatabasePath, WithJournal(testJournalEndpoint, "core", "events"))
 	assertNoError(t, err)
 	defer func() { _ = storeInstance.Close() }()
 
-	assertTrue(t, storeInstance.CommitToJournal("session-a", map[string]any{"like": 4}, map[string]string{"workspace": "session-a"}).OK)
+	assertTrue(t, storeInstance.CommitToJournal(testSessionA, map[string]any{"like": 4}, map[string]string{"workspace": testSessionA}).OK)
 
 	rows := requireResultRows(
 		t,
@@ -78,11 +78,11 @@ func TestJournal_QueryJournal_Good_RawSQLWithCTE(t *testing.T) {
 		`),
 	)
 	assertLen(t, rows, 1)
-	assertEqual(t, "session-a", rows[0]["measurement"])
+	assertEqual(t, testSessionA, rows[0]["measurement"])
 }
 
 func TestJournal_QueryJournal_Good_PragmaSQL(t *testing.T) {
-	storeInstance, err := New(":memory:", WithJournal("http://127.0.0.1:8086", "core", "events"))
+	storeInstance, err := New(testMemoryDatabasePath, WithJournal(testJournalEndpoint, "core", "events"))
 	assertNoError(t, err)
 	defer func() { _ = storeInstance.Close() }()
 
@@ -101,139 +101,139 @@ func TestJournal_QueryJournal_Good_PragmaSQL(t *testing.T) {
 }
 
 func TestJournal_QueryJournal_Good_FluxFilters(t *testing.T) {
-	storeInstance, err := New(":memory:", WithJournal("http://127.0.0.1:8086", "core", "events"))
+	storeInstance, err := New(testMemoryDatabasePath, WithJournal(testJournalEndpoint, "core", "events"))
 	assertNoError(t, err)
 	defer func() { _ = storeInstance.Close() }()
 
-	assertTrue(t, storeInstance.CommitToJournal("session-a", map[string]any{"like": 1}, map[string]string{"workspace": "session-a"}).OK)
-	assertTrue(t, storeInstance.CommitToJournal("session-b", map[string]any{"like": 2}, map[string]string{"workspace": "session-b"}).OK)
+	assertTrue(t, storeInstance.CommitToJournal(testSessionA, map[string]any{"like": 1}, map[string]string{"workspace": testSessionA}).OK)
+	assertTrue(t, storeInstance.CommitToJournal(testSessionB, map[string]any{"like": 2}, map[string]string{"workspace": testSessionB}).OK)
 
 	rows := requireResultRows(
 		t,
 		storeInstance.QueryJournal(`from(bucket: "events") |> range(start: -24h) |> filter(fn: (r) => r._measurement == "session-b")`),
 	)
 	assertLen(t, rows, 1)
-	assertEqual(t, "session-b", rows[0]["measurement"])
+	assertEqual(t, testSessionB, rows[0]["measurement"])
 
 	fields, ok := rows[0]["fields"].(map[string]any)
-	assertTruef(t, ok, "unexpected fields type: %T", rows[0]["fields"])
+	assertTruef(t, ok, testUnexpectedFieldsTypeFormat, rows[0]["fields"])
 	assertEqual(t, float64(2), fields["like"])
 }
 
 func TestJournal_QueryJournal_Good_TagFilter(t *testing.T) {
-	storeInstance, err := New(":memory:", WithJournal("http://127.0.0.1:8086", "core", "events"))
+	storeInstance, err := New(testMemoryDatabasePath, WithJournal(testJournalEndpoint, "core", "events"))
 	assertNoError(t, err)
 	defer func() { _ = storeInstance.Close() }()
 
-	assertTrue(t, storeInstance.CommitToJournal("session-a", map[string]any{"like": 1}, map[string]string{"workspace": "session-a"}).OK)
-	assertTrue(t, storeInstance.CommitToJournal("session-b", map[string]any{"like": 2}, map[string]string{"workspace": "session-b"}).OK)
+	assertTrue(t, storeInstance.CommitToJournal(testSessionA, map[string]any{"like": 1}, map[string]string{"workspace": testSessionA}).OK)
+	assertTrue(t, storeInstance.CommitToJournal(testSessionB, map[string]any{"like": 2}, map[string]string{"workspace": testSessionB}).OK)
 
 	rows := requireResultRows(
 		t,
 		storeInstance.QueryJournal(`from(bucket: "events") |> range(start: -24h) |> filter(fn: (r) => r.workspace == "session-b")`),
 	)
 	assertLen(t, rows, 1)
-	assertEqual(t, "session-b", rows[0]["measurement"])
+	assertEqual(t, testSessionB, rows[0]["measurement"])
 
 	tags, ok := rows[0]["tags"].(map[string]string)
-	assertTruef(t, ok, "unexpected tags type: %T", rows[0]["tags"])
-	assertEqual(t, "session-b", tags["workspace"])
+	assertTruef(t, ok, testUnexpectedTagsTypeFormat, rows[0]["tags"])
+	assertEqual(t, testSessionB, tags["workspace"])
 }
 
 func TestJournal_QueryJournal_Good_NumericFieldFilter(t *testing.T) {
-	storeInstance, err := New(":memory:", WithJournal("http://127.0.0.1:8086", "core", "events"))
+	storeInstance, err := New(testMemoryDatabasePath, WithJournal(testJournalEndpoint, "core", "events"))
 	assertNoError(t, err)
 	defer func() { _ = storeInstance.Close() }()
 
-	assertTrue(t, storeInstance.CommitToJournal("session-a", map[string]any{"like": 1}, map[string]string{"workspace": "session-a"}).OK)
-	assertTrue(t, storeInstance.CommitToJournal("session-b", map[string]any{"like": 2}, map[string]string{"workspace": "session-b"}).OK)
+	assertTrue(t, storeInstance.CommitToJournal(testSessionA, map[string]any{"like": 1}, map[string]string{"workspace": testSessionA}).OK)
+	assertTrue(t, storeInstance.CommitToJournal(testSessionB, map[string]any{"like": 2}, map[string]string{"workspace": testSessionB}).OK)
 
 	rows := requireResultRows(
 		t,
 		storeInstance.QueryJournal(`from(bucket: "events") |> range(start: -24h) |> filter(fn: (r) => r.like == 2)`),
 	)
 	assertLen(t, rows, 1)
-	assertEqual(t, "session-b", rows[0]["measurement"])
+	assertEqual(t, testSessionB, rows[0]["measurement"])
 
 	fields, ok := rows[0]["fields"].(map[string]any)
-	assertTruef(t, ok, "unexpected fields type: %T", rows[0]["fields"])
+	assertTruef(t, ok, testUnexpectedFieldsTypeFormat, rows[0]["fields"])
 	assertEqual(t, float64(2), fields["like"])
 }
 
 func TestJournal_QueryJournal_Good_BooleanFieldFilter(t *testing.T) {
-	storeInstance, err := New(":memory:", WithJournal("http://127.0.0.1:8086", "core", "events"))
+	storeInstance, err := New(testMemoryDatabasePath, WithJournal(testJournalEndpoint, "core", "events"))
 	assertNoError(t, err)
 	defer func() { _ = storeInstance.Close() }()
 
-	assertTrue(t, storeInstance.CommitToJournal("session-a", map[string]any{"complete": false}, map[string]string{"workspace": "session-a"}).OK)
-	assertTrue(t, storeInstance.CommitToJournal("session-b", map[string]any{"complete": true}, map[string]string{"workspace": "session-b"}).OK)
+	assertTrue(t, storeInstance.CommitToJournal(testSessionA, map[string]any{"complete": false}, map[string]string{"workspace": testSessionA}).OK)
+	assertTrue(t, storeInstance.CommitToJournal(testSessionB, map[string]any{"complete": true}, map[string]string{"workspace": testSessionB}).OK)
 
 	rows := requireResultRows(
 		t,
 		storeInstance.QueryJournal(`from(bucket: "events") |> range(start: -24h) |> filter(fn: (r) => r["complete"] == true)`),
 	)
 	assertLen(t, rows, 1)
-	assertEqual(t, "session-b", rows[0]["measurement"])
+	assertEqual(t, testSessionB, rows[0]["measurement"])
 
 	fields, ok := rows[0]["fields"].(map[string]any)
-	assertTruef(t, ok, "unexpected fields type: %T", rows[0]["fields"])
+	assertTruef(t, ok, testUnexpectedFieldsTypeFormat, rows[0]["fields"])
 	assertEqual(t, true, fields["complete"])
 }
 
 func TestJournal_QueryJournal_Good_BucketFilter(t *testing.T) {
-	storeInstance, err := New(":memory:")
+	storeInstance, err := New(testMemoryDatabasePath)
 	assertNoError(t, err)
 	defer func() { _ = storeInstance.Close() }()
 
-	assertTrue(t, storeInstance.CommitToJournal("session-a", map[string]any{"like": 1}, map[string]string{"workspace": "session-a"}).OK)
-	assertNoError(t, commitJournalEntry(storeInstance.sqliteDatabase, "events", "session-b", `{"like":2}`, `{"workspace":"session-b"}`, time.Now().UnixMilli()))
+	assertTrue(t, storeInstance.CommitToJournal(testSessionA, map[string]any{"like": 1}, map[string]string{"workspace": testSessionA}).OK)
+	assertNoError(t, commitJournalEntry(storeInstance.sqliteDatabase, "events", testSessionB, `{"like":2}`, `{"workspace":"session-b"}`, time.Now().UnixMilli()))
 
 	rows := requireResultRows(
 		t,
 		storeInstance.QueryJournal(`from(bucket: "events") |> range(start: -24h) |> filter(fn: (r) => r._bucket == "events")`),
 	)
 	assertLen(t, rows, 1)
-	assertEqual(t, "session-b", rows[0]["measurement"])
+	assertEqual(t, testSessionB, rows[0]["measurement"])
 	assertEqual(t, "events", rows[0]["bucket_name"])
 }
 
 func TestJournal_QueryJournal_Good_DeterministicOrderingForSameTimestamp(t *testing.T) {
-	storeInstance, err := New(":memory:")
+	storeInstance, err := New(testMemoryDatabasePath)
 	assertNoError(t, err)
 	defer func() { _ = storeInstance.Close() }()
 	assertNoError(t, ensureJournalSchema(storeInstance.sqliteDatabase))
 
 	committedAt := time.Date(2026, 3, 30, 12, 0, 0, 0, time.UTC).UnixMilli()
-	assertNoError(t, commitJournalEntry(storeInstance.sqliteDatabase, "events", "session-b", `{"like":2}`, `{"workspace":"session-b"}`, committedAt))
-	assertNoError(t, commitJournalEntry(storeInstance.sqliteDatabase, "events", "session-a", `{"like":1}`, `{"workspace":"session-a"}`, committedAt))
+	assertNoError(t, commitJournalEntry(storeInstance.sqliteDatabase, "events", testSessionB, `{"like":2}`, `{"workspace":"session-b"}`, committedAt))
+	assertNoError(t, commitJournalEntry(storeInstance.sqliteDatabase, "events", testSessionA, `{"like":1}`, `{"workspace":"session-a"}`, committedAt))
 
 	rows := requireResultRows(
 		t,
 		storeInstance.QueryJournal(""),
 	)
 	assertLen(t, rows, 2)
-	assertEqual(t, "session-b", rows[0]["measurement"])
-	assertEqual(t, "session-a", rows[1]["measurement"])
+	assertEqual(t, testSessionB, rows[0]["measurement"])
+	assertEqual(t, testSessionA, rows[1]["measurement"])
 }
 
 func TestJournal_QueryJournal_Good_AbsoluteRangeWithStop(t *testing.T) {
-	storeInstance, err := New(":memory:", WithJournal("http://127.0.0.1:8086", "core", "events"))
+	storeInstance, err := New(testMemoryDatabasePath, WithJournal(testJournalEndpoint, "core", "events"))
 	assertNoError(t, err)
 	defer func() { _ = storeInstance.Close() }()
 
-	assertTrue(t, storeInstance.CommitToJournal("session-a", map[string]any{"like": 1}, map[string]string{"workspace": "session-a"}).OK)
-	assertTrue(t, storeInstance.CommitToJournal("session-b", map[string]any{"like": 2}, map[string]string{"workspace": "session-b"}).OK)
+	assertTrue(t, storeInstance.CommitToJournal(testSessionA, map[string]any{"like": 1}, map[string]string{"workspace": testSessionA}).OK)
+	assertTrue(t, storeInstance.CommitToJournal(testSessionB, map[string]any{"like": 2}, map[string]string{"workspace": testSessionB}).OK)
 
 	_, err = storeInstance.sqliteDatabase.Exec(
-		"UPDATE "+journalEntriesTableName+" SET committed_at = ? WHERE measurement = ?",
+		testSQLUpdatePrefix+journalEntriesTableName+testSetCommittedAtByMeasurementSQL,
 		time.Date(2026, 3, 29, 12, 0, 0, 0, time.UTC).UnixMilli(),
-		"session-a",
+		testSessionA,
 	)
 	assertNoError(t, err)
 	_, err = storeInstance.sqliteDatabase.Exec(
-		"UPDATE "+journalEntriesTableName+" SET committed_at = ? WHERE measurement = ?",
+		testSQLUpdatePrefix+journalEntriesTableName+testSetCommittedAtByMeasurementSQL,
 		time.Date(2026, 3, 30, 12, 0, 0, 0, time.UTC).UnixMilli(),
-		"session-b",
+		testSessionB,
 	)
 	assertNoError(t, err)
 
@@ -242,27 +242,27 @@ func TestJournal_QueryJournal_Good_AbsoluteRangeWithStop(t *testing.T) {
 		storeInstance.QueryJournal(`from(bucket: "events") |> range(start: "2026-03-30T00:00:00Z", stop: now())`),
 	)
 	assertLen(t, rows, 1)
-	assertEqual(t, "session-b", rows[0]["measurement"])
+	assertEqual(t, testSessionB, rows[0]["measurement"])
 }
 
 func TestJournal_QueryJournal_Good_AbsoluteRangeHonoursStop(t *testing.T) {
-	storeInstance, err := New(":memory:", WithJournal("http://127.0.0.1:8086", "core", "events"))
+	storeInstance, err := New(testMemoryDatabasePath, WithJournal(testJournalEndpoint, "core", "events"))
 	assertNoError(t, err)
 	defer func() { _ = storeInstance.Close() }()
 
-	assertTrue(t, storeInstance.CommitToJournal("session-a", map[string]any{"like": 1}, map[string]string{"workspace": "session-a"}).OK)
-	assertTrue(t, storeInstance.CommitToJournal("session-b", map[string]any{"like": 2}, map[string]string{"workspace": "session-b"}).OK)
+	assertTrue(t, storeInstance.CommitToJournal(testSessionA, map[string]any{"like": 1}, map[string]string{"workspace": testSessionA}).OK)
+	assertTrue(t, storeInstance.CommitToJournal(testSessionB, map[string]any{"like": 2}, map[string]string{"workspace": testSessionB}).OK)
 
 	_, err = storeInstance.sqliteDatabase.Exec(
-		"UPDATE "+journalEntriesTableName+" SET committed_at = ? WHERE measurement = ?",
+		testSQLUpdatePrefix+journalEntriesTableName+testSetCommittedAtByMeasurementSQL,
 		time.Date(2026, 3, 29, 12, 0, 0, 0, time.UTC).UnixMilli(),
-		"session-a",
+		testSessionA,
 	)
 	assertNoError(t, err)
 	_, err = storeInstance.sqliteDatabase.Exec(
-		"UPDATE "+journalEntriesTableName+" SET committed_at = ? WHERE measurement = ?",
+		testSQLUpdatePrefix+journalEntriesTableName+testSetCommittedAtByMeasurementSQL,
 		time.Date(2026, 3, 30, 12, 0, 0, 0, time.UTC).UnixMilli(),
-		"session-b",
+		testSessionB,
 	)
 	assertNoError(t, err)
 
@@ -271,11 +271,11 @@ func TestJournal_QueryJournal_Good_AbsoluteRangeHonoursStop(t *testing.T) {
 		storeInstance.QueryJournal(`from(bucket: "events") |> range(start: "2026-03-29T00:00:00Z", stop: "2026-03-30T00:00:00Z")`),
 	)
 	assertLen(t, rows, 1)
-	assertEqual(t, "session-a", rows[0]["measurement"])
+	assertEqual(t, testSessionA, rows[0]["measurement"])
 }
 
 func TestJournal_CommitToJournal_Bad_EmptyMeasurement(t *testing.T) {
-	storeInstance, err := New(":memory:")
+	storeInstance, err := New(testMemoryDatabasePath)
 	assertNoError(t, err)
 	defer func() { _ = storeInstance.Close() }()
 

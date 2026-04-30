@@ -10,20 +10,20 @@ import (
 func TestWorkspace_NewWorkspace_Good_CreatePutAggregateQuery(t *testing.T) {
 	stateDirectory := useWorkspaceStateDirectory(t)
 
-	storeInstance, err := New(":memory:", WithJournal("http://127.0.0.1:8086", "core", "events"))
+	storeInstance, err := New(testMemoryDatabasePath, WithJournal(testJournalEndpoint, "core", "events"))
 	assertNoError(t, err)
 	defer func() { _ = storeInstance.Close() }()
 
-	workspace, err := storeInstance.NewWorkspace("scroll-session")
+	workspace, err := storeInstance.NewWorkspace(testScrollSession)
 	assertNoError(t, err)
 	defer workspace.Discard()
 
-	assertEqual(t, workspaceFilePath(stateDirectory, "scroll-session"), workspace.databasePath)
+	assertEqual(t, workspaceFilePath(stateDirectory, testScrollSession), workspace.databasePath)
 	assertTrue(t, testFilesystem().Exists(workspace.databasePath))
 
-	assertNoError(t, workspace.Put("like", map[string]any{"user": "@alice"}))
+	assertNoError(t, workspace.Put("like", map[string]any{"user": testActorAlice}))
 	assertNoError(t, workspace.Put("like", map[string]any{"user": "@bob"}))
-	assertNoError(t, workspace.Put("profile_match", map[string]any{"user": "@charlie"}))
+	assertNoError(t, workspace.Put("profile_match", map[string]any{"user": testActorCharlie}))
 
 	assertEqual(t, map[string]any{"like": 2, "profile_match": 1}, workspace.Aggregate())
 
@@ -41,21 +41,21 @@ func TestWorkspace_NewWorkspace_Good_CreatePutAggregateQuery(t *testing.T) {
 func TestWorkspace_DatabasePath_Good(t *testing.T) {
 	stateDirectory := useWorkspaceStateDirectory(t)
 
-	storeInstance, err := New(":memory:")
+	storeInstance, err := New(testMemoryDatabasePath)
 	assertNoError(t, err)
 	defer func() { _ = storeInstance.Close() }()
 
-	workspace, err := storeInstance.NewWorkspace("scroll-session")
+	workspace, err := storeInstance.NewWorkspace(testScrollSession)
 	assertNoError(t, err)
 	defer workspace.Discard()
 
-	assertEqual(t, workspaceFilePath(stateDirectory, "scroll-session"), workspace.DatabasePath())
+	assertEqual(t, workspaceFilePath(stateDirectory, testScrollSession), workspace.DatabasePath())
 }
 
 func TestWorkspace_Count_Good_Empty(t *testing.T) {
 	useWorkspaceStateDirectory(t)
 
-	storeInstance, err := New(":memory:")
+	storeInstance, err := New(testMemoryDatabasePath)
 	assertNoError(t, err)
 	defer func() { _ = storeInstance.Close() }()
 
@@ -71,7 +71,7 @@ func TestWorkspace_Count_Good_Empty(t *testing.T) {
 func TestWorkspace_Count_Good_AfterPuts(t *testing.T) {
 	useWorkspaceStateDirectory(t)
 
-	storeInstance, err := New(":memory:")
+	storeInstance, err := New(testMemoryDatabasePath)
 	assertNoError(t, err)
 	defer func() { _ = storeInstance.Close() }()
 
@@ -79,9 +79,9 @@ func TestWorkspace_Count_Good_AfterPuts(t *testing.T) {
 	assertNoError(t, err)
 	defer workspace.Discard()
 
-	assertNoError(t, workspace.Put("like", map[string]any{"user": "@alice"}))
+	assertNoError(t, workspace.Put("like", map[string]any{"user": testActorAlice}))
 	assertNoError(t, workspace.Put("like", map[string]any{"user": "@bob"}))
-	assertNoError(t, workspace.Put("profile_match", map[string]any{"user": "@charlie"}))
+	assertNoError(t, workspace.Put("profile_match", map[string]any{"user": testActorCharlie}))
 
 	count, err := workspace.Count()
 	assertNoError(t, err)
@@ -91,7 +91,7 @@ func TestWorkspace_Count_Good_AfterPuts(t *testing.T) {
 func TestWorkspace_Count_Bad_ClosedWorkspace(t *testing.T) {
 	useWorkspaceStateDirectory(t)
 
-	storeInstance, err := New(":memory:")
+	storeInstance, err := New(testMemoryDatabasePath)
 	assertNoError(t, err)
 	defer func() { _ = storeInstance.Close() }()
 
@@ -106,17 +106,17 @@ func TestWorkspace_Count_Bad_ClosedWorkspace(t *testing.T) {
 func TestWorkspace_Query_Good_RFCEntriesView(t *testing.T) {
 	useWorkspaceStateDirectory(t)
 
-	storeInstance, err := New(":memory:")
+	storeInstance, err := New(testMemoryDatabasePath)
 	assertNoError(t, err)
 	defer func() { _ = storeInstance.Close() }()
 
-	workspace, err := storeInstance.NewWorkspace("scroll-session")
+	workspace, err := storeInstance.NewWorkspace(testScrollSession)
 	assertNoError(t, err)
 	defer workspace.Discard()
 
-	assertNoError(t, workspace.Put("like", map[string]any{"user": "@alice"}))
+	assertNoError(t, workspace.Put("like", map[string]any{"user": testActorAlice}))
 	assertNoError(t, workspace.Put("like", map[string]any{"user": "@bob"}))
-	assertNoError(t, workspace.Put("profile_match", map[string]any{"user": "@charlie"}))
+	assertNoError(t, workspace.Put("profile_match", map[string]any{"user": testActorCharlie}))
 
 	rows := requireResultRows(
 		t,
@@ -132,23 +132,23 @@ func TestWorkspace_Query_Good_RFCEntriesView(t *testing.T) {
 func TestWorkspace_Commit_Good_JournalAndSummary(t *testing.T) {
 	useWorkspaceStateDirectory(t)
 
-	storeInstance, err := New(":memory:", WithJournal("http://127.0.0.1:8086", "core", "events"))
+	storeInstance, err := New(testMemoryDatabasePath, WithJournal(testJournalEndpoint, "core", "events"))
 	assertNoError(t, err)
 	defer func() { _ = storeInstance.Close() }()
 
-	workspace, err := storeInstance.NewWorkspace("scroll-session")
+	workspace, err := storeInstance.NewWorkspace(testScrollSession)
 	assertNoError(t, err)
 
-	assertNoError(t, workspace.Put("like", map[string]any{"user": "@alice"}))
+	assertNoError(t, workspace.Put("like", map[string]any{"user": testActorAlice}))
 	assertNoError(t, workspace.Put("like", map[string]any{"user": "@bob"}))
-	assertNoError(t, workspace.Put("profile_match", map[string]any{"user": "@charlie"}))
+	assertNoError(t, workspace.Put("profile_match", map[string]any{"user": testActorCharlie}))
 
 	result := workspace.Commit()
-	assertTruef(t, result.OK, "workspace commit failed: %v", result.Value)
+	assertTruef(t, result.OK, testWorkspaceCommitFailedFormat, result.Value)
 	assertEqual(t, map[string]any{"like": 2, "profile_match": 1}, result.Value)
 	assertFalse(t, testFilesystem().Exists(workspace.databasePath))
 
-	summaryJSON, err := storeInstance.Get(workspaceSummaryGroup("scroll-session"), "summary")
+	summaryJSON, err := storeInstance.Get(workspaceSummaryGroup(testScrollSession), "summary")
 	assertNoError(t, err)
 
 	summary := make(map[string]any)
@@ -162,33 +162,33 @@ func TestWorkspace_Commit_Good_JournalAndSummary(t *testing.T) {
 		storeInstance.QueryJournal(`from(bucket: "events") |> range(start: -24h) |> filter(fn: (r) => r._measurement == "scroll-session")`),
 	)
 	assertLen(t, rows, 1)
-	assertEqual(t, "scroll-session", rows[0]["measurement"])
+	assertEqual(t, testScrollSession, rows[0]["measurement"])
 
 	fields, ok := rows[0]["fields"].(map[string]any)
-	assertTruef(t, ok, "unexpected fields type: %T", rows[0]["fields"])
+	assertTruef(t, ok, testUnexpectedFieldsTypeFormat, rows[0]["fields"])
 	assertEqual(t, float64(2), fields["like"])
 	assertEqual(t, float64(1), fields["profile_match"])
 
 	tags, ok := rows[0]["tags"].(map[string]string)
-	assertTruef(t, ok, "unexpected tags type: %T", rows[0]["tags"])
-	assertEqual(t, "scroll-session", tags["workspace"])
+	assertTruef(t, ok, testUnexpectedTagsTypeFormat, rows[0]["tags"])
+	assertEqual(t, testScrollSession, tags["workspace"])
 }
 
 func TestWorkspace_Commit_Good_ResultCopiesAggregatedMap(t *testing.T) {
 	useWorkspaceStateDirectory(t)
 
-	storeInstance, err := New(":memory:", WithJournal("http://127.0.0.1:8086", "core", "events"))
+	storeInstance, err := New(testMemoryDatabasePath, WithJournal(testJournalEndpoint, "core", "events"))
 	assertNoError(t, err)
 	defer func() { _ = storeInstance.Close() }()
 
-	workspace, err := storeInstance.NewWorkspace("scroll-session")
+	workspace, err := storeInstance.NewWorkspace(testScrollSession)
 	assertNoError(t, err)
 
 	aggregateSource := map[string]any{"like": 1}
 	assertNoError(t, workspace.Put("like", aggregateSource))
 
 	result := workspace.Commit()
-	assertTruef(t, result.OK, "workspace commit failed: %v", result.Value)
+	assertTruef(t, result.OK, testWorkspaceCommitFailedFormat, result.Value)
 
 	aggregateSource["like"] = 99
 
@@ -200,26 +200,26 @@ func TestWorkspace_Commit_Good_ResultCopiesAggregatedMap(t *testing.T) {
 func TestWorkspace_Commit_Good_EmitsSummaryEvent(t *testing.T) {
 	useWorkspaceStateDirectory(t)
 
-	storeInstance, err := New(":memory:", WithJournal("http://127.0.0.1:8086", "core", "events"))
+	storeInstance, err := New(testMemoryDatabasePath, WithJournal(testJournalEndpoint, "core", "events"))
 	assertNoError(t, err)
 	defer func() { _ = storeInstance.Close() }()
 
-	events := storeInstance.Watch(workspaceSummaryGroup("scroll-session"))
-	defer storeInstance.Unwatch(workspaceSummaryGroup("scroll-session"), events)
+	events := storeInstance.Watch(workspaceSummaryGroup(testScrollSession))
+	defer storeInstance.Unwatch(workspaceSummaryGroup(testScrollSession), events)
 
-	workspace, err := storeInstance.NewWorkspace("scroll-session")
+	workspace, err := storeInstance.NewWorkspace(testScrollSession)
 	assertNoError(t, err)
 
-	assertNoError(t, workspace.Put("like", map[string]any{"user": "@alice"}))
-	assertNoError(t, workspace.Put("profile_match", map[string]any{"user": "@charlie"}))
+	assertNoError(t, workspace.Put("like", map[string]any{"user": testActorAlice}))
+	assertNoError(t, workspace.Put("profile_match", map[string]any{"user": testActorCharlie}))
 
 	result := workspace.Commit()
-	assertTruef(t, result.OK, "workspace commit failed: %v", result.Value)
+	assertTruef(t, result.OK, testWorkspaceCommitFailedFormat, result.Value)
 
 	select {
 	case event := <-events:
 		assertEqual(t, EventSet, event.Type)
-		assertEqual(t, workspaceSummaryGroup("scroll-session"), event.Group)
+		assertEqual(t, workspaceSummaryGroup(testScrollSession), event.Group)
 		assertEqual(t, "summary", event.Key)
 		assertFalse(t, event.Timestamp.IsZero())
 
@@ -236,14 +236,14 @@ func TestWorkspace_Commit_Good_EmitsSummaryEvent(t *testing.T) {
 func TestWorkspace_RecoverOrphans_Good_SkipsAlreadyCommittedWorkspaceFile(t *testing.T) {
 	stateDirectory := useWorkspaceStateDirectory(t)
 
-	storeInstance, err := New(":memory:", WithJournal("http://127.0.0.1:8086", "core", "events"))
+	storeInstance, err := New(testMemoryDatabasePath, WithJournal(testJournalEndpoint, "core", "events"))
 	assertNoError(t, err)
 	defer func() { _ = storeInstance.Close() }()
 
 	workspace, err := storeInstance.NewWorkspace("committed-leftover")
 	assertNoError(t, err)
 
-	assertNoError(t, workspace.Put("like", map[string]any{"user": "@alice"}))
+	assertNoError(t, workspace.Put("like", map[string]any{"user": testActorAlice}))
 	fields, err := workspace.aggregateFields()
 	assertNoError(t, err)
 	assertNoError(t, storeInstance.commitWorkspaceAggregate(workspace.Name(), fields))
@@ -258,7 +258,7 @@ func TestWorkspace_RecoverOrphans_Good_SkipsAlreadyCommittedWorkspaceFile(t *tes
 func TestWorkspace_Discard_Good_Idempotent(t *testing.T) {
 	useWorkspaceStateDirectory(t)
 
-	storeInstance, err := New(":memory:")
+	storeInstance, err := New(testMemoryDatabasePath)
 	assertNoError(t, err)
 	defer func() { _ = storeInstance.Close() }()
 
@@ -274,14 +274,14 @@ func TestWorkspace_Discard_Good_Idempotent(t *testing.T) {
 func TestWorkspace_Close_Good_PreservesFileForRecovery(t *testing.T) {
 	stateDirectory := useWorkspaceStateDirectory(t)
 
-	storeInstance, err := New(":memory:")
+	storeInstance, err := New(testMemoryDatabasePath)
 	assertNoError(t, err)
 	defer func() { _ = storeInstance.Close() }()
 
 	workspace, err := storeInstance.NewWorkspace("close-session")
 	assertNoError(t, err)
 
-	assertNoError(t, workspace.Put("like", map[string]any{"user": "@alice"}))
+	assertNoError(t, workspace.Put("like", map[string]any{"user": testActorAlice}))
 	assertNoError(t, workspace.Close())
 
 	assertTrue(t, testFilesystem().Exists(workspace.databasePath))
@@ -324,33 +324,33 @@ func TestWorkspace_Close_Good_ClosesDatabaseWithoutFilesystem(t *testing.T) {
 func TestWorkspace_RecoverOrphans_Good(t *testing.T) {
 	stateDirectory := useWorkspaceStateDirectory(t)
 
-	storeInstance, err := New(":memory:", WithJournal("http://127.0.0.1:8086", "core", "events"))
+	storeInstance, err := New(testMemoryDatabasePath, WithJournal(testJournalEndpoint, "core", "events"))
 	assertNoError(t, err)
 	defer func() { _ = storeInstance.Close() }()
 
-	workspace, err := storeInstance.NewWorkspace("orphan-session")
+	workspace, err := storeInstance.NewWorkspace(testOrphanSession)
 	assertNoError(t, err)
-	assertNoError(t, workspace.Put("like", map[string]any{"user": "@alice"}))
+	assertNoError(t, workspace.Put("like", map[string]any{"user": testActorAlice}))
 	assertNoError(t, workspace.db.Close())
 
 	orphans := storeInstance.RecoverOrphans(stateDirectory)
 	assertLen(t, orphans, 1)
-	assertEqual(t, "orphan-session", orphans[0].Name())
+	assertEqual(t, testOrphanSession, orphans[0].Name())
 	assertEqual(t, map[string]any{"like": 1}, orphans[0].Aggregate())
 
 	orphans[0].Discard()
-	assertFalse(t, testFilesystem().Exists(workspaceFilePath(stateDirectory, "orphan-session")))
+	assertFalse(t, testFilesystem().Exists(workspaceFilePath(stateDirectory, testOrphanSession)))
 }
 
 func TestWorkspace_New_Good_LeavesOrphanedWorkspacesForRecovery(t *testing.T) {
 	stateDirectory := useWorkspaceStateDirectory(t)
 	requireCoreOK(t, testFilesystem().EnsureDir(stateDirectory))
 
-	orphanDatabasePath := workspaceFilePath(stateDirectory, "orphan-session")
+	orphanDatabasePath := workspaceFilePath(stateDirectory, testOrphanSession)
 	orphanDatabase, err := openWorkspaceDatabase(orphanDatabasePath)
 	assertNoError(t, err)
 	_, err = orphanDatabase.Exec(
-		"INSERT INTO "+workspaceEntriesTableName+" (entry_kind, entry_data, created_at) VALUES (?, ?, ?)",
+		testSQLInsertIntoPrefix+workspaceEntriesTableName+testWorkspaceEntryInsertSuffix,
 		"like",
 		`{"user":"@alice"}`,
 		time.Now().UnixMilli(),
@@ -359,7 +359,7 @@ func TestWorkspace_New_Good_LeavesOrphanedWorkspacesForRecovery(t *testing.T) {
 	assertNoError(t, orphanDatabase.Close())
 	assertTrue(t, testFilesystem().Exists(orphanDatabasePath))
 
-	storeInstance, err := New(":memory:")
+	storeInstance, err := New(testMemoryDatabasePath)
 	assertNoError(t, err)
 	defer func() { _ = storeInstance.Close() }()
 
@@ -367,7 +367,7 @@ func TestWorkspace_New_Good_LeavesOrphanedWorkspacesForRecovery(t *testing.T) {
 
 	orphans := storeInstance.RecoverOrphans(stateDirectory)
 	assertLen(t, orphans, 1)
-	assertEqual(t, "orphan-session", orphans[0].Name())
+	assertEqual(t, testOrphanSession, orphans[0].Name())
 	orphans[0].Discard()
 	assertFalse(t, testFilesystem().Exists(orphanDatabasePath))
 	assertFalse(t, testFilesystem().Exists(orphanDatabasePath+"-wal"))
@@ -378,11 +378,11 @@ func TestWorkspace_New_Good_CachesOrphansDuringConstruction(t *testing.T) {
 	stateDirectory := useWorkspaceStateDirectory(t)
 	requireCoreOK(t, testFilesystem().EnsureDir(stateDirectory))
 
-	orphanDatabasePath := workspaceFilePath(stateDirectory, "orphan-session")
+	orphanDatabasePath := workspaceFilePath(stateDirectory, testOrphanSession)
 	orphanDatabase, err := openWorkspaceDatabase(orphanDatabasePath)
 	assertNoError(t, err)
 	_, err = orphanDatabase.Exec(
-		"INSERT INTO "+workspaceEntriesTableName+" (entry_kind, entry_data, created_at) VALUES (?, ?, ?)",
+		testSQLInsertIntoPrefix+workspaceEntriesTableName+testWorkspaceEntryInsertSuffix,
 		"like",
 		`{"user":"@alice"}`,
 		time.Now().UnixMilli(),
@@ -391,7 +391,7 @@ func TestWorkspace_New_Good_CachesOrphansDuringConstruction(t *testing.T) {
 	assertNoError(t, orphanDatabase.Close())
 	assertTrue(t, testFilesystem().Exists(orphanDatabasePath))
 
-	storeInstance, err := New(":memory:")
+	storeInstance, err := New(testMemoryDatabasePath)
 	assertNoError(t, err)
 	defer func() { _ = storeInstance.Close() }()
 
@@ -400,7 +400,7 @@ func TestWorkspace_New_Good_CachesOrphansDuringConstruction(t *testing.T) {
 
 	orphans := storeInstance.RecoverOrphans(stateDirectory)
 	assertLen(t, orphans, 1)
-	assertEqual(t, "orphan-session", orphans[0].Name())
+	assertEqual(t, testOrphanSession, orphans[0].Name())
 	assertEqual(t, map[string]any{"like": 1}, orphans[0].Aggregate())
 	orphans[0].Discard()
 }
@@ -409,11 +409,11 @@ func TestWorkspace_NewConfigured_Good_CachesOrphansFromConfiguredStateDirectory(
 	stateDirectory := testPath(t, "configured-state")
 	requireCoreOK(t, testFilesystem().EnsureDir(stateDirectory))
 
-	orphanDatabasePath := workspaceFilePath(stateDirectory, "orphan-session")
+	orphanDatabasePath := workspaceFilePath(stateDirectory, testOrphanSession)
 	orphanDatabase, err := openWorkspaceDatabase(orphanDatabasePath)
 	assertNoError(t, err)
 	_, err = orphanDatabase.Exec(
-		"INSERT INTO "+workspaceEntriesTableName+" (entry_kind, entry_data, created_at) VALUES (?, ?, ?)",
+		testSQLInsertIntoPrefix+workspaceEntriesTableName+testWorkspaceEntryInsertSuffix,
 		"like",
 		`{"user":"@alice"}`,
 		time.Now().UnixMilli(),
@@ -422,7 +422,7 @@ func TestWorkspace_NewConfigured_Good_CachesOrphansFromConfiguredStateDirectory(
 	assertNoError(t, orphanDatabase.Close())
 
 	storeInstance, err := NewConfigured(StoreConfig{
-		DatabasePath:            ":memory:",
+		DatabasePath:            testMemoryDatabasePath,
 		WorkspaceStateDirectory: stateDirectory,
 	})
 	assertNoError(t, err)
@@ -433,7 +433,7 @@ func TestWorkspace_NewConfigured_Good_CachesOrphansFromConfiguredStateDirectory(
 
 	orphans := storeInstance.RecoverOrphans("")
 	assertLen(t, orphans, 1)
-	assertEqual(t, "orphan-session", orphans[0].Name())
+	assertEqual(t, testOrphanSession, orphans[0].Name())
 	assertEqual(t, map[string]any{"like": 1}, orphans[0].Aggregate())
 	orphans[0].Discard()
 }
@@ -442,13 +442,13 @@ func TestWorkspace_RecoverOrphans_Good_TrailingSlashUsesCache(t *testing.T) {
 	stateDirectory := useWorkspaceStateDirectory(t)
 	requireCoreOK(t, testFilesystem().EnsureDir(stateDirectory))
 
-	orphanDatabasePath := workspaceFilePath(stateDirectory, "orphan-session")
+	orphanDatabasePath := workspaceFilePath(stateDirectory, testOrphanSession)
 	orphanDatabase, err := openWorkspaceDatabase(orphanDatabasePath)
 	assertNoError(t, err)
 	assertNoError(t, orphanDatabase.Close())
 	assertTrue(t, testFilesystem().Exists(orphanDatabasePath))
 
-	storeInstance, err := New(":memory:")
+	storeInstance, err := New(testMemoryDatabasePath)
 	assertNoError(t, err)
 	defer func() { _ = storeInstance.Close() }()
 
@@ -457,7 +457,7 @@ func TestWorkspace_RecoverOrphans_Good_TrailingSlashUsesCache(t *testing.T) {
 
 	orphans := storeInstance.RecoverOrphans(stateDirectory + "/")
 	assertLen(t, orphans, 1)
-	assertEqual(t, "orphan-session", orphans[0].Name())
+	assertEqual(t, testOrphanSession, orphans[0].Name())
 	orphans[0].Discard()
 }
 
@@ -465,26 +465,26 @@ func TestWorkspace_Close_Good_PreservesOrphansForRecovery(t *testing.T) {
 	stateDirectory := useWorkspaceStateDirectory(t)
 	requireCoreOK(t, testFilesystem().EnsureDir(stateDirectory))
 
-	orphanDatabasePath := workspaceFilePath(stateDirectory, "orphan-session")
+	orphanDatabasePath := workspaceFilePath(stateDirectory, testOrphanSession)
 	orphanDatabase, err := openWorkspaceDatabase(orphanDatabasePath)
 	assertNoError(t, err)
 	assertNoError(t, orphanDatabase.Close())
 	assertTrue(t, testFilesystem().Exists(orphanDatabasePath))
 
-	storeInstance, err := New(":memory:")
+	storeInstance, err := New(testMemoryDatabasePath)
 	assertNoError(t, err)
 
 	assertNoError(t, storeInstance.Close())
 
 	assertTrue(t, testFilesystem().Exists(orphanDatabasePath))
 
-	recoveryStore, err := New(":memory:")
+	recoveryStore, err := New(testMemoryDatabasePath)
 	assertNoError(t, err)
 	defer func() { _ = recoveryStore.Close() }()
 
 	orphans := recoveryStore.RecoverOrphans(stateDirectory)
 	assertLen(t, orphans, 1)
-	assertEqual(t, "orphan-session", orphans[0].Name())
+	assertEqual(t, testOrphanSession, orphans[0].Name())
 	orphans[0].Discard()
 	assertFalse(t, testFilesystem().Exists(orphanDatabasePath))
 }
@@ -537,7 +537,7 @@ func TestWorkspace_Store_RecoverOrphans_Ugly(t *T) {
 func TestWorkspace_Workspace_Name_Good(t *T) {
 	_, workspace := ax7Workspace(t)
 	name := workspace.Name()
-	AssertEqual(t, "ax7-workspace", name)
+	AssertEqual(t, testAX7WorkspaceName, name)
 }
 
 func TestWorkspace_Workspace_Name_Bad(t *T) {
@@ -549,13 +549,13 @@ func TestWorkspace_Workspace_Name_Bad(t *T) {
 func TestWorkspace_Workspace_Name_Ugly(t *T) {
 	_, workspace := ax7Workspace(t)
 	RequireNoError(t, workspace.Close())
-	AssertEqual(t, "ax7-workspace", workspace.Name())
+	AssertEqual(t, testAX7WorkspaceName, workspace.Name())
 }
 
 func TestWorkspace_Workspace_DatabasePath_Good(t *T) {
 	_, workspace := ax7Workspace(t)
 	path := workspace.DatabasePath()
-	AssertContains(t, path, "ax7-workspace")
+	AssertContains(t, path, testAX7WorkspaceName)
 }
 
 func TestWorkspace_Workspace_DatabasePath_Bad(t *T) {
@@ -567,7 +567,7 @@ func TestWorkspace_Workspace_DatabasePath_Bad(t *T) {
 func TestWorkspace_Workspace_DatabasePath_Ugly(t *T) {
 	_, workspace := ax7Workspace(t)
 	RequireNoError(t, workspace.Close())
-	AssertContains(t, workspace.DatabasePath(), ".duckdb")
+	AssertContains(t, workspace.DatabasePath(), duckDBExtension)
 }
 
 func TestWorkspace_Workspace_Close_Good(t *T) {

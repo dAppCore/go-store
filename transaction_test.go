@@ -9,7 +9,7 @@ import (
 )
 
 func TestTransaction_Transaction_Good_CommitsMultipleWrites(t *testing.T) {
-	storeInstance, _ := New(":memory:")
+	storeInstance, _ := New(testMemoryDatabasePath)
 	defer func() { _ = storeInstance.Close() }()
 
 	events := storeInstance.Watch("*")
@@ -45,7 +45,7 @@ func TestTransaction_Transaction_Good_CommitsMultipleWrites(t *testing.T) {
 }
 
 func TestTransaction_Transaction_Good_RollbackOnError(t *testing.T) {
-	storeInstance, _ := New(":memory:")
+	storeInstance, _ := New(testMemoryDatabasePath)
 	defer func() { _ = storeInstance.Close() }()
 
 	err := storeInstance.Transaction(func(transaction *StoreTransaction) error {
@@ -61,7 +61,7 @@ func TestTransaction_Transaction_Good_RollbackOnError(t *testing.T) {
 }
 
 func TestTransaction_Transaction_Good_DeletesAtomically(t *testing.T) {
-	storeInstance, _ := New(":memory:")
+	storeInstance, _ := New(testMemoryDatabasePath)
 	defer func() { _ = storeInstance.Close() }()
 
 	assertNoError(t, storeInstance.Set("alpha", "first", "1"))
@@ -82,7 +82,7 @@ func TestTransaction_Transaction_Good_DeletesAtomically(t *testing.T) {
 }
 
 func TestTransaction_Transaction_Good_ReadHelpersSeePendingWrites(t *testing.T) {
-	storeInstance, _ := New(":memory:")
+	storeInstance, _ := New(testMemoryDatabasePath)
 	defer func() { _ = storeInstance.Close() }()
 
 	err := storeInstance.Transaction(func(transaction *StoreTransaction) error {
@@ -126,7 +126,7 @@ func TestTransaction_Transaction_Good_ReadHelpersSeePendingWrites(t *testing.T) 
 }
 
 func TestTransaction_Transaction_Good_PurgeExpired(t *testing.T) {
-	storeInstance, _ := New(":memory:")
+	storeInstance, _ := New(testMemoryDatabasePath)
 	defer func() { _ = storeInstance.Close() }()
 
 	assertNoError(t, storeInstance.SetWithTTL("alpha", "ephemeral", "gone", 1*time.Millisecond))
@@ -145,7 +145,7 @@ func TestTransaction_Transaction_Good_PurgeExpired(t *testing.T) {
 }
 
 func TestTransaction_Transaction_Good_Exists(t *testing.T) {
-	storeInstance, _ := New(":memory:")
+	storeInstance, _ := New(testMemoryDatabasePath)
 	defer func() { _ = storeInstance.Close() }()
 
 	assertNoError(t, storeInstance.Set("config", "colour", "blue"))
@@ -165,7 +165,7 @@ func TestTransaction_Transaction_Good_Exists(t *testing.T) {
 }
 
 func TestTransaction_Transaction_Good_ExistsSeesPendingWrites(t *testing.T) {
-	storeInstance, _ := New(":memory:")
+	storeInstance, _ := New(testMemoryDatabasePath)
 	defer func() { _ = storeInstance.Close() }()
 
 	err := storeInstance.Transaction(func(transaction *StoreTransaction) error {
@@ -187,7 +187,7 @@ func TestTransaction_Transaction_Good_ExistsSeesPendingWrites(t *testing.T) {
 }
 
 func TestTransaction_Transaction_Good_GroupExists(t *testing.T) {
-	storeInstance, _ := New(":memory:")
+	storeInstance, _ := New(testMemoryDatabasePath)
 	defer func() { _ = storeInstance.Close() }()
 
 	err := storeInstance.Transaction(func(transaction *StoreTransaction) error {
@@ -209,10 +209,10 @@ func TestTransaction_Transaction_Good_GroupExists(t *testing.T) {
 }
 
 func TestTransaction_ScopedStoreTransaction_Good_ExistsAndGroupExists(t *testing.T) {
-	storeInstance, _ := New(":memory:")
+	storeInstance, _ := New(testMemoryDatabasePath)
 	defer func() { _ = storeInstance.Close() }()
 
-	scopedStore := NewScoped(storeInstance, "tenant-a")
+	scopedStore := NewScoped(storeInstance, testTenantA)
 
 	err := scopedStore.Transaction(func(transaction *ScopedStoreTransaction) error {
 		exists, err := transaction.Exists("colour")
@@ -249,10 +249,10 @@ func TestTransaction_ScopedStoreTransaction_Good_ExistsAndGroupExists(t *testing
 }
 
 func TestTransaction_ScopedStoreTransaction_Good_GetPage(t *testing.T) {
-	storeInstance, _ := New(":memory:")
+	storeInstance, _ := New(testMemoryDatabasePath)
 	defer func() { _ = storeInstance.Close() }()
 
-	scopedStore := NewScoped(storeInstance, "tenant-a")
+	scopedStore := NewScoped(storeInstance, testTenantA)
 
 	err := scopedStore.Transaction(func(transaction *ScopedStoreTransaction) error {
 		if err := transaction.SetIn("items", "charlie", "3"); err != nil {
@@ -275,11 +275,11 @@ func TestTransaction_ScopedStoreTransaction_Good_GetPage(t *testing.T) {
 }
 
 func TestTransaction_ScopedStoreTransaction_Good_CommitsNamespacedWrites(t *testing.T) {
-	storeInstance, _ := New(":memory:")
+	storeInstance, _ := New(testMemoryDatabasePath)
 	defer func() { _ = storeInstance.Close() }()
 
 	scopedStore, err := NewScopedConfigured(storeInstance, ScopedStoreConfig{
-		Namespace: "tenant-a",
+		Namespace: testTenantA,
 		Quota:     QuotaConfig{MaxKeys: 4, MaxGroups: 2},
 	})
 	assertNoError(t, err)
@@ -318,10 +318,10 @@ func TestTransaction_ScopedStoreTransaction_Good_CommitsNamespacedWrites(t *test
 }
 
 func TestTransaction_ScopedStoreTransaction_Good_PurgeExpired(t *testing.T) {
-	storeInstance, _ := New(":memory:")
+	storeInstance, _ := New(testMemoryDatabasePath)
 	defer func() { _ = storeInstance.Close() }()
 
-	scopedStore := NewScoped(storeInstance, "tenant-a")
+	scopedStore := NewScoped(storeInstance, testTenantA)
 
 	assertNoError(t, scopedStore.SetWithTTL("session", "token", "abc123", 1*time.Millisecond))
 	time.Sleep(5 * time.Millisecond)
@@ -339,11 +339,11 @@ func TestTransaction_ScopedStoreTransaction_Good_PurgeExpired(t *testing.T) {
 }
 
 func TestTransaction_ScopedStoreTransaction_Good_QuotaUsesPendingWrites(t *testing.T) {
-	storeInstance, _ := New(":memory:")
+	storeInstance, _ := New(testMemoryDatabasePath)
 	defer func() { _ = storeInstance.Close() }()
 
 	scopedStore, err := NewScopedConfigured(storeInstance, ScopedStoreConfig{
-		Namespace: "tenant-a",
+		Namespace: testTenantA,
 		Quota:     QuotaConfig{MaxKeys: 2, MaxGroups: 2},
 	})
 	assertNoError(t, err)
@@ -365,11 +365,11 @@ func TestTransaction_ScopedStoreTransaction_Good_QuotaUsesPendingWrites(t *testi
 }
 
 func TestTransaction_ScopedStoreTransaction_Good_DeletePrefix(t *testing.T) {
-	storeInstance, _ := New(":memory:")
+	storeInstance, _ := New(testMemoryDatabasePath)
 	defer func() { _ = storeInstance.Close() }()
 
-	scopedStore := NewScoped(storeInstance, "tenant-a")
-	otherScopedStore := NewScoped(storeInstance, "tenant-b")
+	scopedStore := NewScoped(storeInstance, testTenantA)
+	otherScopedStore := NewScoped(storeInstance, testTenantB)
 
 	assertNoError(t, scopedStore.SetIn("cache", "theme", "dark"))
 	assertNoError(t, scopedStore.SetIn("cache-warm", "status", "ready"))
@@ -641,13 +641,13 @@ func TestTransaction_StoreTransaction_DeleteGroup_Ugly(t *T) {
 func TestTransaction_StoreTransaction_DeletePrefix_Good(t *T) {
 	storeInstance := ax7Store(t)
 	err := storeInstance.Transaction(func(transaction *StoreTransaction) error {
-		RequireNoError(t, transaction.Set("tenant-a:config", "colour", "blue"))
-		err := transaction.DeletePrefix("tenant-a:")
+		RequireNoError(t, transaction.Set(testTenantAConfigGroup, "colour", "blue"))
+		err := transaction.DeletePrefix(testTenantAPrefix)
 		AssertNoError(t, err)
 		return nil
 	})
 	AssertNoError(t, err)
-	AssertFalse(t, ax7MustGroupExists(t, storeInstance, "tenant-a:config"))
+	AssertFalse(t, ax7MustGroupExists(t, storeInstance, testTenantAConfigGroup))
 }
 
 func TestTransaction_StoreTransaction_DeletePrefix_Bad(t *T) {
@@ -822,8 +822,8 @@ func TestTransaction_StoreTransaction_AllSeq_Ugly(t *T) {
 func TestTransaction_StoreTransaction_CountAll_Good(t *T) {
 	storeInstance := ax7Store(t)
 	err := storeInstance.Transaction(func(transaction *StoreTransaction) error {
-		RequireNoError(t, transaction.Set("tenant-a:config", "a", "1"))
-		count, err := transaction.CountAll("tenant-a:")
+		RequireNoError(t, transaction.Set(testTenantAConfigGroup, "a", "1"))
+		count, err := transaction.CountAll(testTenantAPrefix)
 		AssertNoError(t, err)
 		AssertEqual(t, 1, count)
 		return nil

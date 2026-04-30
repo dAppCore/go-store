@@ -24,7 +24,7 @@ func TestCoverage_New_Bad_SchemaConflict(t *testing.T) {
 	database, err := sql.Open("sqlite", databasePath)
 	assertNoError(t, err)
 	database.SetMaxOpenConns(1)
-	_, err = database.Exec("PRAGMA journal_mode=WAL")
+	_, err = database.Exec(testWALPragma)
 	assertNoError(t, err)
 	_, err = database.Exec("CREATE TABLE dummy (id INTEGER)")
 	assertNoError(t, err)
@@ -44,7 +44,7 @@ func TestCoverage_New_Bad_SchemaConflict(t *testing.T) {
 func TestCoverage_GetAll_Bad_ScanError(t *testing.T) {
 	// Trigger a scan error by inserting a row with a NULL key. The production
 	// code scans into plain strings, which cannot represent NULL.
-	storeInstance, err := New(":memory:")
+	storeInstance, err := New(testMemoryDatabasePath)
 	assertNoError(t, err)
 	defer func() { _ = storeInstance.Close() }()
 
@@ -52,7 +52,7 @@ func TestCoverage_GetAll_Bad_ScanError(t *testing.T) {
 	assertNoError(t, storeInstance.Set("g", "good", "value"))
 
 	// Restructure the table to allow NULLs, then insert a NULL-key row.
-	_, err = storeInstance.sqliteDatabase.Exec("ALTER TABLE entries RENAME TO entries_backup")
+	_, err = storeInstance.sqliteDatabase.Exec(testRenameEntriesBackupSQL)
 	assertNoError(t, err)
 	_, err = storeInstance.sqliteDatabase.Exec(`CREATE TABLE entries (
 		group_name  TEXT,
@@ -61,11 +61,11 @@ func TestCoverage_GetAll_Bad_ScanError(t *testing.T) {
 		expires_at  INTEGER
 	)`)
 	assertNoError(t, err)
-	_, err = storeInstance.sqliteDatabase.Exec("INSERT INTO entries SELECT * FROM entries_backup")
+	_, err = storeInstance.sqliteDatabase.Exec(testInsertEntriesFromBackupSQL)
 	assertNoError(t, err)
 	_, err = storeInstance.sqliteDatabase.Exec("INSERT INTO entries (group_name, entry_key, entry_value) VALUES ('g', NULL, 'null-key-val')")
 	assertNoError(t, err)
-	_, err = storeInstance.sqliteDatabase.Exec("DROP TABLE entries_backup")
+	_, err = storeInstance.sqliteDatabase.Exec(testDropEntriesBackupSQL)
 	assertNoError(t, err)
 
 	_, err = storeInstance.GetAll("g")
@@ -135,13 +135,13 @@ func TestCoverage_GetAll_Bad_RowsError(t *testing.T) {
 
 func TestCoverage_Render_Bad_ScanError(t *testing.T) {
 	// Same NULL-key technique as TestCoverage_GetAll_Bad_ScanError.
-	storeInstance, err := New(":memory:")
+	storeInstance, err := New(testMemoryDatabasePath)
 	assertNoError(t, err)
 	defer func() { _ = storeInstance.Close() }()
 
 	assertNoError(t, storeInstance.Set("g", "good", "value"))
 
-	_, err = storeInstance.sqliteDatabase.Exec("ALTER TABLE entries RENAME TO entries_backup")
+	_, err = storeInstance.sqliteDatabase.Exec(testRenameEntriesBackupSQL)
 	assertNoError(t, err)
 	_, err = storeInstance.sqliteDatabase.Exec(`CREATE TABLE entries (
 		group_name  TEXT,
@@ -150,11 +150,11 @@ func TestCoverage_Render_Bad_ScanError(t *testing.T) {
 		expires_at  INTEGER
 	)`)
 	assertNoError(t, err)
-	_, err = storeInstance.sqliteDatabase.Exec("INSERT INTO entries SELECT * FROM entries_backup")
+	_, err = storeInstance.sqliteDatabase.Exec(testInsertEntriesFromBackupSQL)
 	assertNoError(t, err)
 	_, err = storeInstance.sqliteDatabase.Exec("INSERT INTO entries (group_name, entry_key, entry_value) VALUES ('g', NULL, 'null-key-val')")
 	assertNoError(t, err)
-	_, err = storeInstance.sqliteDatabase.Exec("DROP TABLE entries_backup")
+	_, err = storeInstance.sqliteDatabase.Exec(testDropEntriesBackupSQL)
 	assertNoError(t, err)
 
 	_, err = storeInstance.Render("{{ .good }}", "g")
@@ -219,11 +219,11 @@ func TestCoverage_Render_Bad_RowsError(t *testing.T) {
 func TestCoverage_GroupsSeq_Bad_ScanError(t *testing.T) {
 	// Trigger a scan error by inserting a row with a NULL group name. The
 	// production code scans into a plain string, which cannot represent NULL.
-	storeInstance, err := New(":memory:")
+	storeInstance, err := New(testMemoryDatabasePath)
 	assertNoError(t, err)
 	defer func() { _ = storeInstance.Close() }()
 
-	_, err = storeInstance.sqliteDatabase.Exec("ALTER TABLE entries RENAME TO entries_backup")
+	_, err = storeInstance.sqliteDatabase.Exec(testRenameEntriesBackupSQL)
 	assertNoError(t, err)
 	_, err = storeInstance.sqliteDatabase.Exec(`CREATE TABLE entries (
 		group_name  TEXT,
@@ -232,11 +232,11 @@ func TestCoverage_GroupsSeq_Bad_ScanError(t *testing.T) {
 		expires_at  INTEGER
 	)`)
 	assertNoError(t, err)
-	_, err = storeInstance.sqliteDatabase.Exec("INSERT INTO entries SELECT * FROM entries_backup")
+	_, err = storeInstance.sqliteDatabase.Exec(testInsertEntriesFromBackupSQL)
 	assertNoError(t, err)
 	_, err = storeInstance.sqliteDatabase.Exec("INSERT INTO entries (group_name, entry_key, entry_value) VALUES (NULL, 'k', 'v')")
 	assertNoError(t, err)
-	_, err = storeInstance.sqliteDatabase.Exec("DROP TABLE entries_backup")
+	_, err = storeInstance.sqliteDatabase.Exec(testDropEntriesBackupSQL)
 	assertNoError(t, err)
 
 	for groupName, iterationErr := range storeInstance.GroupsSeq("") {
@@ -258,7 +258,7 @@ func TestCoverage_GroupsSeq_Bad_RowsError(t *testing.T) {
 
 	storeInstance := &Store{
 		sqliteDatabase: database,
-		cancelPurge:    func() {},
+		cancelPurge:    noopCancelPurge,
 	}
 
 	for groupName, iterationErr := range storeInstance.GroupsSeq("") {
@@ -273,10 +273,10 @@ func TestCoverage_GroupsSeq_Bad_RowsError(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestCoverage_ScopedStore_Bad_GroupsClosedStore(t *testing.T) {
-	storeInstance, _ := New(":memory:")
+	storeInstance, _ := New(testMemoryDatabasePath)
 	assertNoError(t, storeInstance.Close())
 
-	scopedStore := NewScoped(storeInstance, "tenant-a")
+	scopedStore := NewScoped(storeInstance, testTenantA)
 	assertNotNil(t, scopedStore)
 
 	_, err := scopedStore.Groups("")
@@ -287,7 +287,7 @@ func TestCoverage_ScopedStore_Bad_GroupsClosedStore(t *testing.T) {
 func TestCoverage_ScopedStore_Bad_GroupsSeqRowsError(t *testing.T) {
 	database, _ := openStubSQLiteDatabase(t, stubSQLiteScenario{
 		groupRows: [][]driver.Value{
-			{"tenant-a:config"},
+			{testTenantAConfigGroup},
 		},
 		groupRowsErr:      core.E("stubSQLiteScenario", "rows iteration failed", nil),
 		groupRowsErrIndex: 1,
@@ -297,9 +297,9 @@ func TestCoverage_ScopedStore_Bad_GroupsSeqRowsError(t *testing.T) {
 	scopedStore := &ScopedStore{
 		store: &Store{
 			sqliteDatabase: database,
-			cancelPurge:    func() {},
+			cancelPurge:    noopCancelPurge,
 		},
-		namespace: "tenant-a",
+		namespace: testTenantA,
 	}
 
 	var seen []string
@@ -344,13 +344,13 @@ func TestCoverage_EnsureSchema_Good_ExistingEntriesAndLegacyMigration(t *testing
 func TestCoverage_EnsureSchema_Bad_ExpiryColumnQueryError(t *testing.T) {
 	database, _ := openStubSQLiteDatabase(t, stubSQLiteScenario{
 		tableExistsFound: true,
-		tableInfoErr:     core.E("stubSQLiteScenario", "table_info query failed", nil),
+		tableInfoErr:     core.E("stubSQLiteScenario", testTableInfoQueryFailedMessage, nil),
 	})
 	defer func() { _ = database.Close() }()
 
 	err := ensureSchema(database)
 	assertError(t, err)
-	assertContainsString(t, err.Error(), "table_info query failed")
+	assertContainsString(t, err.Error(), testTableInfoQueryFailedMessage)
 }
 
 func TestCoverage_EnsureSchema_Bad_MigrationError(t *testing.T) {
@@ -359,13 +359,13 @@ func TestCoverage_EnsureSchema_Bad_MigrationError(t *testing.T) {
 		tableInfoRows: [][]driver.Value{
 			{0, "expires_at", "INTEGER", 0, nil, 0},
 		},
-		insertErr: core.E("stubSQLiteScenario", "insert failed", nil),
+		insertErr: core.E("stubSQLiteScenario", testInsertFailedMessage, nil),
 	})
 	defer func() { _ = database.Close() }()
 
 	err := ensureSchema(database)
 	assertError(t, err)
-	assertContainsString(t, err.Error(), "insert failed")
+	assertContainsString(t, err.Error(), testInsertFailedMessage)
 }
 
 func TestCoverage_EnsureSchema_Bad_MigrationCommitError(t *testing.T) {
@@ -385,13 +385,13 @@ func TestCoverage_EnsureSchema_Bad_MigrationCommitError(t *testing.T) {
 
 func TestCoverage_TableHasColumn_Bad_QueryError(t *testing.T) {
 	database, _ := openStubSQLiteDatabase(t, stubSQLiteScenario{
-		tableInfoErr: core.E("stubSQLiteScenario", "table_info query failed", nil),
+		tableInfoErr: core.E("stubSQLiteScenario", testTableInfoQueryFailedMessage, nil),
 	})
 	defer func() { _ = database.Close() }()
 
 	_, err := tableHasColumn(database, "entries", "expires_at")
 	assertError(t, err)
-	assertContainsString(t, err.Error(), "table_info query failed")
+	assertContainsString(t, err.Error(), testTableInfoQueryFailedMessage)
 }
 
 func TestCoverage_EnsureExpiryColumn_Good_DuplicateColumn(t *testing.T) {
@@ -425,13 +425,13 @@ func TestCoverage_MigrateLegacyEntriesTable_Bad_InsertError(t *testing.T) {
 		tableInfoRows: [][]driver.Value{
 			{0, "grp", "TEXT", 1, nil, 0},
 		},
-		insertErr: core.E("stubSQLiteScenario", "insert failed", nil),
+		insertErr: core.E("stubSQLiteScenario", testInsertFailedMessage, nil),
 	})
 	defer func() { _ = database.Close() }()
 
 	err := migrateLegacyEntriesTable(database)
 	assertError(t, err)
-	assertContainsString(t, err.Error(), "insert failed")
+	assertContainsString(t, err.Error(), testInsertFailedMessage)
 }
 
 func TestCoverage_MigrateLegacyEntriesTable_Bad_BeginError(t *testing.T) {
@@ -458,13 +458,13 @@ func TestCoverage_MigrateLegacyEntriesTable_Good_CreatesAndMigratesLegacyRows(t 
 
 func TestCoverage_MigrateLegacyEntriesTable_Bad_TableInfoError(t *testing.T) {
 	database, _ := openStubSQLiteDatabase(t, stubSQLiteScenario{
-		tableInfoErr: core.E("stubSQLiteScenario", "table_info query failed", nil),
+		tableInfoErr: core.E("stubSQLiteScenario", testTableInfoQueryFailedMessage, nil),
 	})
 	defer func() { _ = database.Close() }()
 
 	err := migrateLegacyEntriesTable(database)
 	assertError(t, err)
-	assertContainsString(t, err.Error(), "table_info query failed")
+	assertContainsString(t, err.Error(), testTableInfoQueryFailedMessage)
 }
 
 type stubSQLiteScenario struct {
@@ -591,7 +591,7 @@ func (conn *stubSQLiteConn) QueryContext(ctx context.Context, query string, args
 			}, nil
 		}
 		return &stubSQLiteRows{columns: []string{"name"}}, nil
-	case core.Contains(query, "SELECT DISTINCT "+entryGroupColumn):
+	case core.Contains(query, sqlSelectDistinct+entryGroupColumn):
 		return &stubSQLiteRows{
 			columns:      []string{entryGroupColumn},
 			rows:         conn.scenario.groupRows,

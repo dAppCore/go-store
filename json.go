@@ -49,13 +49,13 @@ func MarshalIndent(value any, prefix, indent string) ([]byte, error) {
 	marshalled := core.JSONMarshal(value)
 	if !marshalled.OK {
 		if err, ok := marshalled.Value.(error); ok {
-			return nil, core.E("store.MarshalIndent", "marshal", err)
+			return nil, core.E(opMarshalIndent, "marshal", err)
 		}
-		return nil, core.E("store.MarshalIndent", "marshal", nil)
+		return nil, core.E(opMarshalIndent, "marshal", nil)
 	}
 	raw, ok := marshalled.Value.([]byte)
 	if !ok {
-		return nil, core.E("store.MarshalIndent", "non-bytes result", nil)
+		return nil, core.E(opMarshalIndent, "non-bytes result", nil)
 	}
 	if prefix == "" && indent == "" {
 		return raw, nil
@@ -63,7 +63,7 @@ func MarshalIndent(value any, prefix, indent string) ([]byte, error) {
 
 	buf := core.NewBuilder()
 	if err := indentCompactJSON(buf, raw, prefix, indent); err != nil {
-		return nil, core.E("store.MarshalIndent", "indent", err)
+		return nil, core.E(opMarshalIndent, "indent", err)
 	}
 	return []byte(buf.String()), nil
 }
@@ -76,9 +76,7 @@ func indentCompactJSON(buf interface {
 	WriteByte(byte) error
 	WriteString(string) (int, error)
 }, src []byte, prefix, indent string) error {
-	depth := 0
-	inString := false
-	escaped := false
+	state := compactJSONIndentState{}
 
 	writeNewlineIndent := func(level int) error {
 		if err := buf.WriteByte('\n'); err != nil {
@@ -97,75 +95,97 @@ func indentCompactJSON(buf interface {
 
 	for i := 0; i < len(src); i++ {
 		c := src[i]
-		if inString {
-			if err := buf.WriteByte(c); err != nil {
+		if state.inString {
+			if err := state.writeStringByte(buf, c); err != nil {
 				return err
-			}
-			if escaped {
-				escaped = false
-				continue
-			}
-			if c == '\\' {
-				escaped = true
-				continue
-			}
-			if c == '"' {
-				inString = false
 			}
 			continue
 		}
-		switch c {
-		case '"':
-			inString = true
-			if err := buf.WriteByte(c); err != nil {
-				return err
-			}
-		case '{', '[':
-			if err := buf.WriteByte(c); err != nil {
-				return err
-			}
-			depth++
-			// Look ahead for empty object/array.
-			if i+1 < len(src) && (src[i+1] == '}' || src[i+1] == ']') {
-				continue
-			}
-			if err := writeNewlineIndent(depth); err != nil {
-				return err
-			}
-		case '}', ']':
-			// Only indent if previous byte wasn't the matching opener.
-			if i > 0 && src[i-1] != '{' && src[i-1] != '[' {
-				depth--
-				if err := writeNewlineIndent(depth); err != nil {
-					return err
-				}
-			} else {
-				depth--
-			}
-			if err := buf.WriteByte(c); err != nil {
-				return err
-			}
-		case ',':
-			if err := buf.WriteByte(c); err != nil {
-				return err
-			}
-			if err := writeNewlineIndent(depth); err != nil {
-				return err
-			}
-		case ':':
-			if err := buf.WriteByte(c); err != nil {
-				return err
-			}
-			if err := buf.WriteByte(' '); err != nil {
-				return err
-			}
-		case ' ', '\t', '\n', '\r':
-			// Drop whitespace from compact source.
-		default:
-			if err := buf.WriteByte(c); err != nil {
-				return err
-			}
+		if err := state.writeValueByte(buf, src, i, writeNewlineIndent); err != nil {
+			return err
 		}
 	}
 	return nil
+}
+
+type compactJSONIndentState struct {
+	depth    int
+	inString bool
+	escaped  bool
+}
+
+func (state *compactJSONIndentState) writeStringByte(buf interface {
+	WriteByte(byte) error
+}, c byte) error {
+	if err := buf.WriteByte(c); err != nil {
+		return err
+	}
+	if state.escaped {
+		state.escaped = false
+		return nil
+	}
+	if c == '\\' {
+		state.escaped = true
+		return nil
+	}
+	if c == '"' {
+		state.inString = false
+	}
+	return nil
+}
+
+func (state *compactJSONIndentState) writeValueByte(buf interface {
+	WriteByte(byte) error
+}, src []byte, index int, writeNewlineIndent func(int) error) error {
+	c := src[index]
+	switch c {
+	case '"':
+		state.inString = true
+		return buf.WriteByte(c)
+	case '{', '[':
+		return state.writeOpeningValueByte(buf, src, index, writeNewlineIndent)
+	case '}', ']':
+		return state.writeClosingValueByte(buf, src, index, writeNewlineIndent)
+	case ',':
+		if err := buf.WriteByte(c); err != nil {
+			return err
+		}
+		return writeNewlineIndent(state.depth)
+	case ':':
+		if err := buf.WriteByte(c); err != nil {
+			return err
+		}
+		return buf.WriteByte(' ')
+	case ' ', '\t', '\n', '\r':
+		return nil
+	default:
+		return buf.WriteByte(c)
+	}
+}
+
+func (state *compactJSONIndentState) writeOpeningValueByte(buf interface {
+	WriteByte(byte) error
+}, src []byte, index int, writeNewlineIndent func(int) error) error {
+	if err := buf.WriteByte(src[index]); err != nil {
+		return err
+	}
+	state.depth++
+	if index+1 < len(src) && (src[index+1] == '}' || src[index+1] == ']') {
+		return nil
+	}
+	return writeNewlineIndent(state.depth)
+}
+
+func (state *compactJSONIndentState) writeClosingValueByte(buf interface {
+	WriteByte(byte) error
+}, src []byte, index int, writeNewlineIndent func(int) error) error {
+	if index > 0 && src[index-1] != '{' && src[index-1] != '[' {
+		state.depth--
+		if err := writeNewlineIndent(state.depth); err != nil {
+			return err
+		}
+	} else {
+		state.depth--
+	}
+	return buf.WriteByte(src[index])
 }

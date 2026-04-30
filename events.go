@@ -19,6 +19,10 @@ const (
 	EventDeleteGroup
 )
 
+func noopUnregister() {
+	// Intentionally empty: callers may always invoke unregister functions.
+}
+
 // Usage example: `label := store.EventDeleteGroup.String()`
 func (t EventType) String() string {
 	switch t {
@@ -137,17 +141,17 @@ func (storeInstance *Store) Unwatch(group string, events <-chan Event) {
 // Usage example: `unregister := storeInstance.OnChange(func(event store.Event) { fmt.Println(event.Group, event.Key, event.Value) })`
 func (storeInstance *Store) OnChange(callback func(Event)) func() {
 	if callback == nil {
-		return func() {}
+		return noopUnregister
 	}
 
 	if storeInstance == nil {
-		return func() {}
+		return noopUnregister
 	}
 
 	storeInstance.lifecycleLock.Lock()
 	defer storeInstance.lifecycleLock.Unlock()
 	if storeInstance.isClosed || storeInstance.isClosing {
-		return func() {}
+		return noopUnregister
 	}
 
 	registrationID := atomic.AddUint64(&storeInstance.nextCallbackID, 1)

@@ -224,23 +224,23 @@ func (storeInstance *Store) Medium() Medium {
 // uses the first row as the header.
 func Import(workspace *Workspace, medium Medium, path string) error {
 	if workspace == nil {
-		return core.E("store.Import", "workspace is nil", nil)
+		return core.E(opImport, "workspace is nil", nil)
 	}
 	if medium == nil {
-		return core.E("store.Import", "medium is nil", nil)
+		return core.E(opImport, "medium is nil", nil)
 	}
 	if path == "" {
-		return core.E("store.Import", "path is empty", nil)
+		return core.E(opImport, "path is empty", nil)
 	}
 
 	content, err := medium.Read(path)
 	if err != nil {
-		return core.E("store.Import", "read from medium", err)
+		return core.E(opImport, "read from medium", err)
 	}
 
 	kind := importEntryKind(path)
 	switch lowercaseText(importExtension(path)) {
-	case ".jsonl", ".ndjson":
+	case jsonlExtension, ".ndjson":
 		return importJSONLines(workspace, kind, content)
 	case ".csv":
 		return importCSV(workspace, kind, content)
@@ -258,21 +258,21 @@ func Import(workspace *Workspace, medium Medium, path string) error {
 // aggregate as JSON.
 func Export(workspace *Workspace, medium Medium, path string) error {
 	if workspace == nil {
-		return core.E("store.Export", "workspace is nil", nil)
+		return core.E(opExport, "workspace is nil", nil)
 	}
 	if medium == nil {
-		return core.E("store.Export", "medium is nil", nil)
+		return core.E(opExport, "medium is nil", nil)
 	}
 	if path == "" {
-		return core.E("store.Export", "path is empty", nil)
+		return core.E(opExport, "path is empty", nil)
 	}
 
 	if err := ensureMediumDir(medium, core.PathDir(path)); err != nil {
-		return core.E("store.Export", "ensure directory", err)
+		return core.E(opExport, "ensure directory", err)
 	}
 
 	switch lowercaseText(importExtension(path)) {
-	case ".jsonl", ".ndjson":
+	case jsonlExtension, ".ndjson":
 		return exportJSONLines(workspace, medium, path)
 	case ".csv":
 		return exportCSV(workspace, medium, path)
@@ -325,10 +325,10 @@ func importJSONLines(workspace *Workspace, kind, content string) error {
 		record := map[string]any{}
 		if result := core.JSONUnmarshalString(line, &record); !result.OK {
 			err, _ := result.Value.(error)
-			return core.E("store.Import", "parse jsonl line", err)
+			return core.E(opImport, "parse jsonl line", err)
 		}
 		if err := workspace.Put(kind, record); err != nil {
-			return core.E("store.Import", "put jsonl record", err)
+			return core.E(opImport, "put jsonl record", err)
 		}
 	}
 	return nil
@@ -343,16 +343,16 @@ func importJSON(workspace *Workspace, kind, content string) error {
 	var topLevel any
 	if result := core.JSONUnmarshalString(trimmed, &topLevel); !result.OK {
 		err, _ := result.Value.(error)
-		return core.E("store.Import", "parse json", err)
+		return core.E(opImport, "parse json", err)
 	}
 
 	records, err := collectJSONRecords(topLevel)
 	if err != nil {
-		return core.E("store.Import", "normalise json records", err)
+		return core.E(opImport, "normalise json records", err)
 	}
 	for _, record := range records {
 		if err := workspace.Put(kind, record); err != nil {
-			return core.E("store.Import", "put json record", err)
+			return core.E(opImport, "put json record", err)
 		}
 	}
 	return nil
@@ -365,7 +365,7 @@ func collectJSONRecords(value any) ([]map[string]any, error) {
 		for index, entry := range shape {
 			record, ok := entry.(map[string]any)
 			if !ok {
-				return nil, core.E("store.Import", core.Concat("json array element is not an object at index ", core.Sprint(index)), nil)
+				return nil, core.E(opImport, core.Concat("json array element is not an object at index ", core.Sprint(index)), nil)
 			}
 			records = append(records, record)
 		}
@@ -382,7 +382,7 @@ func collectJSONRecords(value any) ([]map[string]any, error) {
 		}
 		return []map[string]any{shape}, nil
 	}
-	return nil, core.E("store.Import", "unsupported json shape", nil)
+	return nil, core.E(opImport, "unsupported json shape", nil)
 }
 
 func importCSV(workspace *Workspace, kind, content string) error {
@@ -390,7 +390,7 @@ func importCSV(workspace *Workspace, kind, content string) error {
 	reader.FieldsPerRecord = -1
 	rows, err := reader.ReadAll()
 	if err != nil {
-		return core.E("store.Import", "parse csv", err)
+		return core.E(opImport, "parse csv", err)
 	}
 	if len(rows) == 0 {
 		return nil
@@ -412,7 +412,7 @@ func importCSV(workspace *Workspace, kind, content string) error {
 			}
 		}
 		if err := workspace.Put(kind, record); err != nil {
-			return core.E("store.Import", "put csv record", err)
+			return core.E(opImport, "put csv record", err)
 		}
 	}
 	return nil
@@ -421,11 +421,11 @@ func importCSV(workspace *Workspace, kind, content string) error {
 func exportJSON(workspace *Workspace, medium Medium, path string) error {
 	summary, err := workspace.aggregateFields()
 	if err != nil {
-		return core.E("store.Export", "aggregate workspace", err)
+		return core.E(opExport, "aggregate workspace", err)
 	}
 	content := core.JSONMarshalString(summary)
 	if err := medium.Write(path, content); err != nil {
-		return core.E("store.Export", "write json", err)
+		return core.E(opExport, "write json", err)
 	}
 	return nil
 }
@@ -434,7 +434,7 @@ func exportJSONLines(workspace *Workspace, medium Medium, path string) error {
 	result := workspace.Query("SELECT entry_kind, entry_data, created_at FROM workspace_entries ORDER BY entry_id")
 	if !result.OK {
 		err, _ := result.Value.(error)
-		return core.E("store.Export", "query workspace", err)
+		return core.E(opExport, "query workspace", err)
 	}
 	rows, ok := result.Value.([]map[string]any)
 	if !ok {
@@ -448,7 +448,7 @@ func exportJSONLines(workspace *Workspace, medium Medium, path string) error {
 		builder.WriteString("\n")
 	}
 	if err := medium.Write(path, builder.String()); err != nil {
-		return core.E("store.Export", "write jsonl", err)
+		return core.E(opExport, "write jsonl", err)
 	}
 	return nil
 }
@@ -457,7 +457,7 @@ func exportCSV(workspace *Workspace, medium Medium, path string) error {
 	result := workspace.Query("SELECT entry_kind, entry_data, created_at FROM workspace_entries ORDER BY entry_id")
 	if !result.OK {
 		err, _ := result.Value.(error)
-		return core.E("store.Export", "query workspace", err)
+		return core.E(opExport, "query workspace", err)
 	}
 	rows, ok := result.Value.([]map[string]any)
 	if !ok {
@@ -475,7 +475,7 @@ func exportCSV(workspace *Workspace, medium Medium, path string) error {
 		builder.WriteString("\n")
 	}
 	if err := medium.Write(path, builder.String()); err != nil {
-		return core.E("store.Export", "write csv", err)
+		return core.E(opExport, "write csv", err)
 	}
 	return nil
 }

@@ -45,14 +45,14 @@ func TestPublish_Publish_Good(t *T) {
 	inputDir := Path(t.TempDir(), "data")
 	ax7WriteFile(t, Path(inputDir, "train.parquet"), "payload")
 	output := NewBuffer()
-	err := Publish(PublishConfig{InputDir: inputDir, Repo: "user/dataset", DryRun: true}, output)
+	err := Publish(PublishConfig{InputDir: inputDir, Repo: testHFDatasetID, DryRun: true}, output)
 	AssertNoError(t, err)
-	AssertContains(t, output.String(), "user/dataset")
+	AssertContains(t, output.String(), testHFDatasetID)
 }
 
 func TestPublish_Publish_Bad(t *T) {
 	output := NewBuffer()
-	err := Publish(PublishConfig{InputDir: "", Repo: "user/dataset", DryRun: true}, output)
+	err := Publish(PublishConfig{InputDir: "", Repo: testHFDatasetID, DryRun: true}, output)
 	AssertError(t, err)
 	AssertEqual(t, "", output.String())
 }
@@ -61,7 +61,7 @@ func TestPublish_Publish_Ugly(t *T) {
 	inputDir := Path(t.TempDir(), "data")
 	ax7WriteFile(t, Path(inputDir, "valid.parquet"), "payload")
 	output := NewBuffer()
-	err := Publish(PublishConfig{InputDir: inputDir, Repo: "user/dataset", Public: true, DryRun: true}, output)
+	err := Publish(PublishConfig{InputDir: inputDir, Repo: testHFDatasetID, Public: true, DryRun: true}, output)
 	AssertNoError(t, err)
 	AssertContains(t, output.String(), "public")
 }

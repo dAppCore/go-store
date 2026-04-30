@@ -1,3 +1,4 @@
+//nolint:unused // Compatibility helpers are used by generated v0.9 test lanes.
 package store_test
 
 import (
@@ -5,11 +6,18 @@ import (
 	store "dappco.re/go/store"
 )
 
+const (
+	testMemoryDatabasePath  = ":memory:"
+	testTenantA             = "tenant-a"
+	testAX7WorkspaceName    = "ax7-workspace"
+	testFileNotFoundMessage = "file not found"
+)
+
 func ax7Store(t *T) *store.Store {
 	t.Helper()
-	storeInstance, err := store.New(":memory:", store.WithPurgeInterval(24*Hour))
+	storeInstance, err := store.New(testMemoryDatabasePath, store.WithPurgeInterval(24*Hour))
 	RequireNoError(t, err)
-	t.Cleanup(func() { storeInstance.Close() })
+	t.Cleanup(func() { _ = storeInstance.Close() })
 	return storeInstance
 }
 
@@ -17,19 +25,19 @@ func ax7ConfiguredStore(t *T) (*store.Store, string) {
 	t.Helper()
 	stateDirectory := t.TempDir()
 	storeInstance, err := store.NewConfigured(store.StoreConfig{
-		DatabasePath:            ":memory:",
+		DatabasePath:            testMemoryDatabasePath,
 		PurgeInterval:           24 * Hour,
 		WorkspaceStateDirectory: stateDirectory,
 	})
 	RequireNoError(t, err)
-	t.Cleanup(func() { storeInstance.Close() })
+	t.Cleanup(func() { _ = storeInstance.Close() })
 	return storeInstance, stateDirectory
 }
 
 func ax7Workspace(t *T) (*store.Store, *store.Workspace) {
 	t.Helper()
 	storeInstance, _ := ax7ConfiguredStore(t)
-	workspace, err := storeInstance.NewWorkspace("ax7-workspace")
+	workspace, err := storeInstance.NewWorkspace(testAX7WorkspaceName)
 	RequireNoError(t, err)
 	t.Cleanup(func() { workspace.Discard() })
 	return storeInstance, workspace
@@ -37,7 +45,7 @@ func ax7Workspace(t *T) (*store.Store, *store.Workspace) {
 
 func ax7ScopedStore(t *T) *store.ScopedStore {
 	t.Helper()
-	scopedStore, err := store.NewScopedConfigured(ax7Store(t), store.ScopedStoreConfig{Namespace: "tenant-a"})
+	scopedStore, err := store.NewScopedConfigured(ax7Store(t), store.ScopedStoreConfig{Namespace: testTenantA})
 	RequireNoError(t, err)
 	return scopedStore
 }
@@ -45,7 +53,7 @@ func ax7ScopedStore(t *T) *store.ScopedStore {
 func ax7QuotaScopedStore(t *T, maxKeys, maxGroups int) *store.ScopedStore {
 	t.Helper()
 	scopedStore, err := store.NewScopedConfigured(ax7Store(t), store.ScopedStoreConfig{
-		Namespace: "tenant-a",
+		Namespace: testTenantA,
 		Quota:     store.QuotaConfig{MaxKeys: maxKeys, MaxGroups: maxGroups},
 	})
 	RequireNoError(t, err)
@@ -57,7 +65,7 @@ func ax7DuckDB(t *T) *store.DuckDB {
 	path := Path(t.TempDir(), "ax7.duckdb")
 	database, err := store.OpenDuckDBReadWrite(path)
 	RequireNoError(t, err)
-	t.Cleanup(func() { database.Close() })
+	t.Cleanup(func() { _ = database.Close() })
 	return database
 }
 
@@ -119,7 +127,7 @@ func newAX7Medium() *ax7Medium {
 func (medium *ax7Medium) Read(path string) (string, error) {
 	content, ok := medium.files[path]
 	if !ok {
-		return "", NewError("file not found")
+		return "", NewError(testFileNotFoundMessage)
 	}
 	return content, nil
 }
@@ -147,7 +155,7 @@ func (medium *ax7Medium) DeleteAll(path string) error {
 func (medium *ax7Medium) Rename(oldPath, newPath string) error {
 	content, ok := medium.files[oldPath]
 	if !ok {
-		return NewError("file not found")
+		return NewError(testFileNotFoundMessage)
 	}
 	medium.files[newPath] = content
 	delete(medium.files, oldPath)
@@ -157,14 +165,14 @@ func (medium *ax7Medium) List(_ string) ([]FsDirEntry, error) { return nil, nil 
 func (medium *ax7Medium) Stat(path string) (FsFileInfo, error) {
 	content, ok := medium.files[path]
 	if !ok {
-		return nil, NewError("file not found")
+		return nil, NewError(testFileNotFoundMessage)
 	}
 	return ax7FileInfo{name: PathBase(path), size: int64(len(content))}, nil
 }
 func (medium *ax7Medium) Open(path string) (FsFile, error) {
 	content, ok := medium.files[path]
 	if !ok {
-		return nil, NewError("file not found")
+		return nil, NewError(testFileNotFoundMessage)
 	}
 	return &ax7File{name: PathBase(path), content: content, reader: NewReader(content)}, nil
 }

@@ -27,7 +27,7 @@ func TestImport_ImportTrainingFile_Bad_MalformedJSONL(t *testing.T) {
 	count, err := importTrainingFile(session, path, "training", "train")
 
 	assertError(t, err)
-	assertContainsString(t, err.Error(), "line 2")
+	assertContainsString(t, err.Error(), testLineTwo)
 	assertEqual(t, 1, count)
 	assertEqual(t, 1, session.inserts)
 }
@@ -40,7 +40,7 @@ func TestImport_ImportBenchmarkFile_Bad_MalformedJSONL(t *testing.T) {
 	count, err := importBenchmarkFile(session, path, "benchmark")
 
 	assertError(t, err)
-	assertContainsString(t, err.Error(), "line 2")
+	assertContainsString(t, err.Error(), testLineTwo)
 	assertEqual(t, 1, count)
 	assertEqual(t, 1, session.inserts)
 }
@@ -53,7 +53,7 @@ func TestImport_ImportBenchmarkQuestions_Bad_MalformedJSONL(t *testing.T) {
 	count, err := importBenchmarkQuestions(session, path, "truthfulqa")
 
 	assertError(t, err)
-	assertContainsString(t, err.Error(), "line 2")
+	assertContainsString(t, err.Error(), testLineTwo)
 	assertEqual(t, 1, count)
 	assertEqual(t, 1, session.inserts)
 }

@@ -54,7 +54,9 @@ func TestJson_MarshalIndent_Good(t *T) {
 }
 
 func TestJson_MarshalIndent_Bad(t *T) {
-	data, err := store.MarshalIndent(func() {}, "", "  ")
+	data, err := store.MarshalIndent(func() {
+		// Intentionally empty: function values cannot be marshalled as JSON.
+	}, "", "  ")
 	AssertError(t, err)
 	AssertNil(t, data)
 }

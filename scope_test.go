@@ -12,7 +12,7 @@ import (
 // ---------------------------------------------------------------------------
 
 func TestScope_NewScoped_Good(t *testing.T) {
-	storeInstance, _ := New(":memory:")
+	storeInstance, _ := New(testMemoryDatabasePath)
 	defer func() { _ = storeInstance.Close() }()
 
 	scopedStore := NewScoped(storeInstance, "tenant-1")
@@ -21,16 +21,16 @@ func TestScope_NewScoped_Good(t *testing.T) {
 }
 
 func TestScope_ScopedStore_Good_Config(t *testing.T) {
-	storeInstance, _ := New(":memory:")
+	storeInstance, _ := New(testMemoryDatabasePath)
 	defer func() { _ = storeInstance.Close() }()
 
 	scopedStore, err := NewScopedConfigured(storeInstance, ScopedStoreConfig{
-		Namespace: "tenant-a",
+		Namespace: testTenantA,
 		Quota:     QuotaConfig{MaxKeys: 4, MaxGroups: 2},
 	})
 	assertNoError(t, err)
 
-	assertEqual(t, ScopedStoreConfig{Namespace: "tenant-a", Quota: QuotaConfig{MaxKeys: 4, MaxGroups: 2}}, scopedStore.Config())
+	assertEqual(t, ScopedStoreConfig{Namespace: testTenantA, Quota: QuotaConfig{MaxKeys: 4, MaxGroups: 2}}, scopedStore.Config())
 }
 
 func TestScope_ScopedStore_Good_ConfigZeroValueFromNil(t *testing.T) {
@@ -42,10 +42,10 @@ func TestScope_ScopedStore_Good_ConfigZeroValueFromNil(t *testing.T) {
 }
 
 func TestScope_NewScoped_Good_AlphanumericHyphens(t *testing.T) {
-	storeInstance, _ := New(":memory:")
+	storeInstance, _ := New(testMemoryDatabasePath)
 	defer func() { _ = storeInstance.Close() }()
 
-	valid := []string{"abc", "ABC", "123", "a-b-c", "tenant-42", "A1-B2"}
+	valid := []string{"abc", "ABC", "123", "a-b-c", testTenant42, "A1-B2"}
 	for _, namespace := range valid {
 		scopedStore := NewScoped(storeInstance, namespace)
 		assertNotNil(t, scopedStore)
@@ -53,20 +53,20 @@ func TestScope_NewScoped_Good_AlphanumericHyphens(t *testing.T) {
 }
 
 func TestScope_NewScoped_Bad_Empty(t *testing.T) {
-	storeInstance, _ := New(":memory:")
+	storeInstance, _ := New(testMemoryDatabasePath)
 	defer func() { _ = storeInstance.Close() }()
 
 	assertNil(t, NewScoped(storeInstance, ""))
 }
 
 func TestScope_NewScoped_Bad_NilStore(t *testing.T) {
-	scopedStore := NewScoped(nil, "tenant-a")
+	scopedStore := NewScoped(nil, testTenantA)
 	assertNil(t, scopedStore)
 	assertEqual(t, "", scopedStore.Namespace())
 }
 
 func TestScope_NewScoped_Bad_InvalidChars(t *testing.T) {
-	storeInstance, _ := New(":memory:")
+	storeInstance, _ := New(testMemoryDatabasePath)
 	defer func() { _ = storeInstance.Close() }()
 
 	invalid := []string{"foo.bar", "foo:bar", "foo bar", "foo/bar", "foo_bar", "tenant!", "@ns"}
@@ -76,7 +76,7 @@ func TestScope_NewScoped_Bad_InvalidChars(t *testing.T) {
 }
 
 func TestScope_NewScopedConfigured_Bad_InvalidNamespaceFromQuotaConfig(t *testing.T) {
-	storeInstance, _ := New(":memory:")
+	storeInstance, _ := New(testMemoryDatabasePath)
 	defer func() { _ = storeInstance.Close() }()
 
 	_, err := NewScopedConfigured(storeInstance, ScopedStoreConfig{
@@ -89,7 +89,7 @@ func TestScope_NewScopedConfigured_Bad_InvalidNamespaceFromQuotaConfig(t *testin
 
 func TestScope_NewScopedConfigured_Bad_NilStoreFromQuotaConfig(t *testing.T) {
 	_, err := NewScopedConfigured(nil, ScopedStoreConfig{
-		Namespace: "tenant-a",
+		Namespace: testTenantA,
 		Quota:     QuotaConfig{MaxKeys: 1},
 	})
 	assertError(t, err)
@@ -97,11 +97,11 @@ func TestScope_NewScopedConfigured_Bad_NilStoreFromQuotaConfig(t *testing.T) {
 }
 
 func TestScope_NewScopedConfigured_Bad_NegativeMaxKeys(t *testing.T) {
-	storeInstance, _ := New(":memory:")
+	storeInstance, _ := New(testMemoryDatabasePath)
 	defer func() { _ = storeInstance.Close() }()
 
 	_, err := NewScopedConfigured(storeInstance, ScopedStoreConfig{
-		Namespace: "tenant-a",
+		Namespace: testTenantA,
 		Quota:     QuotaConfig{MaxKeys: -1},
 	})
 	assertError(t, err)
@@ -109,11 +109,11 @@ func TestScope_NewScopedConfigured_Bad_NegativeMaxKeys(t *testing.T) {
 }
 
 func TestScope_NewScopedConfigured_Bad_NegativeMaxGroups(t *testing.T) {
-	storeInstance, _ := New(":memory:")
+	storeInstance, _ := New(testMemoryDatabasePath)
 	defer func() { _ = storeInstance.Close() }()
 
 	_, err := NewScopedConfigured(storeInstance, ScopedStoreConfig{
-		Namespace: "tenant-a",
+		Namespace: testTenantA,
 		Quota:     QuotaConfig{MaxGroups: -1},
 	})
 	assertError(t, err)
@@ -121,11 +121,11 @@ func TestScope_NewScopedConfigured_Bad_NegativeMaxGroups(t *testing.T) {
 }
 
 func TestScope_NewScopedConfigured_Good_InlineQuotaFields(t *testing.T) {
-	storeInstance, _ := New(":memory:")
+	storeInstance, _ := New(testMemoryDatabasePath)
 	defer func() { _ = storeInstance.Close() }()
 
 	scopedStore, err := NewScopedConfigured(storeInstance, ScopedStoreConfig{
-		Namespace: "tenant-a",
+		Namespace: testTenantA,
 		Quota:     QuotaConfig{MaxKeys: 4, MaxGroups: 2},
 	})
 	assertNoError(t, err)
@@ -136,18 +136,18 @@ func TestScope_NewScopedConfigured_Good_InlineQuotaFields(t *testing.T) {
 
 func TestScope_ScopedStoreConfig_Good_Validate(t *testing.T) {
 	err := (ScopedStoreConfig{
-		Namespace: "tenant-a",
+		Namespace: testTenantA,
 		Quota:     QuotaConfig{MaxKeys: 4, MaxGroups: 2},
 	}).Validate()
 	assertNoError(t, err)
 }
 
 func TestScope_NewScopedConfigured_Good(t *testing.T) {
-	storeInstance, _ := New(":memory:")
+	storeInstance, _ := New(testMemoryDatabasePath)
 	defer func() { _ = storeInstance.Close() }()
 
 	scopedStore, err := NewScopedConfigured(storeInstance, ScopedStoreConfig{
-		Namespace: "tenant-a",
+		Namespace: testTenantA,
 		Quota:     QuotaConfig{MaxKeys: 4, MaxGroups: 2},
 	})
 	assertNoError(t, err)
@@ -157,20 +157,20 @@ func TestScope_NewScopedConfigured_Good(t *testing.T) {
 }
 
 func TestScope_NewScopedWithQuota_Good(t *testing.T) {
-	storeInstance, _ := New(":memory:")
+	storeInstance, _ := New(testMemoryDatabasePath)
 	defer func() { _ = storeInstance.Close() }()
 
-	scopedStore, err := NewScopedWithQuota(storeInstance, "tenant-a", QuotaConfig{MaxKeys: 4, MaxGroups: 2})
+	scopedStore, err := NewScopedWithQuota(storeInstance, testTenantA, QuotaConfig{MaxKeys: 4, MaxGroups: 2})
 	assertNoError(t, err)
 	assertNotNil(t, scopedStore)
 
-	assertEqual(t, "tenant-a", scopedStore.Namespace())
+	assertEqual(t, testTenantA, scopedStore.Namespace())
 	assertEqual(t, 4, scopedStore.MaxKeys)
 	assertEqual(t, 2, scopedStore.MaxGroups)
 }
 
 func TestScope_NewScopedConfigured_Bad_InvalidNamespace(t *testing.T) {
-	storeInstance, _ := New(":memory:")
+	storeInstance, _ := New(testMemoryDatabasePath)
 	defer func() { _ = storeInstance.Close() }()
 
 	_, err := NewScopedConfigured(storeInstance, ScopedStoreConfig{
@@ -186,31 +186,31 @@ func TestScope_ScopedStore_Good_NilReceiverReturnsErrors(t *testing.T) {
 
 	_, err := scopedStore.Get("theme")
 	assertError(t, err)
-	assertContainsString(t, err.Error(), "scoped store is nil")
+	assertContainsString(t, err.Error(), testScopedStoreNilMessage)
 
 	err = scopedStore.Set("theme", "dark")
 	assertError(t, err)
-	assertContainsString(t, err.Error(), "scoped store is nil")
+	assertContainsString(t, err.Error(), testScopedStoreNilMessage)
 
 	_, err = scopedStore.Count("config")
 	assertError(t, err)
-	assertContainsString(t, err.Error(), "scoped store is nil")
+	assertContainsString(t, err.Error(), testScopedStoreNilMessage)
 
 	_, err = scopedStore.Groups()
 	assertError(t, err)
-	assertContainsString(t, err.Error(), "scoped store is nil")
+	assertContainsString(t, err.Error(), testScopedStoreNilMessage)
 
 	for entry, iterationErr := range scopedStore.All("config") {
 		_ = entry
 		assertError(t, iterationErr)
-		assertContainsString(t, iterationErr.Error(), "scoped store is nil")
+		assertContainsString(t, iterationErr.Error(), testScopedStoreNilMessage)
 		break
 	}
 
 	for groupName, iterationErr := range scopedStore.GroupsSeq() {
 		_ = groupName
 		assertError(t, iterationErr)
-		assertContainsString(t, iterationErr.Error(), "scoped store is nil")
+		assertContainsString(t, iterationErr.Error(), testScopedStoreNilMessage)
 		break
 	}
 }
@@ -220,10 +220,10 @@ func TestScope_ScopedStore_Good_NilReceiverReturnsErrors(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestScope_ScopedStore_Good_SetGet(t *testing.T) {
-	storeInstance, _ := New(":memory:")
+	storeInstance, _ := New(testMemoryDatabasePath)
 	defer func() { _ = storeInstance.Close() }()
 
-	scopedStore := NewScoped(storeInstance, "tenant-a")
+	scopedStore := NewScoped(storeInstance, testTenantA)
 	assertNoError(t, scopedStore.SetIn("config", "theme", "dark"))
 
 	value, err := scopedStore.GetFrom("config", "theme")
@@ -232,10 +232,10 @@ func TestScope_ScopedStore_Good_SetGet(t *testing.T) {
 }
 
 func TestScope_ScopedStore_Good_DefaultGroupHelpers(t *testing.T) {
-	storeInstance, _ := New(":memory:")
+	storeInstance, _ := New(testMemoryDatabasePath)
 	defer func() { _ = storeInstance.Close() }()
 
-	scopedStore := NewScoped(storeInstance, "tenant-a")
+	scopedStore := NewScoped(storeInstance, testTenantA)
 	assertNoError(t, scopedStore.Set("theme", "dark"))
 
 	value, err := scopedStore.Get("theme")
@@ -248,10 +248,16 @@ func TestScope_ScopedStore_Good_DefaultGroupHelpers(t *testing.T) {
 }
 
 func TestScope_ScopedStore_Good_SetInGetFrom(t *testing.T) {
-	storeInstance, _ := New(":memory:")
+	assertScopedStoreSetInGetFrom(t)
+}
+
+func assertScopedStoreSetInGetFrom(t *testing.T) {
+	t.Helper()
+
+	storeInstance, _ := New(testMemoryDatabasePath)
 	defer func() { _ = storeInstance.Close() }()
 
-	scopedStore := NewScoped(storeInstance, "tenant-a")
+	scopedStore := NewScoped(storeInstance, testTenantA)
 	assertNoError(t, scopedStore.SetIn("config", "theme", "dark"))
 
 	value, err := scopedStore.GetFrom("config", "theme")
@@ -260,14 +266,14 @@ func TestScope_ScopedStore_Good_SetInGetFrom(t *testing.T) {
 }
 
 func TestScope_ScopedStore_Good_PrefixedInUnderlyingStore(t *testing.T) {
-	storeInstance, _ := New(":memory:")
+	storeInstance, _ := New(testMemoryDatabasePath)
 	defer func() { _ = storeInstance.Close() }()
 
-	scopedStore := NewScoped(storeInstance, "tenant-a")
+	scopedStore := NewScoped(storeInstance, testTenantA)
 	assertNoError(t, scopedStore.SetIn("config", "key", "val"))
 
 	// The underlying store should have the prefixed group name.
-	value, err := storeInstance.Get("tenant-a:config", "key")
+	value, err := storeInstance.Get(testTenantAConfigGroup, "key")
 	assertNoError(t, err)
 	assertEqual(t, "val", value)
 
@@ -277,11 +283,11 @@ func TestScope_ScopedStore_Good_PrefixedInUnderlyingStore(t *testing.T) {
 }
 
 func TestScope_ScopedStore_Good_NamespaceIsolation(t *testing.T) {
-	storeInstance, _ := New(":memory:")
+	storeInstance, _ := New(testMemoryDatabasePath)
 	defer func() { _ = storeInstance.Close() }()
 
-	alphaStore := NewScoped(storeInstance, "tenant-a")
-	betaStore := NewScoped(storeInstance, "tenant-b")
+	alphaStore := NewScoped(storeInstance, testTenantA)
+	betaStore := NewScoped(storeInstance, testTenantB)
 
 	assertNoError(t, alphaStore.SetIn("config", "colour", "blue"))
 	assertNoError(t, betaStore.SetIn("config", "colour", "red"))
@@ -300,10 +306,10 @@ func TestScope_ScopedStore_Good_NamespaceIsolation(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestScope_ScopedStore_Good_ExistsInDefaultGroup(t *testing.T) {
-	storeInstance, _ := New(":memory:")
+	storeInstance, _ := New(testMemoryDatabasePath)
 	defer func() { _ = storeInstance.Close() }()
 
-	scopedStore := NewScoped(storeInstance, "tenant-a")
+	scopedStore := NewScoped(storeInstance, testTenantA)
 	assertNoError(t, scopedStore.Set("colour", "blue"))
 
 	exists, err := scopedStore.Exists("colour")
@@ -316,10 +322,10 @@ func TestScope_ScopedStore_Good_ExistsInDefaultGroup(t *testing.T) {
 }
 
 func TestScope_ScopedStore_Good_ExistsInExplicitGroup(t *testing.T) {
-	storeInstance, _ := New(":memory:")
+	storeInstance, _ := New(testMemoryDatabasePath)
 	defer func() { _ = storeInstance.Close() }()
 
-	scopedStore := NewScoped(storeInstance, "tenant-a")
+	scopedStore := NewScoped(storeInstance, testTenantA)
 	assertNoError(t, scopedStore.SetIn("config", "colour", "blue"))
 
 	exists, err := scopedStore.ExistsIn("config", "colour")
@@ -336,10 +342,10 @@ func TestScope_ScopedStore_Good_ExistsInExplicitGroup(t *testing.T) {
 }
 
 func TestScope_ScopedStore_Good_ExistsExpiredKeyReturnsFalse(t *testing.T) {
-	storeInstance, _ := New(":memory:")
+	storeInstance, _ := New(testMemoryDatabasePath)
 	defer func() { _ = storeInstance.Close() }()
 
-	scopedStore := NewScoped(storeInstance, "tenant-a")
+	scopedStore := NewScoped(storeInstance, testTenantA)
 	assertNoError(t, scopedStore.SetWithTTL("session", "token", "abc123", 1*time.Millisecond))
 	time.Sleep(5 * time.Millisecond)
 
@@ -349,10 +355,10 @@ func TestScope_ScopedStore_Good_ExistsExpiredKeyReturnsFalse(t *testing.T) {
 }
 
 func TestScope_ScopedStore_Good_GroupExists(t *testing.T) {
-	storeInstance, _ := New(":memory:")
+	storeInstance, _ := New(testMemoryDatabasePath)
 	defer func() { _ = storeInstance.Close() }()
 
-	scopedStore := NewScoped(storeInstance, "tenant-a")
+	scopedStore := NewScoped(storeInstance, testTenantA)
 	assertNoError(t, scopedStore.SetIn("config", "colour", "blue"))
 
 	exists, err := scopedStore.GroupExists("config")
@@ -365,10 +371,10 @@ func TestScope_ScopedStore_Good_GroupExists(t *testing.T) {
 }
 
 func TestScope_ScopedStore_Good_GroupExistsAfterDelete(t *testing.T) {
-	storeInstance, _ := New(":memory:")
+	storeInstance, _ := New(testMemoryDatabasePath)
 	defer func() { _ = storeInstance.Close() }()
 
-	scopedStore := NewScoped(storeInstance, "tenant-a")
+	scopedStore := NewScoped(storeInstance, testTenantA)
 	assertNoError(t, scopedStore.SetIn("config", "colour", "blue"))
 	assertNoError(t, scopedStore.DeleteGroup("config"))
 
@@ -378,9 +384,9 @@ func TestScope_ScopedStore_Good_GroupExistsAfterDelete(t *testing.T) {
 }
 
 func TestScope_ScopedStore_Bad_ExistsClosedStore(t *testing.T) {
-	storeInstance, _ := New(":memory:")
+	storeInstance, _ := New(testMemoryDatabasePath)
 	_ = storeInstance.Close()
-	scopedStore := NewScoped(storeInstance, "tenant-a")
+	scopedStore := NewScoped(storeInstance, testTenantA)
 
 	_, err := scopedStore.Exists("colour")
 	assertError(t, err)
@@ -393,10 +399,10 @@ func TestScope_ScopedStore_Bad_ExistsClosedStore(t *testing.T) {
 }
 
 func TestScope_ScopedStore_Good_Delete(t *testing.T) {
-	storeInstance, _ := New(":memory:")
+	storeInstance, _ := New(testMemoryDatabasePath)
 	defer func() { _ = storeInstance.Close() }()
 
-	scopedStore := NewScoped(storeInstance, "tenant-a")
+	scopedStore := NewScoped(storeInstance, testTenantA)
 	assertNoError(t, scopedStore.SetIn("g", "k", "v"))
 	assertNoError(t, scopedStore.Delete("g", "k"))
 
@@ -405,10 +411,10 @@ func TestScope_ScopedStore_Good_Delete(t *testing.T) {
 }
 
 func TestScope_ScopedStore_Good_DeleteGroup(t *testing.T) {
-	storeInstance, _ := New(":memory:")
+	storeInstance, _ := New(testMemoryDatabasePath)
 	defer func() { _ = storeInstance.Close() }()
 
-	scopedStore := NewScoped(storeInstance, "tenant-a")
+	scopedStore := NewScoped(storeInstance, testTenantA)
 	assertNoError(t, scopedStore.SetIn("g", "a", "1"))
 	assertNoError(t, scopedStore.SetIn("g", "b", "2"))
 	assertNoError(t, scopedStore.DeleteGroup("g"))
@@ -419,11 +425,11 @@ func TestScope_ScopedStore_Good_DeleteGroup(t *testing.T) {
 }
 
 func TestScope_ScopedStore_Good_DeletePrefix(t *testing.T) {
-	storeInstance, _ := New(":memory:")
+	storeInstance, _ := New(testMemoryDatabasePath)
 	defer func() { _ = storeInstance.Close() }()
 
-	scopedStore := NewScoped(storeInstance, "tenant-a")
-	otherScopedStore := NewScoped(storeInstance, "tenant-b")
+	scopedStore := NewScoped(storeInstance, testTenantA)
+	otherScopedStore := NewScoped(storeInstance, testTenantB)
 
 	assertNoError(t, scopedStore.SetIn("config", "theme", "dark"))
 	assertNoError(t, scopedStore.SetIn("cache", "page", "home"))
@@ -447,11 +453,11 @@ func TestScope_ScopedStore_Good_DeletePrefix(t *testing.T) {
 }
 
 func TestScope_ScopedStore_Good_OnChange_NamespaceLocal(t *testing.T) {
-	storeInstance, _ := New(":memory:")
+	storeInstance, _ := New(testMemoryDatabasePath)
 	defer func() { _ = storeInstance.Close() }()
 
-	scopedStore := NewScoped(storeInstance, "tenant-a")
-	otherScopedStore := NewScoped(storeInstance, "tenant-b")
+	scopedStore := NewScoped(storeInstance, testTenantA)
+	otherScopedStore := NewScoped(storeInstance, testTenantB)
 
 	var events []Event
 	unregister := scopedStore.OnChange(func(event Event) {
@@ -473,11 +479,11 @@ func TestScope_ScopedStore_Good_OnChange_NamespaceLocal(t *testing.T) {
 }
 
 func TestScope_ScopedStore_Good_Watch_NamespaceLocal(t *testing.T) {
-	storeInstance, _ := New(":memory:")
+	storeInstance, _ := New(testMemoryDatabasePath)
 	defer func() { _ = storeInstance.Close() }()
 
-	scopedStore := NewScoped(storeInstance, "tenant-a")
-	otherScopedStore := NewScoped(storeInstance, "tenant-b")
+	scopedStore := NewScoped(storeInstance, testTenantA)
+	otherScopedStore := NewScoped(storeInstance, testTenantB)
 
 	events := scopedStore.Watch("config")
 	defer scopedStore.Unwatch("config", events)
@@ -504,11 +510,11 @@ func TestScope_ScopedStore_Good_Watch_NamespaceLocal(t *testing.T) {
 }
 
 func TestScope_ScopedStore_Good_Watch_All_NamespaceLocal(t *testing.T) {
-	storeInstance, _ := New(":memory:")
+	storeInstance, _ := New(testMemoryDatabasePath)
 	defer func() { _ = storeInstance.Close() }()
 
-	scopedStore := NewScoped(storeInstance, "tenant-a")
-	otherScopedStore := NewScoped(storeInstance, "tenant-b")
+	scopedStore := NewScoped(storeInstance, testTenantA)
+	otherScopedStore := NewScoped(storeInstance, testTenantB)
 
 	events := scopedStore.Watch("*")
 	defer scopedStore.Unwatch("*", events)
@@ -543,10 +549,10 @@ func TestScope_ScopedStore_Good_Watch_All_NamespaceLocal(t *testing.T) {
 }
 
 func TestScope_ScopedStore_Good_Unwatch_ClosesLocalChannel(t *testing.T) {
-	storeInstance, _ := New(":memory:")
+	storeInstance, _ := New(testMemoryDatabasePath)
 	defer func() { _ = storeInstance.Close() }()
 
-	scopedStore := NewScoped(storeInstance, "tenant-a")
+	scopedStore := NewScoped(storeInstance, testTenantA)
 
 	events := scopedStore.Watch("config")
 	scopedStore.Unwatch("config", events)
@@ -560,11 +566,11 @@ func TestScope_ScopedStore_Good_Unwatch_ClosesLocalChannel(t *testing.T) {
 }
 
 func TestScope_ScopedStore_Good_GetAll(t *testing.T) {
-	storeInstance, _ := New(":memory:")
+	storeInstance, _ := New(testMemoryDatabasePath)
 	defer func() { _ = storeInstance.Close() }()
 
-	alphaStore := NewScoped(storeInstance, "tenant-a")
-	betaStore := NewScoped(storeInstance, "tenant-b")
+	alphaStore := NewScoped(storeInstance, testTenantA)
+	betaStore := NewScoped(storeInstance, testTenantB)
 
 	assertNoError(t, alphaStore.SetIn("items", "x", "1"))
 	assertNoError(t, alphaStore.SetIn("items", "y", "2"))
@@ -580,10 +586,10 @@ func TestScope_ScopedStore_Good_GetAll(t *testing.T) {
 }
 
 func TestScope_ScopedStore_Good_GetPage(t *testing.T) {
-	storeInstance, _ := New(":memory:")
+	storeInstance, _ := New(testMemoryDatabasePath)
 	defer func() { _ = storeInstance.Close() }()
 
-	scopedStore := NewScoped(storeInstance, "tenant-a")
+	scopedStore := NewScoped(storeInstance, testTenantA)
 	assertNoError(t, scopedStore.SetIn("items", "charlie", "3"))
 	assertNoError(t, scopedStore.SetIn("items", "alpha", "1"))
 	assertNoError(t, scopedStore.SetIn("items", "bravo", "2"))
@@ -595,10 +601,10 @@ func TestScope_ScopedStore_Good_GetPage(t *testing.T) {
 }
 
 func TestScope_ScopedStore_Good_All(t *testing.T) {
-	storeInstance, _ := New(":memory:")
+	storeInstance, _ := New(testMemoryDatabasePath)
 	defer func() { _ = storeInstance.Close() }()
 
-	scopedStore := NewScoped(storeInstance, "tenant-a")
+	scopedStore := NewScoped(storeInstance, testTenantA)
 	assertNoError(t, scopedStore.SetIn("items", "first", "1"))
 	assertNoError(t, scopedStore.SetIn("items", "second", "2"))
 
@@ -612,10 +618,10 @@ func TestScope_ScopedStore_Good_All(t *testing.T) {
 }
 
 func TestScope_ScopedStore_Good_All_SortedByKey(t *testing.T) {
-	storeInstance, _ := New(":memory:")
+	storeInstance, _ := New(testMemoryDatabasePath)
 	defer func() { _ = storeInstance.Close() }()
 
-	scopedStore := NewScoped(storeInstance, "tenant-a")
+	scopedStore := NewScoped(storeInstance, testTenantA)
 	assertNoError(t, scopedStore.SetIn("items", "charlie", "3"))
 	assertNoError(t, scopedStore.SetIn("items", "alpha", "1"))
 	assertNoError(t, scopedStore.SetIn("items", "bravo", "2"))
@@ -630,10 +636,10 @@ func TestScope_ScopedStore_Good_All_SortedByKey(t *testing.T) {
 }
 
 func TestScope_ScopedStore_Good_Count(t *testing.T) {
-	storeInstance, _ := New(":memory:")
+	storeInstance, _ := New(testMemoryDatabasePath)
 	defer func() { _ = storeInstance.Close() }()
 
-	scopedStore := NewScoped(storeInstance, "tenant-a")
+	scopedStore := NewScoped(storeInstance, testTenantA)
 	assertNoError(t, scopedStore.SetIn("g", "a", "1"))
 	assertNoError(t, scopedStore.SetIn("g", "b", "2"))
 
@@ -643,10 +649,10 @@ func TestScope_ScopedStore_Good_Count(t *testing.T) {
 }
 
 func TestScope_ScopedStore_Good_SetWithTTL(t *testing.T) {
-	storeInstance, _ := New(":memory:")
+	storeInstance, _ := New(testMemoryDatabasePath)
 	defer func() { _ = storeInstance.Close() }()
 
-	scopedStore := NewScoped(storeInstance, "tenant-a")
+	scopedStore := NewScoped(storeInstance, testTenantA)
 	assertNoError(t, scopedStore.SetWithTTL("g", "k", "v", time.Hour))
 
 	value, err := scopedStore.GetFrom("g", "k")
@@ -655,10 +661,10 @@ func TestScope_ScopedStore_Good_SetWithTTL(t *testing.T) {
 }
 
 func TestScope_ScopedStore_Good_SetWithTTL_Expires(t *testing.T) {
-	storeInstance, _ := New(":memory:")
+	storeInstance, _ := New(testMemoryDatabasePath)
 	defer func() { _ = storeInstance.Close() }()
 
-	scopedStore := NewScoped(storeInstance, "tenant-a")
+	scopedStore := NewScoped(storeInstance, testTenantA)
 	assertNoError(t, scopedStore.SetWithTTL("g", "k", "v", 1*time.Millisecond))
 	time.Sleep(5 * time.Millisecond)
 
@@ -667,10 +673,10 @@ func TestScope_ScopedStore_Good_SetWithTTL_Expires(t *testing.T) {
 }
 
 func TestScope_ScopedStore_Good_Render(t *testing.T) {
-	storeInstance, _ := New(":memory:")
+	storeInstance, _ := New(testMemoryDatabasePath)
 	defer func() { _ = storeInstance.Close() }()
 
-	scopedStore := NewScoped(storeInstance, "tenant-a")
+	scopedStore := NewScoped(storeInstance, testTenantA)
 	assertNoError(t, scopedStore.SetIn("user", "name", "Alice"))
 
 	renderedTemplate, err := scopedStore.Render("Hello {{ .name }}", "user")
@@ -679,11 +685,11 @@ func TestScope_ScopedStore_Good_Render(t *testing.T) {
 }
 
 func TestScope_ScopedStore_Good_BulkHelpers(t *testing.T) {
-	storeInstance, _ := New(":memory:")
+	storeInstance, _ := New(testMemoryDatabasePath)
 	defer func() { _ = storeInstance.Close() }()
 
-	alphaStore := NewScoped(storeInstance, "tenant-a")
-	betaStore := NewScoped(storeInstance, "tenant-b")
+	alphaStore := NewScoped(storeInstance, testTenantA)
+	betaStore := NewScoped(storeInstance, testTenantB)
 
 	assertNoError(t, alphaStore.SetIn("config", "colour", "blue"))
 	assertNoError(t, alphaStore.SetIn("sessions", "token", "abc123"))
@@ -721,10 +727,10 @@ func TestScope_ScopedStore_Good_BulkHelpers(t *testing.T) {
 }
 
 func TestScope_ScopedStore_Good_GroupsSeqStopsEarly(t *testing.T) {
-	storeInstance, _ := New(":memory:")
+	storeInstance, _ := New(testMemoryDatabasePath)
 	defer func() { _ = storeInstance.Close() }()
 
-	scopedStore := NewScoped(storeInstance, "tenant-a")
+	scopedStore := NewScoped(storeInstance, testTenantA)
 	assertNoError(t, scopedStore.SetIn("alpha", "a", "1"))
 	assertNoError(t, scopedStore.SetIn("beta", "b", "2"))
 
@@ -740,10 +746,10 @@ func TestScope_ScopedStore_Good_GroupsSeqStopsEarly(t *testing.T) {
 }
 
 func TestScope_ScopedStore_Good_GroupsSeqSorted(t *testing.T) {
-	storeInstance, _ := New(":memory:")
+	storeInstance, _ := New(testMemoryDatabasePath)
 	defer func() { _ = storeInstance.Close() }()
 
-	scopedStore := NewScoped(storeInstance, "tenant-a")
+	scopedStore := NewScoped(storeInstance, testTenantA)
 	assertNoError(t, scopedStore.SetIn("charlie", "c", "3"))
 	assertNoError(t, scopedStore.SetIn("alpha", "a", "1"))
 	assertNoError(t, scopedStore.SetIn("bravo", "b", "2"))
@@ -758,10 +764,10 @@ func TestScope_ScopedStore_Good_GroupsSeqSorted(t *testing.T) {
 }
 
 func TestScope_ScopedStore_Good_GetSplitAndGetFields(t *testing.T) {
-	storeInstance, _ := New(":memory:")
+	storeInstance, _ := New(testMemoryDatabasePath)
 	defer func() { _ = storeInstance.Close() }()
 
-	scopedStore := NewScoped(storeInstance, "tenant-a")
+	scopedStore := NewScoped(storeInstance, testTenantA)
 	assertNoError(t, scopedStore.SetIn("config", "hosts", "alpha,beta,gamma"))
 	assertNoError(t, scopedStore.SetIn("config", "flags", "one two\tthree\n"))
 
@@ -785,10 +791,10 @@ func TestScope_ScopedStore_Good_GetSplitAndGetFields(t *testing.T) {
 }
 
 func TestScope_ScopedStore_Good_PurgeExpired(t *testing.T) {
-	storeInstance, _ := New(":memory:")
+	storeInstance, _ := New(testMemoryDatabasePath)
 	defer func() { _ = storeInstance.Close() }()
 
-	scopedStore := NewScoped(storeInstance, "tenant-a")
+	scopedStore := NewScoped(storeInstance, testTenantA)
 	assertNoError(t, scopedStore.SetWithTTL("session", "token", "abc123", 1*time.Millisecond))
 	time.Sleep(5 * time.Millisecond)
 
@@ -801,11 +807,11 @@ func TestScope_ScopedStore_Good_PurgeExpired(t *testing.T) {
 }
 
 func TestScope_ScopedStore_Good_PurgeExpired_NamespaceLocal(t *testing.T) {
-	storeInstance, _ := New(":memory:")
+	storeInstance, _ := New(testMemoryDatabasePath)
 	defer func() { _ = storeInstance.Close() }()
 
-	alphaStore := NewScoped(storeInstance, "tenant-a")
-	betaStore := NewScoped(storeInstance, "tenant-b")
+	alphaStore := NewScoped(storeInstance, testTenantA)
+	betaStore := NewScoped(storeInstance, testTenantB)
 
 	assertNoError(t, alphaStore.SetWithTTL("session", "alpha-token", "alpha", 1*time.Millisecond))
 	assertNoError(t, betaStore.SetWithTTL("session", "beta-token", "beta", 1*time.Millisecond))
@@ -827,11 +833,11 @@ func TestScope_ScopedStore_Good_PurgeExpired_NamespaceLocal(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestScope_Quota_Good_MaxKeys(t *testing.T) {
-	storeInstance, _ := New(":memory:")
+	storeInstance, _ := New(testMemoryDatabasePath)
 	defer func() { _ = storeInstance.Close() }()
 
 	scopedStore, err := NewScopedConfigured(storeInstance, ScopedStoreConfig{
-		Namespace: "tenant-a",
+		Namespace: testTenantA,
 		Quota:     QuotaConfig{MaxKeys: 5},
 	})
 	assertNoError(t, err)
@@ -853,26 +859,26 @@ func TestScope_Quota_Bad_QuotaCheckQueryError(t *testing.T) {
 
 	storeInstance := &Store{
 		sqliteDatabase: database,
-		cancelPurge:    func() {},
+		cancelPurge:    noopCancelPurge,
 	}
 
 	scopedStore, err := NewScopedConfigured(storeInstance, ScopedStoreConfig{
-		Namespace: "tenant-a",
+		Namespace: testTenantA,
 		Quota:     QuotaConfig{MaxKeys: 1},
 	})
 	assertNoError(t, err)
 
 	err = scopedStore.SetIn("config", "theme", "dark")
 	assertError(t, err)
-	assertContainsString(t, err.Error(), "quota check")
+	assertContainsString(t, err.Error(), quotaCheckContext)
 }
 
 func TestScope_Quota_Good_MaxKeys_AcrossGroups(t *testing.T) {
-	storeInstance, _ := New(":memory:")
+	storeInstance, _ := New(testMemoryDatabasePath)
 	defer func() { _ = storeInstance.Close() }()
 
 	scopedStore, _ := NewScopedConfigured(storeInstance, ScopedStoreConfig{
-		Namespace: "tenant-a",
+		Namespace: testTenantA,
 		Quota:     QuotaConfig{MaxKeys: 3},
 	})
 
@@ -886,11 +892,11 @@ func TestScope_Quota_Good_MaxKeys_AcrossGroups(t *testing.T) {
 }
 
 func TestScope_Quota_Good_UpsertDoesNotCount(t *testing.T) {
-	storeInstance, _ := New(":memory:")
+	storeInstance, _ := New(testMemoryDatabasePath)
 	defer func() { _ = storeInstance.Close() }()
 
 	scopedStore, _ := NewScopedConfigured(storeInstance, ScopedStoreConfig{
-		Namespace: "tenant-a",
+		Namespace: testTenantA,
 		Quota:     QuotaConfig{MaxKeys: 3},
 	})
 
@@ -907,11 +913,11 @@ func TestScope_Quota_Good_UpsertDoesNotCount(t *testing.T) {
 }
 
 func TestScope_Quota_Good_ExpiredUpsertDoesNotEmitDeleteEvent(t *testing.T) {
-	storeInstance, _ := New(":memory:")
+	storeInstance, _ := New(testMemoryDatabasePath)
 	defer func() { _ = storeInstance.Close() }()
 
 	scopedStore, _ := NewScopedConfigured(storeInstance, ScopedStoreConfig{
-		Namespace: "tenant-a",
+		Namespace: testTenantA,
 		Quota:     QuotaConfig{MaxKeys: 1},
 	})
 
@@ -946,11 +952,11 @@ func TestScope_Quota_Good_ExpiredUpsertDoesNotEmitDeleteEvent(t *testing.T) {
 }
 
 func TestScope_Quota_Good_DeleteAndReInsert(t *testing.T) {
-	storeInstance, _ := New(":memory:")
+	storeInstance, _ := New(testMemoryDatabasePath)
 	defer func() { _ = storeInstance.Close() }()
 
 	scopedStore, _ := NewScopedConfigured(storeInstance, ScopedStoreConfig{
-		Namespace: "tenant-a",
+		Namespace: testTenantA,
 		Quota:     QuotaConfig{MaxKeys: 3},
 	})
 
@@ -964,11 +970,11 @@ func TestScope_Quota_Good_DeleteAndReInsert(t *testing.T) {
 }
 
 func TestScope_Quota_Good_ZeroMeansUnlimited(t *testing.T) {
-	storeInstance, _ := New(":memory:")
+	storeInstance, _ := New(testMemoryDatabasePath)
 	defer func() { _ = storeInstance.Close() }()
 
 	scopedStore, _ := NewScopedConfigured(storeInstance, ScopedStoreConfig{
-		Namespace: "tenant-a",
+		Namespace: testTenantA,
 		Quota:     QuotaConfig{MaxKeys: 0, MaxGroups: 0},
 	})
 
@@ -979,11 +985,11 @@ func TestScope_Quota_Good_ZeroMeansUnlimited(t *testing.T) {
 }
 
 func TestScope_Quota_Good_ExpiredKeysExcluded(t *testing.T) {
-	storeInstance, _ := New(":memory:")
+	storeInstance, _ := New(testMemoryDatabasePath)
 	defer func() { _ = storeInstance.Close() }()
 
 	scopedStore, _ := NewScopedConfigured(storeInstance, ScopedStoreConfig{
-		Namespace: "tenant-a",
+		Namespace: testTenantA,
 		Quota:     QuotaConfig{MaxKeys: 3},
 	})
 
@@ -1004,11 +1010,11 @@ func TestScope_Quota_Good_ExpiredKeysExcluded(t *testing.T) {
 }
 
 func TestScope_Quota_Good_SetWithTTL_Enforced(t *testing.T) {
-	storeInstance, _ := New(":memory:")
+	storeInstance, _ := New(testMemoryDatabasePath)
 	defer func() { _ = storeInstance.Close() }()
 
 	scopedStore, _ := NewScopedConfigured(storeInstance, ScopedStoreConfig{
-		Namespace: "tenant-a",
+		Namespace: testTenantA,
 		Quota:     QuotaConfig{MaxKeys: 2},
 	})
 
@@ -1024,11 +1030,11 @@ func TestScope_Quota_Good_SetWithTTL_Enforced(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestScope_Quota_Good_MaxGroups(t *testing.T) {
-	storeInstance, _ := New(":memory:")
+	storeInstance, _ := New(testMemoryDatabasePath)
 	defer func() { _ = storeInstance.Close() }()
 
 	scopedStore, _ := NewScopedConfigured(storeInstance, ScopedStoreConfig{
-		Namespace: "tenant-a",
+		Namespace: testTenantA,
 		Quota:     QuotaConfig{MaxGroups: 3},
 	})
 
@@ -1043,11 +1049,11 @@ func TestScope_Quota_Good_MaxGroups(t *testing.T) {
 }
 
 func TestScope_Quota_Good_MaxGroups_ExistingGroupOK(t *testing.T) {
-	storeInstance, _ := New(":memory:")
+	storeInstance, _ := New(testMemoryDatabasePath)
 	defer func() { _ = storeInstance.Close() }()
 
 	scopedStore, _ := NewScopedConfigured(storeInstance, ScopedStoreConfig{
-		Namespace: "tenant-a",
+		Namespace: testTenantA,
 		Quota:     QuotaConfig{MaxGroups: 2},
 	})
 
@@ -1060,11 +1066,11 @@ func TestScope_Quota_Good_MaxGroups_ExistingGroupOK(t *testing.T) {
 }
 
 func TestScope_Quota_Good_MaxGroups_DeleteAndRecreate(t *testing.T) {
-	storeInstance, _ := New(":memory:")
+	storeInstance, _ := New(testMemoryDatabasePath)
 	defer func() { _ = storeInstance.Close() }()
 
 	scopedStore, _ := NewScopedConfigured(storeInstance, ScopedStoreConfig{
-		Namespace: "tenant-a",
+		Namespace: testTenantA,
 		Quota:     QuotaConfig{MaxGroups: 2},
 	})
 
@@ -1077,11 +1083,11 @@ func TestScope_Quota_Good_MaxGroups_DeleteAndRecreate(t *testing.T) {
 }
 
 func TestScope_Quota_Good_MaxGroups_ZeroUnlimited(t *testing.T) {
-	storeInstance, _ := New(":memory:")
+	storeInstance, _ := New(testMemoryDatabasePath)
 	defer func() { _ = storeInstance.Close() }()
 
 	scopedStore, _ := NewScopedConfigured(storeInstance, ScopedStoreConfig{
-		Namespace: "tenant-a",
+		Namespace: testTenantA,
 		Quota:     QuotaConfig{MaxGroups: 0},
 	})
 
@@ -1091,11 +1097,11 @@ func TestScope_Quota_Good_MaxGroups_ZeroUnlimited(t *testing.T) {
 }
 
 func TestScope_Quota_Good_MaxGroups_ExpiredGroupExcluded(t *testing.T) {
-	storeInstance, _ := New(":memory:")
+	storeInstance, _ := New(testMemoryDatabasePath)
 	defer func() { _ = storeInstance.Close() }()
 
 	scopedStore, _ := NewScopedConfigured(storeInstance, ScopedStoreConfig{
-		Namespace: "tenant-a",
+		Namespace: testTenantA,
 		Quota:     QuotaConfig{MaxGroups: 2},
 	})
 
@@ -1110,11 +1116,11 @@ func TestScope_Quota_Good_MaxGroups_ExpiredGroupExcluded(t *testing.T) {
 }
 
 func TestScope_Quota_Good_BothLimits(t *testing.T) {
-	storeInstance, _ := New(":memory:")
+	storeInstance, _ := New(testMemoryDatabasePath)
 	defer func() { _ = storeInstance.Close() }()
 
 	scopedStore, _ := NewScopedConfigured(storeInstance, ScopedStoreConfig{
-		Namespace: "tenant-a",
+		Namespace: testTenantA,
 		Quota:     QuotaConfig{MaxKeys: 10, MaxGroups: 2},
 	})
 
@@ -1130,15 +1136,15 @@ func TestScope_Quota_Good_BothLimits(t *testing.T) {
 }
 
 func TestScope_Quota_Good_DoesNotAffectOtherNamespaces(t *testing.T) {
-	storeInstance, _ := New(":memory:")
+	storeInstance, _ := New(testMemoryDatabasePath)
 	defer func() { _ = storeInstance.Close() }()
 
 	alphaStore, _ := NewScopedConfigured(storeInstance, ScopedStoreConfig{
-		Namespace: "tenant-a",
+		Namespace: testTenantA,
 		Quota:     QuotaConfig{MaxKeys: 2},
 	})
 	betaStore, _ := NewScopedConfigured(storeInstance, ScopedStoreConfig{
-		Namespace: "tenant-b",
+		Namespace: testTenantB,
 		Quota:     QuotaConfig{MaxKeys: 2},
 	})
 
@@ -1161,12 +1167,12 @@ func TestScope_Quota_Good_DoesNotAffectOtherNamespaces(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestScope_CountAll_Good_WithPrefix(t *testing.T) {
-	storeInstance, _ := New(":memory:")
+	storeInstance, _ := New(testMemoryDatabasePath)
 	defer func() { _ = storeInstance.Close() }()
 
-	assertNoError(t, storeInstance.Set("ns-a:g1", "k1", "v"))
-	assertNoError(t, storeInstance.Set("ns-a:g1", "k2", "v"))
-	assertNoError(t, storeInstance.Set("ns-a:g2", "k1", "v"))
+	assertNoError(t, storeInstance.Set(testNamespacedGroupOne, "k1", "v"))
+	assertNoError(t, storeInstance.Set(testNamespacedGroupOne, "k2", "v"))
+	assertNoError(t, storeInstance.Set(testNamespacedGroupTwo, "k1", "v"))
 	assertNoError(t, storeInstance.Set("ns-b:g1", "k1", "v"))
 
 	count, err := storeInstance.CountAll("ns-a:")
@@ -1179,7 +1185,7 @@ func TestScope_CountAll_Good_WithPrefix(t *testing.T) {
 }
 
 func TestScope_CountAll_Good_WithPrefix_Wildcards(t *testing.T) {
-	storeInstance, _ := New(":memory:")
+	storeInstance, _ := New(testMemoryDatabasePath)
 	defer func() { _ = storeInstance.Close() }()
 
 	// Add keys in groups that look like wildcards.
@@ -1203,7 +1209,7 @@ func TestScope_CountAll_Good_WithPrefix_Wildcards(t *testing.T) {
 }
 
 func TestScope_CountAll_Good_EmptyPrefix(t *testing.T) {
-	storeInstance, _ := New(":memory:")
+	storeInstance, _ := New(testMemoryDatabasePath)
 	defer func() { _ = storeInstance.Close() }()
 
 	assertNoError(t, storeInstance.Set("g1", "k1", "v"))
@@ -1215,7 +1221,7 @@ func TestScope_CountAll_Good_EmptyPrefix(t *testing.T) {
 }
 
 func TestScope_CountAll_Good_ExcludesExpired(t *testing.T) {
-	storeInstance, _ := New(":memory:")
+	storeInstance, _ := New(testMemoryDatabasePath)
 	defer func() { _ = storeInstance.Close() }()
 
 	assertNoError(t, storeInstance.Set("ns:g", "permanent", "v"))
@@ -1228,7 +1234,7 @@ func TestScope_CountAll_Good_ExcludesExpired(t *testing.T) {
 }
 
 func TestScope_CountAll_Good_Empty(t *testing.T) {
-	storeInstance, _ := New(":memory:")
+	storeInstance, _ := New(testMemoryDatabasePath)
 	defer func() { _ = storeInstance.Close() }()
 
 	count, err := storeInstance.CountAll("nonexistent:")
@@ -1237,7 +1243,7 @@ func TestScope_CountAll_Good_Empty(t *testing.T) {
 }
 
 func TestScope_CountAll_Bad_ClosedStore(t *testing.T) {
-	storeInstance, _ := New(":memory:")
+	storeInstance, _ := New(testMemoryDatabasePath)
 	_ = storeInstance.Close()
 	_, err := storeInstance.CountAll("")
 	assertError(t, err)
@@ -1248,23 +1254,23 @@ func TestScope_CountAll_Bad_ClosedStore(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestScope_Groups_Good_WithPrefix(t *testing.T) {
-	storeInstance, _ := New(":memory:")
+	storeInstance, _ := New(testMemoryDatabasePath)
 	defer func() { _ = storeInstance.Close() }()
 
-	assertNoError(t, storeInstance.Set("ns-a:g1", "k", "v"))
-	assertNoError(t, storeInstance.Set("ns-a:g2", "k", "v"))
-	assertNoError(t, storeInstance.Set("ns-a:g2", "k2", "v")) // duplicate group
+	assertNoError(t, storeInstance.Set(testNamespacedGroupOne, "k", "v"))
+	assertNoError(t, storeInstance.Set(testNamespacedGroupTwo, "k", "v"))
+	assertNoError(t, storeInstance.Set(testNamespacedGroupTwo, "k2", "v")) // duplicate group
 	assertNoError(t, storeInstance.Set("ns-b:g1", "k", "v"))
 
 	groups, err := storeInstance.Groups("ns-a:")
 	assertNoError(t, err)
 	assertLen(t, groups, 2)
-	assertContainsElement(t, groups, "ns-a:g1")
-	assertContainsElement(t, groups, "ns-a:g2")
+	assertContainsElement(t, groups, testNamespacedGroupOne)
+	assertContainsElement(t, groups, testNamespacedGroupTwo)
 }
 
 func TestScope_Groups_Good_EmptyPrefix(t *testing.T) {
-	storeInstance, _ := New(":memory:")
+	storeInstance, _ := New(testMemoryDatabasePath)
 	defer func() { _ = storeInstance.Close() }()
 
 	assertNoError(t, storeInstance.Set("g1", "k", "v"))
@@ -1277,7 +1283,7 @@ func TestScope_Groups_Good_EmptyPrefix(t *testing.T) {
 }
 
 func TestScope_Groups_Good_Distinct(t *testing.T) {
-	storeInstance, _ := New(":memory:")
+	storeInstance, _ := New(testMemoryDatabasePath)
 	defer func() { _ = storeInstance.Close() }()
 
 	// Multiple keys in the same group should produce one entry.
@@ -1292,7 +1298,7 @@ func TestScope_Groups_Good_Distinct(t *testing.T) {
 }
 
 func TestScope_Groups_Good_ExcludesExpired(t *testing.T) {
-	storeInstance, _ := New(":memory:")
+	storeInstance, _ := New(testMemoryDatabasePath)
 	defer func() { _ = storeInstance.Close() }()
 
 	assertNoError(t, storeInstance.Set("ns:g1", "permanent", "v"))
@@ -1306,7 +1312,7 @@ func TestScope_Groups_Good_ExcludesExpired(t *testing.T) {
 }
 
 func TestScope_Groups_Good_SortedByGroupName(t *testing.T) {
-	storeInstance, _ := New(":memory:")
+	storeInstance, _ := New(testMemoryDatabasePath)
 	defer func() { _ = storeInstance.Close() }()
 
 	assertNoError(t, storeInstance.Set("charlie", "c", "3"))
@@ -1319,7 +1325,7 @@ func TestScope_Groups_Good_SortedByGroupName(t *testing.T) {
 }
 
 func TestScope_Groups_Good_Empty(t *testing.T) {
-	storeInstance, _ := New(":memory:")
+	storeInstance, _ := New(testMemoryDatabasePath)
 	defer func() { _ = storeInstance.Close() }()
 
 	groups, err := storeInstance.Groups("nonexistent:")
@@ -1328,7 +1334,7 @@ func TestScope_Groups_Good_Empty(t *testing.T) {
 }
 
 func TestScope_Groups_Bad_ClosedStore(t *testing.T) {
-	storeInstance, _ := New(":memory:")
+	storeInstance, _ := New(testMemoryDatabasePath)
 	_ = storeInstance.Close()
 	_, err := storeInstance.Groups("")
 	assertError(t, err)
@@ -1347,7 +1353,7 @@ func rawEntryCount(t *testing.T, storeInstance *Store, group string) int {
 
 	var count int
 	err := storeInstance.sqliteDatabase.QueryRow(
-		"SELECT COUNT(*) FROM "+entriesTableName+" WHERE "+entryGroupColumn+" = ?",
+		sqlSelectCountFrom+entriesTableName+sqlWhere+entryGroupColumn+" = ?",
 		group,
 	).Scan(&count)
 	assertNoError(t, err)
@@ -1373,7 +1379,7 @@ func TestScope_QuotaConfig_Validate_Ugly(t *T) {
 }
 
 func TestScope_ScopedStoreConfig_Validate_Good(t *T) {
-	config := ScopedStoreConfig{Namespace: "tenant-a", Quota: QuotaConfig{MaxKeys: 2}}
+	config := ScopedStoreConfig{Namespace: testTenantA, Quota: QuotaConfig{MaxKeys: 2}}
 	err := config.Validate()
 	AssertNoError(t, err)
 }
@@ -1385,43 +1391,43 @@ func TestScope_ScopedStoreConfig_Validate_Bad(t *T) {
 }
 
 func TestScope_ScopedStoreConfig_Validate_Ugly(t *T) {
-	config := ScopedStoreConfig{Namespace: "tenant-a", Quota: QuotaConfig{MaxGroups: -1}}
+	config := ScopedStoreConfig{Namespace: testTenantA, Quota: QuotaConfig{MaxGroups: -1}}
 	err := config.Validate()
 	AssertError(t, err)
 }
 
 func TestScope_NewScoped_Bad(t *T) {
-	scopedStore := NewScoped(nil, "tenant-a")
+	scopedStore := NewScoped(nil, testTenantA)
 	AssertNil(t, scopedStore)
 	AssertEqual(t, "", scopedStore.Namespace())
 }
 
 func TestScope_NewScoped_Ugly(t *T) {
-	scopedStore := NewScoped(ax7Store(t), "tenant-42")
+	scopedStore := NewScoped(ax7Store(t), testTenant42)
 	AssertNotNil(t, scopedStore)
-	AssertEqual(t, "tenant-42", scopedStore.Namespace())
+	AssertEqual(t, testTenant42, scopedStore.Namespace())
 }
 
 func TestScope_NewScopedConfigured_Bad(t *T) {
-	scopedStore, err := NewScopedConfigured(nil, ScopedStoreConfig{Namespace: "tenant-a"})
+	scopedStore, err := NewScopedConfigured(nil, ScopedStoreConfig{Namespace: testTenantA})
 	AssertError(t, err)
 	AssertNil(t, scopedStore)
 }
 
 func TestScope_NewScopedConfigured_Ugly(t *T) {
-	scopedStore, err := NewScopedConfigured(ax7Store(t), ScopedStoreConfig{Namespace: "tenant-a", Quota: QuotaConfig{MaxKeys: 1, MaxGroups: 1}})
+	scopedStore, err := NewScopedConfigured(ax7Store(t), ScopedStoreConfig{Namespace: testTenantA, Quota: QuotaConfig{MaxKeys: 1, MaxGroups: 1}})
 	RequireNoError(t, err)
 	AssertEqual(t, 1, scopedStore.Config().Quota.MaxKeys)
 }
 
 func TestScope_NewScopedWithQuota_Bad(t *T) {
-	scopedStore, err := NewScopedWithQuota(nil, "tenant-a", QuotaConfig{})
+	scopedStore, err := NewScopedWithQuota(nil, testTenantA, QuotaConfig{})
 	AssertError(t, err)
 	AssertNil(t, scopedStore)
 }
 
 func TestScope_NewScopedWithQuota_Ugly(t *T) {
-	scopedStore, err := NewScopedWithQuota(ax7Store(t), "tenant-a", QuotaConfig{MaxGroups: 1})
+	scopedStore, err := NewScopedWithQuota(ax7Store(t), testTenantA, QuotaConfig{MaxGroups: 1})
 	RequireNoError(t, err)
 	AssertEqual(t, 1, scopedStore.Config().Quota.MaxGroups)
 }
@@ -1429,7 +1435,7 @@ func TestScope_NewScopedWithQuota_Ugly(t *T) {
 func TestScope_ScopedStore_Namespace_Good(t *T) {
 	scopedStore := ax7ScopedStore(t)
 	namespace := scopedStore.Namespace()
-	AssertEqual(t, "tenant-a", namespace)
+	AssertEqual(t, testTenantA, namespace)
 }
 
 func TestScope_ScopedStore_Namespace_Bad(t *T) {
@@ -1441,7 +1447,7 @@ func TestScope_ScopedStore_Namespace_Bad(t *T) {
 func TestScope_ScopedStore_Namespace_Ugly(t *T) {
 	scopedStore := ax7QuotaScopedStore(t, 1, 1)
 	namespace := scopedStore.Namespace()
-	AssertEqual(t, "tenant-a", namespace)
+	AssertEqual(t, testTenantA, namespace)
 }
 
 func TestScope_ScopedStore_Config_Good(t *T) {
@@ -1459,7 +1465,7 @@ func TestScope_ScopedStore_Config_Bad(t *T) {
 func TestScope_ScopedStore_Config_Ugly(t *T) {
 	scopedStore := ax7ScopedStore(t)
 	config := scopedStore.Config()
-	AssertEqual(t, "tenant-a", config.Namespace)
+	AssertEqual(t, testTenantA, config.Namespace)
 }
 
 func TestScope_ScopedStore_Exists_Good(t *T) {
@@ -1677,10 +1683,10 @@ func TestScope_ScopedStore_DeleteGroup_Ugly(t *T) {
 
 func TestScope_ScopedStore_DeletePrefix_Good(t *T) {
 	scopedStore := ax7ScopedStore(t)
-	RequireNoError(t, scopedStore.SetIn("cache-a", "k", "v"))
+	RequireNoError(t, scopedStore.SetIn(testCacheA, "k", "v"))
 	err := scopedStore.DeletePrefix("cache")
 	AssertNoError(t, err)
-	AssertFalse(t, ax7ScopedGroupExists(t, scopedStore, "cache-a"))
+	AssertFalse(t, ax7ScopedGroupExists(t, scopedStore, testCacheA))
 }
 
 func TestScope_ScopedStore_DeletePrefix_Bad(t *T) {
@@ -2016,7 +2022,9 @@ func TestScope_ScopedStore_OnChange_Good(t *T) {
 
 func TestScope_ScopedStore_OnChange_Bad(t *T) {
 	var scopedStore *ScopedStore
-	unregister := scopedStore.OnChange(func(Event) {})
+	unregister := scopedStore.OnChange(func(Event) {
+		// Intentionally empty: nil scoped store should return a no-op unregister.
+	})
 	unregister()
 	AssertEqual(t, "", scopedStore.Namespace())
 }
@@ -2361,10 +2369,10 @@ func TestScope_ScopedStoreTransaction_DeleteGroup_Ugly(t *T) {
 func TestScope_ScopedStoreTransaction_DeletePrefix_Good(t *T) {
 	scopedStore := ax7ScopedStore(t)
 	err := scopedStore.Transaction(func(transaction *ScopedStoreTransaction) error {
-		RequireNoError(t, transaction.SetIn("cache-a", "colour", "blue"))
+		RequireNoError(t, transaction.SetIn(testCacheA, "colour", "blue"))
 		err := transaction.DeletePrefix("cache")
 		AssertNoError(t, err)
-		exists, err := transaction.GroupExists("cache-a")
+		exists, err := transaction.GroupExists(testCacheA)
 		AssertNoError(t, err)
 		AssertFalse(t, exists)
 		return nil

@@ -7,7 +7,7 @@ import "testing"
 func TestImportExport_Import_Good_CSVAndJSONIngestion(t *testing.T) {
 	useWorkspaceStateDirectory(t)
 
-	storeInstance, err := New(":memory:")
+	storeInstance, err := New(testMemoryDatabasePath)
 	assertNoError(t, err)
 	defer func() { _ = storeInstance.Close() }()
 
@@ -16,11 +16,11 @@ func TestImportExport_Import_Good_CSVAndJSONIngestion(t *testing.T) {
 	defer workspace.Discard()
 
 	medium := newMemoryMedium()
-	assertNoError(t, medium.Write("findings.csv", "tool,severity\ngosec,high\ngolint,low\n"))
-	assertNoError(t, medium.Write("users.json", `{"entries":[{"name":"Alice"},{"name":"Bob"}]}`))
+	assertNoError(t, medium.Write(testFindingsCSVFile, "tool,severity\ngosec,high\ngolint,low\n"))
+	assertNoError(t, medium.Write(testUsersJSONFile, `{"entries":[{"name":"Alice"},{"name":"Bob"}]}`))
 
-	assertNoError(t, Import(workspace, medium, "findings.csv"))
-	assertNoError(t, Import(workspace, medium, "users.json"))
+	assertNoError(t, Import(workspace, medium, testFindingsCSVFile))
+	assertNoError(t, Import(workspace, medium, testUsersJSONFile))
 
 	assertEqual(t, map[string]any{"findings": 2, "users": 2}, workspace.Aggregate())
 }
@@ -28,7 +28,7 @@ func TestImportExport_Import_Good_CSVAndJSONIngestion(t *testing.T) {
 func TestImportExport_Import_Bad_MalformedPayload(t *testing.T) {
 	useWorkspaceStateDirectory(t)
 
-	storeInstance, err := New(":memory:")
+	storeInstance, err := New(testMemoryDatabasePath)
 	assertNoError(t, err)
 	defer func() { _ = storeInstance.Close() }()
 
@@ -49,7 +49,7 @@ func TestImportExport_Import_Bad_MalformedPayload(t *testing.T) {
 func TestImportExport_Import_Ugly_EmptyPayload(t *testing.T) {
 	useWorkspaceStateDirectory(t)
 
-	storeInstance, err := New(":memory:")
+	storeInstance, err := New(testMemoryDatabasePath)
 	assertNoError(t, err)
 	defer func() { _ = storeInstance.Close() }()
 

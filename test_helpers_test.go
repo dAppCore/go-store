@@ -6,8 +6,68 @@ import (
 	core "dappco.re/go"
 )
 
+const (
+	testMemoryDatabasePath               = memoryDatabasePath
+	testJournalEndpoint                  = "http://127.0.0.1:8086"
+	testKeyFormat                        = "key-%d"
+	testSessionA                         = "session-a"
+	testSessionB                         = "session-b"
+	testTenantA                          = exampleTenantA
+	testTenantB                          = "tenant-b"
+	testTenant42                         = exampleTenant42
+	testTenantAConfigGroup               = "tenant-a:config"
+	testTenantAPrefix                    = "tenant-a:"
+	testScopedStoreNilMessage            = scopedStoreNilMessage
+	testNamespacedGroupOne               = "ns-a:g1"
+	testNamespacedGroupTwo               = "ns-a:g2"
+	testCacheA                           = "cache-a"
+	testScrollSession                    = "scroll-session"
+	testOrphanSession                    = "orphan-session"
+	testRecoverGood                      = "recover-good"
+	testGroupFormat                      = "grp-%d"
+	testTTLKey                           = "ttl-key"
+	testTTLValue                         = "ttl-val"
+	testWALPragma                        = sqliteWALPragma
+	testCloseDriverName                  = "test.CloseDriver"
+	testRowsAffectedDriverName           = "test.RowsAffectedDriver"
+	testUnexpectedFieldsTypeFormat       = "unexpected fields type: %T"
+	testUnexpectedTagsTypeFormat         = "unexpected tags type: %T"
+	testSetCommittedAtByMeasurementSQL   = " SET committed_at = ? WHERE measurement = ?"
+	testSQLUpdatePrefix                  = "UPDATE "
+	testAppDatabaseFile                  = "app.db"
+	testActorAlice                       = "@alice"
+	testActorCharlie                     = "@charlie"
+	testUsersJSONFile                    = "users.json"
+	testFindingsCSVFile                  = "findings.csv"
+	testReportJSONFile                   = "report.json"
+	testReportJSONLFile                  = "report.jsonl"
+	testRecordsJSONLFile                 = "records.jsonl"
+	testFileNotFoundPrefix               = "file not found: "
+	testFileNotFoundMessage              = "file not found"
+	testLineTwo                          = "line 2"
+	testInsertFailedMessage              = "insert failed"
+	testTableInfoQueryFailedMessage      = "table_info query failed"
+	testRenameEntriesBackupSQL           = "ALTER TABLE entries RENAME TO entries_backup"
+	testInsertEntriesFromBackupSQL       = "INSERT INTO entries SELECT * FROM entries_backup"
+	testDropEntriesBackupSQL             = "DROP TABLE entries_backup"
+	testUsageExampleMarker               = "Usage example:"
+	testGoTestFileSuffix                 = "_test.go"
+	testWorkspaceCommitFailedFormat      = "workspace commit failed: %v"
+	testWorkspaceEntryInsertSuffix       = " (entry_kind, entry_data, created_at) VALUES (?, ?, ?)"
+	testSQLInsertIntoPrefix              = "INSERT INTO "
+	testAX7WorkspaceName                 = "ax7-workspace"
+	testHFDatasetID                      = "user/dataset"
+	testCompactFailedFormat              = "compact failed: %v"
+	testUnexpectedArchivePathTypeFormat  = "unexpected archive path type: %T"
+	testArchiveLineUnmarshalFailedFormat = "archive line unmarshal failed: %v"
+)
+
 func testFilesystem() *core.Fs {
 	return (&core.Fs{}).NewUnrestricted()
+}
+
+func noopCancelPurge() {
+	// Intentionally empty: tests only need a non-nil purge cancel hook.
 }
 
 func testPath(tb testing.TB, name string) string {
