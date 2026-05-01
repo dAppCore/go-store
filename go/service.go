@@ -54,6 +54,15 @@ func NewService(config StoreConfig) func(*core.Core) core.Result {
 	}
 }
 
+// Register opens the store with default StoreConfig and returns the
+// service Result directly — the imperative-style alternative to
+// NewService for consumers wiring services without WithName options.
+//
+// Usage example: `r := store.Register(c); svc := r.Value.(*store.Service)`
+func Register(c *core.Core) core.Result {
+	return NewService(StoreConfig{})(c)
+}
+
 // OnStartup registers the store action handlers on the attached Core.
 // Implements core.Startable. Idempotent via core.Once — multiple
 // startups (e.g. test re-entry) won't double-register.
