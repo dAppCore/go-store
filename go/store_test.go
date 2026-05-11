@@ -17,16 +17,18 @@ import (
 // ---------------------------------------------------------------------------
 
 func TestStore_New_Good_Memory(t *testing.T) {
-	storeInstance, err := New(testMemoryDatabasePath)
-	assertNoError(t, err)
+	r := New(testMemoryDatabasePath)
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	assertNotNil(t, storeInstance)
 	defer func() { _ = storeInstance.Close() }()
 }
 
 func TestStore_New_Good_FileBacked(t *testing.T) {
 	databasePath := testPath(t, "test.db")
-	storeInstance, err := New(databasePath)
-	assertNoError(t, err)
+	r := New(databasePath)
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	assertNotNil(t, storeInstance)
 	defer func() { _ = storeInstance.Close() }()
 
@@ -34,8 +36,9 @@ func TestStore_New_Good_FileBacked(t *testing.T) {
 	assertNoError(t, storeInstance.Set("g", "k", "v"))
 	assertNoError(t, storeInstance.Close())
 
-	reopenedStore, err := New(databasePath)
-	assertNoError(t, err)
+	r = New(databasePath)
+	assertNoError(t, r)
+	reopenedStore := r.Value.(*Store)
 	defer func() { _ = reopenedStore.Close() }()
 
 	value, err := reopenedStore.Get("g", "k")
@@ -46,9 +49,9 @@ func TestStore_New_Good_FileBacked(t *testing.T) {
 func TestStore_New_Bad_InvalidPath(t *testing.T) {
 	// A path under a non-existent directory should fail at the WAL pragma step
 	// because sql.Open is lazy and only validates on first use.
-	_, err := New("/no/such/directory/test.db")
-	assertError(t, err)
-	assertContainsString(t, err.Error(), opNew)
+	r := New("/no/such/directory/test.db")
+	assertError(t, r)
+	assertContainsString(t, r.Error(), opNew)
 }
 
 func TestStore_New_Bad_CorruptFile(t *testing.T) {
@@ -56,9 +59,9 @@ func TestStore_New_Bad_CorruptFile(t *testing.T) {
 	databasePath := testPath(t, "corrupt.db")
 	requireCoreOK(t, testFilesystem().Write(databasePath, "not a sqlite database"))
 
-	_, err := New(databasePath)
-	assertError(t, err)
-	assertContainsString(t, err.Error(), opNew)
+	r := New(databasePath)
+	assertError(t, r)
+	assertContainsString(t, r.Error(), opNew)
 }
 
 func TestStore_New_Bad_ReadOnlyDir(t *testing.T) {
@@ -67,8 +70,9 @@ func TestStore_New_Bad_ReadOnlyDir(t *testing.T) {
 	databasePath := core.Path(dir, "readonly.db")
 
 	// Create a valid database first, then make the directory read-only.
-	storeInstance, err := New(databasePath)
-	assertNoError(t, err)
+	r := New(databasePath)
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	assertNoError(t, storeInstance.Close())
 
 	// Remove WAL/SHM files and make directory read-only.
@@ -77,17 +81,18 @@ func TestStore_New_Bad_ReadOnlyDir(t *testing.T) {
 	assertNoError(t, syscall.Chmod(dir, 0555))
 	defer func() { _ = syscall.Chmod(dir, 0755) }() // restore for cleanup
 
-	_, err = New(databasePath)
+	r = New(databasePath)
 	// May or may not fail depending on OS/filesystem — just exercise the code path.
-	if !err.OK {
-		assertContainsString(t, err.Error(), opNew)
+	if !r.OK {
+		assertContainsString(t, r.Error(), opNew)
 	}
 }
 
 func TestStore_New_Good_WALMode(t *testing.T) {
 	databasePath := testPath(t, "wal.db")
-	storeInstance, err := New(databasePath)
-	assertNoError(t, err)
+	r := New(databasePath)
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 
 	var mode string
@@ -97,8 +102,9 @@ func TestStore_New_Good_WALMode(t *testing.T) {
 }
 
 func TestStore_New_Good_WithJournalOption(t *testing.T) {
-	storeInstance, err := New(testMemoryDatabasePath, WithJournal(testJournalEndpoint, "core", "events"))
-	assertNoError(t, err)
+	r := New(testMemoryDatabasePath, WithJournal(testJournalEndpoint, "core", "events"))
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 
 	assertEqual(t, "events", storeInstance.journalConfiguration.BucketName)
@@ -109,8 +115,9 @@ func TestStore_New_Good_WithJournalOption(t *testing.T) {
 func TestStore_New_Good_WithWorkspaceStateDirectoryOption(t *testing.T) {
 	workspaceStateDirectory := testPath(t, "workspace-state-option")
 
-	storeInstance, err := New(testMemoryDatabasePath, WithWorkspaceStateDirectory(workspaceStateDirectory))
-	assertNoError(t, err)
+	r := New(testMemoryDatabasePath, WithWorkspaceStateDirectory(workspaceStateDirectory))
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 
 	assertEqual(t, workspaceStateDirectory, storeInstance.WorkspaceStateDirectory())
@@ -126,11 +133,12 @@ func TestStore_New_Good_WithWorkspaceStateDirectoryOption(t *testing.T) {
 func TestStore_NewConfigured_Good_WorkspaceStateDirectory(t *testing.T) {
 	workspaceStateDirectory := testPath(t, "workspace-state")
 
-	storeInstance, err := NewConfigured(StoreConfig{
+	r := NewConfigured(StoreConfig{
 		DatabasePath:            testMemoryDatabasePath,
 		WorkspaceStateDirectory: workspaceStateDirectory,
 	})
-	assertNoError(t, err)
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 
 	assertEqual(t, workspaceStateDirectory, storeInstance.Config().WorkspaceStateDirectory)
@@ -144,8 +152,9 @@ func TestStore_NewConfigured_Good_WorkspaceStateDirectory(t *testing.T) {
 }
 
 func TestStore_WorkspaceStateDirectory_Good_Default(t *testing.T) {
-	storeInstance, err := New(testMemoryDatabasePath)
-	assertNoError(t, err)
+	r := New(testMemoryDatabasePath)
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 
 	assertEqual(t, normaliseWorkspaceStateDirectory(defaultWorkspaceStateDirectory), storeInstance.WorkspaceStateDirectory())
@@ -154,8 +163,9 @@ func TestStore_WorkspaceStateDirectory_Good_Default(t *testing.T) {
 }
 
 func TestStore_JournalConfiguration_Good(t *testing.T) {
-	storeInstance, err := New(testMemoryDatabasePath, WithJournal(testJournalEndpoint, "core", "events"))
-	assertNoError(t, err)
+	r := New(testMemoryDatabasePath, WithJournal(testJournalEndpoint, "core", "events"))
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 
 	config := storeInstance.JournalConfiguration()
@@ -199,31 +209,33 @@ func TestStore_JournalConfiguration_Bad_ValidateMissingBucketName(t *testing.T) 
 }
 
 func TestStore_JournalConfigured_Good(t *testing.T) {
-	storeInstance, err := New(testMemoryDatabasePath, WithJournal(testJournalEndpoint, "core", "events"))
-	assertNoError(t, err)
+	r := New(testMemoryDatabasePath, WithJournal(testJournalEndpoint, "core", "events"))
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 
 	assertTrue(t, storeInstance.JournalConfigured())
 	assertFalse(t, (*Store)(nil).JournalConfigured())
 
-	unconfiguredStore, err := New(testMemoryDatabasePath)
-	assertNoError(t, err)
+	r = New(testMemoryDatabasePath)
+	assertNoError(t, r)
+	unconfiguredStore := r.Value.(*Store)
 	defer func() { _ = unconfiguredStore.Close() }()
 
 	assertFalse(t, unconfiguredStore.JournalConfigured())
 }
 
 func TestStore_NewConfigured_Bad_PartialJournalConfiguration(t *testing.T) {
-	_, err := NewConfigured(StoreConfig{
+	r := NewConfigured(StoreConfig{
 		DatabasePath: testMemoryDatabasePath,
 		Journal: JournalConfiguration{
 			EndpointURL:  testJournalEndpoint,
 			Organisation: "core",
 		},
 	})
-	assertError(t, err)
-	assertContainsString(t, err.Error(), "journal config")
-	assertContainsString(t, err.Error(), "bucket name is empty")
+	assertError(t, r)
+	assertContainsString(t, r.Error(), "journal config")
+	assertContainsString(t, r.Error(), "bucket name is empty")
 }
 
 func TestStore_StoreConfig_Good_Validate(t *testing.T) {
@@ -272,23 +284,23 @@ func TestStore_StoreConfig_Bad_EmptyDatabasePath(t *testing.T) {
 }
 
 func TestStore_NewConfigured_Bad_NegativePurgeInterval(t *testing.T) {
-	_, err := NewConfigured(StoreConfig{
+	r := NewConfigured(StoreConfig{
 		DatabasePath:  testMemoryDatabasePath,
 		PurgeInterval: -time.Second,
 	})
-	assertError(t, err)
-	assertContainsString(t, err.Error(), "validate config")
-	assertContainsString(t, err.Error(), "purge interval must be zero or positive")
+	assertError(t, r)
+	assertContainsString(t, r.Error(), "validate config")
+	assertContainsString(t, r.Error(), "purge interval must be zero or positive")
 }
 
 func TestStore_NewConfigured_Bad_EmptyDatabasePath(t *testing.T) {
-	_, err := NewConfigured(StoreConfig{})
-	assertError(t, err)
-	assertContainsString(t, err.Error(), "database path is empty")
+	r := NewConfigured(StoreConfig{})
+	assertError(t, r)
+	assertContainsString(t, r.Error(), "database path is empty")
 }
 
 func TestStore_Config_Good(t *testing.T) {
-	storeInstance, err := NewConfigured(StoreConfig{
+	r := NewConfigured(StoreConfig{
 		DatabasePath: testMemoryDatabasePath,
 		Journal: JournalConfiguration{
 			EndpointURL:  testJournalEndpoint,
@@ -297,7 +309,8 @@ func TestStore_Config_Good(t *testing.T) {
 		},
 		PurgeInterval: 20 * time.Millisecond,
 	})
-	assertNoError(t, err)
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 
 	assertEqual(t, StoreConfig{DatabasePath: testMemoryDatabasePath, Journal: JournalConfiguration{EndpointURL: testJournalEndpoint, Organisation: "core", BucketName: "events"}, PurgeInterval: 20 * time.Millisecond, WorkspaceStateDirectory: normaliseWorkspaceStateDirectory(defaultWorkspaceStateDirectory)}, storeInstance.Config())
@@ -306,16 +319,18 @@ func TestStore_Config_Good(t *testing.T) {
 func TestStore_DatabasePath_Good(t *testing.T) {
 	databasePath := testPath(t, "database-path.db")
 
-	storeInstance, err := New(databasePath)
-	assertNoError(t, err)
+	r := New(databasePath)
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 
 	assertEqual(t, databasePath, storeInstance.DatabasePath())
 }
 
 func TestStore_IsClosed_Good(t *testing.T) {
-	storeInstance, err := New(testMemoryDatabasePath)
-	assertNoError(t, err)
+	r := New(testMemoryDatabasePath)
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 
 	assertFalse(t, storeInstance.IsClosed())
 	assertNoError(t, storeInstance.Close())
@@ -324,7 +339,7 @@ func TestStore_IsClosed_Good(t *testing.T) {
 }
 
 func TestStore_NewConfigured_Good(t *testing.T) {
-	storeInstance, err := NewConfigured(StoreConfig{
+	r := NewConfigured(StoreConfig{
 		DatabasePath: testMemoryDatabasePath,
 		Journal: JournalConfiguration{
 			EndpointURL:  testJournalEndpoint,
@@ -333,7 +348,8 @@ func TestStore_NewConfigured_Good(t *testing.T) {
 		},
 		PurgeInterval: 20 * time.Millisecond,
 	})
-	assertNoError(t, err)
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 
 	assertEqual(t, JournalConfiguration{EndpointURL: testJournalEndpoint, Organisation: "core", BucketName: "events"}, storeInstance.JournalConfiguration())
@@ -350,13 +366,13 @@ func TestStore_NewConfigured_Good(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestStore_SetGet_Good(t *testing.T) {
-	storeInstance, err := New(testMemoryDatabasePath)
-	assertNoError(t, err)
+	r := New(testMemoryDatabasePath)
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 
 	SetGet := "dark"
-	err = storeInstance.Set("config", "theme", SetGet)
-	assertNoError(t, err)
+	assertNoError(t, storeInstance.Set("config", "theme", SetGet))
 
 	value, err := storeInstance.Get("config", "theme")
 	assertNoError(t, err)
@@ -364,7 +380,9 @@ func TestStore_SetGet_Good(t *testing.T) {
 }
 
 func TestStore_Set_Good_Upsert(t *testing.T) {
-	storeInstance, _ := New(testMemoryDatabasePath)
+	r := New(testMemoryDatabasePath)
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 
 	assertNoError(t, storeInstance.Set("g", "k", "v1"))
@@ -380,7 +398,9 @@ func TestStore_Set_Good_Upsert(t *testing.T) {
 }
 
 func TestStore_Get_Bad_NotFound(t *testing.T) {
-	storeInstance, _ := New(testMemoryDatabasePath)
+	r := New(testMemoryDatabasePath)
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 
 	_, err := storeInstance.Get("config", "missing")
@@ -389,7 +409,9 @@ func TestStore_Get_Bad_NotFound(t *testing.T) {
 }
 
 func TestStore_Get_Bad_NonExistentGroup(t *testing.T) {
-	storeInstance, _ := New(testMemoryDatabasePath)
+	r := New(testMemoryDatabasePath)
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 
 	_, err := storeInstance.Get("no-such-group", "key")
@@ -398,14 +420,18 @@ func TestStore_Get_Bad_NonExistentGroup(t *testing.T) {
 }
 
 func TestStore_Get_Bad_ClosedStore(t *testing.T) {
-	storeInstance, _ := New(testMemoryDatabasePath)
+	r := New(testMemoryDatabasePath)
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	_ = storeInstance.Close()
 	_, err := storeInstance.Get("g", "k")
 	assertError(t, err)
 }
 
 func TestStore_Set_Bad_ClosedStore(t *testing.T) {
-	storeInstance, _ := New(testMemoryDatabasePath)
+	r := New(testMemoryDatabasePath)
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	_ = storeInstance.Close()
 	err := storeInstance.Set("g", "k", "v")
 	assertError(t, err)
@@ -416,8 +442,9 @@ func TestStore_Set_Bad_ClosedStore(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestStore_Exists_Good_Present(t *testing.T) {
-	storeInstance, err := New(testMemoryDatabasePath)
-	assertNoError(t, err)
+	r := New(testMemoryDatabasePath)
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 
 	assertNoError(t, storeInstance.Set("config", "colour", "blue"))
@@ -428,8 +455,9 @@ func TestStore_Exists_Good_Present(t *testing.T) {
 }
 
 func TestStore_Exists_Good_Absent(t *testing.T) {
-	storeInstance, err := New(testMemoryDatabasePath)
-	assertNoError(t, err)
+	r := New(testMemoryDatabasePath)
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 
 	exists, err := storeInstance.Exists("config", "colour")
@@ -438,8 +466,9 @@ func TestStore_Exists_Good_Absent(t *testing.T) {
 }
 
 func TestStore_Exists_Good_ExpiredKeyReturnsFalse(t *testing.T) {
-	storeInstance, err := New(testMemoryDatabasePath)
-	assertNoError(t, err)
+	r := New(testMemoryDatabasePath)
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 
 	assertNoError(t, storeInstance.SetWithTTL("session", "token", "abc123", 1*time.Millisecond))
@@ -451,10 +480,11 @@ func TestStore_Exists_Good_ExpiredKeyReturnsFalse(t *testing.T) {
 }
 
 func TestStore_Exists_Bad_ClosedStore(t *testing.T) {
-	storeInstance, err := New(testMemoryDatabasePath)
-	assertNoError(t, err)
+	r := New(testMemoryDatabasePath)
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	assertNoError(t, storeInstance.Close())
-	_, err = storeInstance.Exists("g", "k")
+	_, err := storeInstance.Exists("g", "k")
 	assertError(t, err)
 }
 
@@ -463,8 +493,9 @@ func TestStore_Exists_Bad_ClosedStore(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestStore_GroupExists_Good_Present(t *testing.T) {
-	storeInstance, err := New(testMemoryDatabasePath)
-	assertNoError(t, err)
+	r := New(testMemoryDatabasePath)
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 
 	assertNoError(t, storeInstance.Set("config", "colour", "blue"))
@@ -475,8 +506,9 @@ func TestStore_GroupExists_Good_Present(t *testing.T) {
 }
 
 func TestStore_GroupExists_Good_Absent(t *testing.T) {
-	storeInstance, err := New(testMemoryDatabasePath)
-	assertNoError(t, err)
+	r := New(testMemoryDatabasePath)
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 
 	exists, err := storeInstance.GroupExists("config")
@@ -485,8 +517,9 @@ func TestStore_GroupExists_Good_Absent(t *testing.T) {
 }
 
 func TestStore_GroupExists_Good_EmptyAfterDelete(t *testing.T) {
-	storeInstance, err := New(testMemoryDatabasePath)
-	assertNoError(t, err)
+	r := New(testMemoryDatabasePath)
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 
 	assertNoError(t, storeInstance.Set("config", "colour", "blue"))
@@ -498,10 +531,11 @@ func TestStore_GroupExists_Good_EmptyAfterDelete(t *testing.T) {
 }
 
 func TestStore_GroupExists_Bad_ClosedStore(t *testing.T) {
-	storeInstance, err := New(testMemoryDatabasePath)
-	assertNoError(t, err)
+	r := New(testMemoryDatabasePath)
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	assertNoError(t, storeInstance.Close())
-	_, err = storeInstance.GroupExists("config")
+	_, err := storeInstance.GroupExists("config")
 	assertError(t, err)
 }
 
@@ -510,7 +544,9 @@ func TestStore_GroupExists_Bad_ClosedStore(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestStore_Delete_Good(t *testing.T) {
-	storeInstance, _ := New(testMemoryDatabasePath)
+	r := New(testMemoryDatabasePath)
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 
 	_ = storeInstance.Set("config", "key", "val")
@@ -523,7 +559,9 @@ func TestStore_Delete_Good(t *testing.T) {
 
 func TestStore_Delete_Good_NonExistent(t *testing.T) {
 	// Deleting a key that does not exist should not error.
-	storeInstance, _ := New(testMemoryDatabasePath)
+	r := New(testMemoryDatabasePath)
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 
 	err := storeInstance.Delete("g", "nope")
@@ -531,7 +569,9 @@ func TestStore_Delete_Good_NonExistent(t *testing.T) {
 }
 
 func TestStore_Delete_Bad_ClosedStore(t *testing.T) {
-	storeInstance, _ := New(testMemoryDatabasePath)
+	r := New(testMemoryDatabasePath)
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	_ = storeInstance.Close()
 	err := storeInstance.Delete("g", "k")
 	assertError(t, err)
@@ -542,7 +582,9 @@ func TestStore_Delete_Bad_ClosedStore(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestStore_Count_Good(t *testing.T) {
-	storeInstance, _ := New(testMemoryDatabasePath)
+	r := New(testMemoryDatabasePath)
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 
 	_ = storeInstance.Set("grp", "a", "1")
@@ -555,7 +597,9 @@ func TestStore_Count_Good(t *testing.T) {
 }
 
 func TestStore_Count_Good_Empty(t *testing.T) {
-	storeInstance, _ := New(testMemoryDatabasePath)
+	r := New(testMemoryDatabasePath)
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 
 	count, err := storeInstance.Count("empty")
@@ -564,7 +608,9 @@ func TestStore_Count_Good_Empty(t *testing.T) {
 }
 
 func TestStore_Count_Good_BulkInsert(t *testing.T) {
-	storeInstance, _ := New(testMemoryDatabasePath)
+	r := New(testMemoryDatabasePath)
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 
 	const total = 500
@@ -577,7 +623,9 @@ func TestStore_Count_Good_BulkInsert(t *testing.T) {
 }
 
 func TestStore_Count_Bad_ClosedStore(t *testing.T) {
-	storeInstance, _ := New(testMemoryDatabasePath)
+	r := New(testMemoryDatabasePath)
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	_ = storeInstance.Close()
 	_, err := storeInstance.Count("g")
 	assertError(t, err)
@@ -588,7 +636,9 @@ func TestStore_Count_Bad_ClosedStore(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestStore_DeleteGroup_Good(t *testing.T) {
-	storeInstance, _ := New(testMemoryDatabasePath)
+	r := New(testMemoryDatabasePath)
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 
 	_ = storeInstance.Set("grp", "a", "1")
@@ -601,7 +651,9 @@ func TestStore_DeleteGroup_Good(t *testing.T) {
 }
 
 func TestStore_DeleteGroup_Good_ThenGetAllEmpty(t *testing.T) {
-	storeInstance, _ := New(testMemoryDatabasePath)
+	r := New(testMemoryDatabasePath)
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 
 	_ = storeInstance.Set("grp", "a", "1")
@@ -614,7 +666,9 @@ func TestStore_DeleteGroup_Good_ThenGetAllEmpty(t *testing.T) {
 }
 
 func TestStore_DeleteGroup_Good_IsolatesOtherGroups(t *testing.T) {
-	storeInstance, _ := New(testMemoryDatabasePath)
+	r := New(testMemoryDatabasePath)
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 
 	_ = storeInstance.Set("a", "k", "1")
@@ -630,7 +684,9 @@ func TestStore_DeleteGroup_Good_IsolatesOtherGroups(t *testing.T) {
 }
 
 func TestStore_DeletePrefix_Good(t *testing.T) {
-	storeInstance, _ := New(testMemoryDatabasePath)
+	r := New(testMemoryDatabasePath)
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 
 	_ = storeInstance.Set(testTenantAConfigGroup, "colour", "blue")
@@ -650,7 +706,9 @@ func TestStore_DeletePrefix_Good(t *testing.T) {
 }
 
 func TestStore_DeleteGroup_Bad_ClosedStore(t *testing.T) {
-	storeInstance, _ := New(testMemoryDatabasePath)
+	r := New(testMemoryDatabasePath)
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	_ = storeInstance.Close()
 	err := storeInstance.DeleteGroup("g")
 	assertError(t, err)
@@ -661,7 +719,9 @@ func TestStore_DeleteGroup_Bad_ClosedStore(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestStore_GetAll_Good(t *testing.T) {
-	storeInstance, _ := New(testMemoryDatabasePath)
+	r := New(testMemoryDatabasePath)
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 
 	_ = storeInstance.Set("grp", "a", "1")
@@ -674,7 +734,9 @@ func TestStore_GetAll_Good(t *testing.T) {
 }
 
 func TestStore_GetAll_Good_Empty(t *testing.T) {
-	storeInstance, _ := New(testMemoryDatabasePath)
+	r := New(testMemoryDatabasePath)
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 
 	all, err := storeInstance.GetAll("empty")
@@ -683,7 +745,9 @@ func TestStore_GetAll_Good_Empty(t *testing.T) {
 }
 
 func TestStore_GetPage_Good(t *testing.T) {
-	storeInstance, _ := New(testMemoryDatabasePath)
+	r := New(testMemoryDatabasePath)
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 
 	assertNoError(t, storeInstance.Set("grp", "charlie", "3"))
@@ -697,7 +761,9 @@ func TestStore_GetPage_Good(t *testing.T) {
 }
 
 func TestStore_GetPage_Good_EmptyAndBounds(t *testing.T) {
-	storeInstance, _ := New(testMemoryDatabasePath)
+	r := New(testMemoryDatabasePath)
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 
 	page, err := storeInstance.GetPage("grp", 0, 0)
@@ -712,7 +778,9 @@ func TestStore_GetPage_Good_EmptyAndBounds(t *testing.T) {
 }
 
 func TestStore_GetAll_Bad_ClosedStore(t *testing.T) {
-	storeInstance, _ := New(testMemoryDatabasePath)
+	r := New(testMemoryDatabasePath)
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	_ = storeInstance.Close()
 	_, err := storeInstance.GetAll("g")
 	assertError(t, err)
@@ -723,7 +791,9 @@ func TestStore_GetAll_Bad_ClosedStore(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestStore_All_Good_StopsEarly(t *testing.T) {
-	storeInstance, _ := New(testMemoryDatabasePath)
+	r := New(testMemoryDatabasePath)
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 
 	assertNoError(t, storeInstance.Set("g", "a", "1"))
@@ -741,7 +811,9 @@ func TestStore_All_Good_StopsEarly(t *testing.T) {
 }
 
 func TestStore_All_Good_SortedByKey(t *testing.T) {
-	storeInstance, _ := New(testMemoryDatabasePath)
+	r := New(testMemoryDatabasePath)
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 
 	assertNoError(t, storeInstance.Set("g", "charlie", "3"))
@@ -758,7 +830,9 @@ func TestStore_All_Good_SortedByKey(t *testing.T) {
 }
 
 func TestStore_AllSeq_Good_SortedByKey(t *testing.T) {
-	storeInstance, _ := New(testMemoryDatabasePath)
+	r := New(testMemoryDatabasePath)
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 
 	assertNoError(t, storeInstance.Set("g", "charlie", "3"))
@@ -775,7 +849,9 @@ func TestStore_AllSeq_Good_SortedByKey(t *testing.T) {
 }
 
 func TestStore_All_Bad_ClosedStore(t *testing.T) {
-	storeInstance, _ := New(testMemoryDatabasePath)
+	r := New(testMemoryDatabasePath)
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	_ = storeInstance.Close()
 	for _, err := range storeInstance.All("g") {
 		assertError(t, err)
@@ -783,7 +859,9 @@ func TestStore_All_Bad_ClosedStore(t *testing.T) {
 }
 
 func TestStore_GroupsSeq_Good_StopsEarly(t *testing.T) {
-	storeInstance, _ := New(testMemoryDatabasePath)
+	r := New(testMemoryDatabasePath)
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 
 	assertNoError(t, storeInstance.Set("alpha", "a", "1"))
@@ -801,7 +879,9 @@ func TestStore_GroupsSeq_Good_StopsEarly(t *testing.T) {
 }
 
 func TestStore_GroupsSeq_Good_PrefixStopsEarly(t *testing.T) {
-	storeInstance, _ := New(testMemoryDatabasePath)
+	r := New(testMemoryDatabasePath)
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 
 	assertNoError(t, storeInstance.Set("alpha", "a", "1"))
@@ -819,7 +899,9 @@ func TestStore_GroupsSeq_Good_PrefixStopsEarly(t *testing.T) {
 }
 
 func TestStore_GroupsSeq_Good_SortedByGroupName(t *testing.T) {
-	storeInstance, _ := New(testMemoryDatabasePath)
+	r := New(testMemoryDatabasePath)
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 
 	assertNoError(t, storeInstance.Set("charlie", "c", "3"))
@@ -836,7 +918,9 @@ func TestStore_GroupsSeq_Good_SortedByGroupName(t *testing.T) {
 }
 
 func TestStore_GroupsSeq_Good_DefaultArgument(t *testing.T) {
-	storeInstance, _ := New(testMemoryDatabasePath)
+	r := New(testMemoryDatabasePath)
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 
 	assertNoError(t, storeInstance.Set("alpha", "a", "1"))
@@ -852,7 +936,9 @@ func TestStore_GroupsSeq_Good_DefaultArgument(t *testing.T) {
 }
 
 func TestStore_GroupsSeq_Bad_ClosedStore(t *testing.T) {
-	storeInstance, _ := New(testMemoryDatabasePath)
+	r := New(testMemoryDatabasePath)
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	_ = storeInstance.Close()
 	for _, err := range storeInstance.GroupsSeq("") {
 		assertError(t, err)
@@ -864,7 +950,9 @@ func TestStore_GroupsSeq_Bad_ClosedStore(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestStore_GetSplit_Good_SplitsValue(t *testing.T) {
-	storeInstance, _ := New(testMemoryDatabasePath)
+	r := New(testMemoryDatabasePath)
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 
 	assertNoError(t, storeInstance.Set("g", "comma", "alpha,beta,gamma"))
@@ -881,7 +969,9 @@ func TestStore_GetSplit_Good_SplitsValue(t *testing.T) {
 }
 
 func TestStore_GetSplit_Good_StopsEarly(t *testing.T) {
-	storeInstance, _ := New(testMemoryDatabasePath)
+	r := New(testMemoryDatabasePath)
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 
 	assertNoError(t, storeInstance.Set("g", "comma", "alpha,beta,gamma"))
@@ -899,7 +989,9 @@ func TestStore_GetSplit_Good_StopsEarly(t *testing.T) {
 }
 
 func TestStore_GetSplit_Bad_MissingKey(t *testing.T) {
-	storeInstance, _ := New(testMemoryDatabasePath)
+	r := New(testMemoryDatabasePath)
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 
 	_, err := storeInstance.GetSplit("g", "missing", ",")
@@ -908,7 +1000,9 @@ func TestStore_GetSplit_Bad_MissingKey(t *testing.T) {
 }
 
 func TestStore_GetFields_Good_SplitsWhitespace(t *testing.T) {
-	storeInstance, _ := New(testMemoryDatabasePath)
+	r := New(testMemoryDatabasePath)
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 
 	assertNoError(t, storeInstance.Set("g", "fields", "alpha beta\tgamma\n"))
@@ -925,7 +1019,9 @@ func TestStore_GetFields_Good_SplitsWhitespace(t *testing.T) {
 }
 
 func TestStore_GetFields_Good_StopsEarly(t *testing.T) {
-	storeInstance, _ := New(testMemoryDatabasePath)
+	r := New(testMemoryDatabasePath)
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 
 	assertNoError(t, storeInstance.Set("g", "fields", "alpha beta\tgamma\n"))
@@ -943,7 +1039,9 @@ func TestStore_GetFields_Good_StopsEarly(t *testing.T) {
 }
 
 func TestStore_GetFields_Bad_MissingKey(t *testing.T) {
-	storeInstance, _ := New(testMemoryDatabasePath)
+	r := New(testMemoryDatabasePath)
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 
 	_, err := storeInstance.GetFields("g", "missing")
@@ -956,7 +1054,9 @@ func TestStore_GetFields_Bad_MissingKey(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestStore_Render_Good(t *testing.T) {
-	storeInstance, _ := New(testMemoryDatabasePath)
+	r := New(testMemoryDatabasePath)
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 
 	_ = storeInstance.Set("user", "pool", "pool.lthn.io:3333")
@@ -970,7 +1070,9 @@ func TestStore_Render_Good(t *testing.T) {
 }
 
 func TestStore_Render_Good_EmptyGroup(t *testing.T) {
-	storeInstance, _ := New(testMemoryDatabasePath)
+	r := New(testMemoryDatabasePath)
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 
 	// Template that does not reference any variables.
@@ -980,7 +1082,9 @@ func TestStore_Render_Good_EmptyGroup(t *testing.T) {
 }
 
 func TestStore_Render_Bad_InvalidTemplateSyntax(t *testing.T) {
-	storeInstance, _ := New(testMemoryDatabasePath)
+	r := New(testMemoryDatabasePath)
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 
 	_, err := storeInstance.Render("{{ .unclosed", "g")
@@ -989,7 +1093,9 @@ func TestStore_Render_Bad_InvalidTemplateSyntax(t *testing.T) {
 }
 
 func TestStore_Render_Bad_MissingTemplateVar(t *testing.T) {
-	storeInstance, _ := New(testMemoryDatabasePath)
+	r := New(testMemoryDatabasePath)
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 
 	// text/template with a missing key on a map returns <no value>, not an error,
@@ -1000,7 +1106,9 @@ func TestStore_Render_Bad_MissingTemplateVar(t *testing.T) {
 }
 
 func TestStore_Render_Bad_ExecError(t *testing.T) {
-	storeInstance, _ := New(testMemoryDatabasePath)
+	r := New(testMemoryDatabasePath)
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 
 	_ = storeInstance.Set("g", "name", "hello")
@@ -1012,7 +1120,9 @@ func TestStore_Render_Bad_ExecError(t *testing.T) {
 }
 
 func TestStore_Render_Bad_ClosedStore(t *testing.T) {
-	storeInstance, _ := New(testMemoryDatabasePath)
+	r := New(testMemoryDatabasePath)
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	_ = storeInstance.Close()
 	_, err := storeInstance.Render("{{ .x }}", "g")
 	assertError(t, err)
@@ -1023,13 +1133,17 @@ func TestStore_Render_Bad_ClosedStore(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestStore_Close_Good(t *testing.T) {
-	storeInstance, _ := New(testMemoryDatabasePath)
+	r := New(testMemoryDatabasePath)
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	err := storeInstance.Close()
 	assertNoError(t, err)
 }
 
 func TestStore_Close_Good_Idempotent(t *testing.T) {
-	storeInstance, _ := New(testMemoryDatabasePath)
+	r := New(testMemoryDatabasePath)
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 
 	assertNoError(t, storeInstance.Close())
 	assertNoError(t, storeInstance.Close())
@@ -1053,7 +1167,9 @@ func TestStore_Close_Good_BackfillsDatabaseAlias(t *testing.T) {
 }
 
 func TestStore_Close_Good_OperationsFailAfterClose(t *testing.T) {
-	storeInstance, _ := New(testMemoryDatabasePath)
+	r := New(testMemoryDatabasePath)
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	assertNoError(t, storeInstance.Close())
 
 	// All operations on a closed store should fail.
@@ -1095,11 +1211,12 @@ func TestStore_Close_Bad_MediumSyncFailureRetryable(t *testing.T) {
 	useWorkspaceStateDirectory(t)
 
 	medium := &writeFailOnceMedium{memoryMedium: newMemoryMedium(), failures: 1}
-	storeInstance, err := New("retryable-close.db", WithMedium(medium))
-	assertNoError(t, err)
+	r := New("retryable-close.db", WithMedium(medium))
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	assertNoError(t, storeInstance.Set("g", "k", "v"))
 
-	err = storeInstance.Close()
+	err := storeInstance.Close()
 	assertError(t, err)
 	assertContainsString(t, err.Error(), "sync medium-backed database")
 	assertFalse(t, storeInstance.IsClosed())
@@ -1208,7 +1325,9 @@ func (testRowsAffectedErrorResult) RowsAffected() (int64, error) {
 // ---------------------------------------------------------------------------
 
 func TestStore_SetGet_Good_EdgeCases(t *testing.T) {
-	storeInstance, _ := New(testMemoryDatabasePath)
+	r := New(testMemoryDatabasePath)
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 
 	tests := []struct {
@@ -1254,7 +1373,9 @@ func TestStore_SetGet_Good_EdgeCases(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestStore_GroupIsolation_Good(t *testing.T) {
-	storeInstance, _ := New(testMemoryDatabasePath)
+	r := New(testMemoryDatabasePath)
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 
 	GroupIsolation := []string{"alpha", "beta"}
@@ -1285,8 +1406,9 @@ func TestStore_GroupIsolation_Good(t *testing.T) {
 
 func TestStore_Concurrent_Good_ReadWrite(t *testing.T) {
 	databasePath := testPath(t, "concurrent.db")
-	storeInstance, err := New(databasePath)
-	assertNoError(t, err)
+	r := New(databasePath)
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 
 	const goroutines = 10
@@ -1361,8 +1483,9 @@ func assertConcurrentStoreGroupsComplete(t *testing.T, storeInstance *Store, gor
 }
 
 func TestStore_Concurrent_Good_GetAll(t *testing.T) {
-	storeInstance, err := New(testPath(t, "getall.db"))
-	assertNoError(t, err)
+	r := New(testPath(t, "getall.db"))
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 
 	// Seed data.
@@ -1387,8 +1510,9 @@ func TestStore_Concurrent_Good_GetAll(t *testing.T) {
 }
 
 func TestStore_Concurrent_Good_DeleteGroup(t *testing.T) {
-	storeInstance, err := New(testPath(t, "delgrp.db"))
-	assertNoError(t, err)
+	r := New(testPath(t, "delgrp.db"))
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 
 	var waitGroup sync.WaitGroup
@@ -1411,7 +1535,9 @@ func TestStore_Concurrent_Good_DeleteGroup(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestStore_NotFoundError_Good_Is(t *testing.T) {
-	storeInstance, _ := New(testMemoryDatabasePath)
+	r := New(testMemoryDatabasePath)
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 
 	_, err := storeInstance.Get("g", "k")
@@ -1425,7 +1551,9 @@ func TestStore_NotFoundError_Good_Is(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func BenchmarkSet(benchmark *testing.B) {
-	storeInstance, _ := New(testMemoryDatabasePath)
+	r := New(testMemoryDatabasePath)
+	assertNoError(benchmark, r)
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 
 	benchmark.ResetTimer()
@@ -1435,7 +1563,9 @@ func BenchmarkSet(benchmark *testing.B) {
 }
 
 func BenchmarkGet(benchmark *testing.B) {
-	storeInstance, _ := New(testMemoryDatabasePath)
+	r := New(testMemoryDatabasePath)
+	assertNoError(benchmark, r)
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 
 	// Pre-populate.
@@ -1451,7 +1581,9 @@ func BenchmarkGet(benchmark *testing.B) {
 }
 
 func BenchmarkGetAll(benchmark *testing.B) {
-	storeInstance, _ := New(testMemoryDatabasePath)
+	r := New(testMemoryDatabasePath)
+	assertNoError(benchmark, r)
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 
 	const keys = 10000
@@ -1467,7 +1599,9 @@ func BenchmarkGetAll(benchmark *testing.B) {
 
 func BenchmarkSet_FileBacked(benchmark *testing.B) {
 	databasePath := testPath(benchmark, "bench.db")
-	storeInstance, _ := New(databasePath)
+	r := New(databasePath)
+	assertNoError(benchmark, r)
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 
 	benchmark.ResetTimer()
@@ -1481,7 +1615,9 @@ func BenchmarkSet_FileBacked(benchmark *testing.B) {
 // ---------------------------------------------------------------------------
 
 func TestStore_SetWithTTL_Good(t *testing.T) {
-	storeInstance, _ := New(testMemoryDatabasePath)
+	r := New(testMemoryDatabasePath)
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 
 	err := storeInstance.SetWithTTL("g", "k", "v", 5*time.Second)
@@ -1493,7 +1629,9 @@ func TestStore_SetWithTTL_Good(t *testing.T) {
 }
 
 func TestStore_SetWithTTL_Good_Upsert(t *testing.T) {
-	storeInstance, _ := New(testMemoryDatabasePath)
+	r := New(testMemoryDatabasePath)
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 
 	assertNoError(t, storeInstance.SetWithTTL("g", "k", "v1", time.Hour))
@@ -1509,7 +1647,9 @@ func TestStore_SetWithTTL_Good_Upsert(t *testing.T) {
 }
 
 func TestStore_SetWithTTL_Good_ExpiresOnGet(t *testing.T) {
-	storeInstance, _ := New(testMemoryDatabasePath)
+	r := New(testMemoryDatabasePath)
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 
 	// Set a key with a very short TTL.
@@ -1524,8 +1664,9 @@ func TestStore_SetWithTTL_Good_ExpiresOnGet(t *testing.T) {
 }
 
 func TestStore_SetWithTTL_Good_ExpiresOnGetEmitsDeleteEvent(t *testing.T) {
-	storeInstance, err := New(testMemoryDatabasePath)
-	assertNoError(t, err)
+	r := New(testMemoryDatabasePath)
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 
 	events := storeInstance.Watch("g")
@@ -1540,7 +1681,7 @@ func TestStore_SetWithTTL_Good_ExpiresOnGetEmitsDeleteEvent(t *testing.T) {
 
 	time.Sleep(5 * time.Millisecond)
 
-	_, err = storeInstance.Get("g", "ephemeral")
+	_, err := storeInstance.Get("g", "ephemeral")
 	assertError(t, err)
 	assertTruef(t, errIs(errorValue(err), NotFoundError), "expired key should be NotFoundError")
 
@@ -1556,7 +1697,9 @@ func TestStore_SetWithTTL_Good_ExpiresOnGetEmitsDeleteEvent(t *testing.T) {
 }
 
 func TestStore_SetWithTTL_Good_ExcludedFromCount(t *testing.T) {
-	storeInstance, _ := New(testMemoryDatabasePath)
+	r := New(testMemoryDatabasePath)
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 
 	assertNoError(t, storeInstance.Set("g", "permanent", "stays"))
@@ -1569,7 +1712,9 @@ func TestStore_SetWithTTL_Good_ExcludedFromCount(t *testing.T) {
 }
 
 func TestStore_SetWithTTL_Good_ExcludedFromGetAll(t *testing.T) {
-	storeInstance, _ := New(testMemoryDatabasePath)
+	r := New(testMemoryDatabasePath)
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 
 	assertNoError(t, storeInstance.Set("g", "a", "1"))
@@ -1582,7 +1727,9 @@ func TestStore_SetWithTTL_Good_ExcludedFromGetAll(t *testing.T) {
 }
 
 func TestStore_SetWithTTL_Good_ExcludedFromRender(t *testing.T) {
-	storeInstance, _ := New(testMemoryDatabasePath)
+	r := New(testMemoryDatabasePath)
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 
 	assertNoError(t, storeInstance.Set("g", "name", "Alice"))
@@ -1595,7 +1742,9 @@ func TestStore_SetWithTTL_Good_ExcludedFromRender(t *testing.T) {
 }
 
 func TestStore_SetWithTTL_Good_SetClearsTTL(t *testing.T) {
-	storeInstance, _ := New(testMemoryDatabasePath)
+	r := New(testMemoryDatabasePath)
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 
 	// Set with TTL, then overwrite with plain Set — TTL should be cleared.
@@ -1609,7 +1758,9 @@ func TestStore_SetWithTTL_Good_SetClearsTTL(t *testing.T) {
 }
 
 func TestStore_SetWithTTL_Good_FutureTTLAccessible(t *testing.T) {
-	storeInstance, _ := New(testMemoryDatabasePath)
+	r := New(testMemoryDatabasePath)
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 
 	assertNoError(t, storeInstance.SetWithTTL("g", "k", "v", 1*time.Hour))
@@ -1624,7 +1775,9 @@ func TestStore_SetWithTTL_Good_FutureTTLAccessible(t *testing.T) {
 }
 
 func TestStore_SetWithTTL_Bad_ClosedStore(t *testing.T) {
-	storeInstance, _ := New(testMemoryDatabasePath)
+	r := New(testMemoryDatabasePath)
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	_ = storeInstance.Close()
 	err := storeInstance.SetWithTTL("g", "k", "v", time.Hour)
 	assertError(t, err)
@@ -1635,7 +1788,9 @@ func TestStore_SetWithTTL_Bad_ClosedStore(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestStore_PurgeExpired_Good(t *testing.T) {
-	storeInstance, _ := New(testMemoryDatabasePath)
+	r := New(testMemoryDatabasePath)
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 
 	assertNoError(t, storeInstance.SetWithTTL("g", "a", "1", 1*time.Millisecond))
@@ -1653,8 +1808,9 @@ func TestStore_PurgeExpired_Good(t *testing.T) {
 }
 
 func TestStore_PurgeExpired_Good_NotifiesDeletedRows(t *testing.T) {
-	storeInstance, err := New(testMemoryDatabasePath)
-	assertNoError(t, err)
+	r := New(testMemoryDatabasePath)
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 
 	assertNoError(t, storeInstance.SetWithTTL("g", "expired", "1", 1*time.Millisecond))
@@ -1684,7 +1840,9 @@ func TestStore_PurgeExpired_Good_NotifiesDeletedRows(t *testing.T) {
 }
 
 func TestStore_PurgeExpired_Good_NoneExpired(t *testing.T) {
-	storeInstance, _ := New(testMemoryDatabasePath)
+	r := New(testMemoryDatabasePath)
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 
 	assertNoError(t, storeInstance.Set("g", "a", "1"))
@@ -1696,7 +1854,9 @@ func TestStore_PurgeExpired_Good_NoneExpired(t *testing.T) {
 }
 
 func TestStore_PurgeExpired_Good_Empty(t *testing.T) {
-	storeInstance, _ := New(testMemoryDatabasePath)
+	r := New(testMemoryDatabasePath)
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 
 	removed, err := storeInstance.PurgeExpired()
@@ -1705,7 +1865,9 @@ func TestStore_PurgeExpired_Good_Empty(t *testing.T) {
 }
 
 func TestStore_PurgeExpired_Bad_ClosedStore(t *testing.T) {
-	storeInstance, _ := New(testMemoryDatabasePath)
+	r := New(testMemoryDatabasePath)
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	_ = storeInstance.Close()
 	_, err := storeInstance.PurgeExpired()
 	assertError(t, err)
@@ -1724,8 +1886,9 @@ func TestStore_PurgeExpired_Bad_RowsAffectedError(t *testing.T) {
 }
 
 func TestStore_PurgeExpired_Good_BackgroundPurge(t *testing.T) {
-	storeInstance, err := New(testMemoryDatabasePath, WithPurgeInterval(20*time.Millisecond))
-	assertNoError(t, err)
+	r := New(testMemoryDatabasePath, WithPurgeInterval(20*time.Millisecond))
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 
 	assertNoError(t, storeInstance.SetWithTTL("g", "ephemeral", "v", 1*time.Millisecond))
@@ -1743,8 +1906,9 @@ func TestStore_PurgeExpired_Good_BackgroundPurge(t *testing.T) {
 }
 
 func TestStore_StartBackgroundPurge_Good_DefaultsWhenIntervalUnset(t *testing.T) {
-	storeInstance, err := New(testMemoryDatabasePath)
-	assertNoError(t, err)
+	r := New(testMemoryDatabasePath)
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	storeInstance.purgeInterval = 0
 
 	assertNotPanics(t, func() {
@@ -1761,14 +1925,16 @@ func TestStore_SchemaUpgrade_Good_ExistingDB(t *testing.T) {
 	databasePath := testPath(t, "upgrade.db")
 
 	// Open, write, close.
-	initialStore, err := New(databasePath)
-	assertNoError(t, err)
+	r := New(databasePath)
+	assertNoError(t, r)
+	initialStore := r.Value.(*Store)
 	assertNoError(t, initialStore.Set("g", "k", "v"))
 	assertNoError(t, initialStore.Close())
 
 	// Reopen — the ALTER TABLE ADD COLUMN should be a no-op.
-	reopenedStore, err := New(databasePath)
-	assertNoError(t, err)
+	r = New(databasePath)
+	assertNoError(t, r)
+	reopenedStore := r.Value.(*Store)
 	defer func() { _ = reopenedStore.Close() }()
 
 	value, err := reopenedStore.Get("g", "k")
@@ -1800,8 +1966,9 @@ func TestStore_SchemaUpgrade_Good_EntriesWithoutExpiryColumn(t *testing.T) {
 	assertNoError(t, err)
 	assertNoError(t, database.Close())
 
-	storeInstance, err := New(databasePath)
-	assertNoError(t, err)
+	r := New(databasePath)
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 
 	value, err := storeInstance.Get("g", "k")
@@ -1842,8 +2009,9 @@ func TestStore_SchemaUpgrade_Good_LegacyAndCurrentTables(t *testing.T) {
 	assertNoError(t, err)
 	assertNoError(t, database.Close())
 
-	storeInstance, err := New(databasePath)
-	assertNoError(t, err)
+	r := New(databasePath)
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 
 	value, err := storeInstance.Get("existing", "k")
@@ -1876,8 +2044,9 @@ func TestStore_SchemaUpgrade_Good_PreTTLDatabase(t *testing.T) {
 	assertNoError(t, database.Close())
 
 	// Open with New — should migrate the legacy table into the descriptive schema.
-	storeInstance, err := New(databasePath)
-	assertNoError(t, err)
+	r := New(databasePath)
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 
 	// Existing data should be readable.
@@ -1897,8 +2066,9 @@ func TestStore_SchemaUpgrade_Good_PreTTLDatabase(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestStore_Concurrent_Good_TTL(t *testing.T) {
-	storeInstance, err := New(testPath(t, "concurrent-ttl.db"))
-	assertNoError(t, err)
+	r := New(testPath(t, "concurrent-ttl.db"))
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 
 	const goroutines = 10
@@ -1993,8 +2163,9 @@ func TestStore_JournalConfiguration_Validate_Ugly(t *T) {
 
 func TestStore_WithJournal_Good(t *T) {
 	option := WithJournal(testJournalEndpoint, "core", "events")
-	storeInstance, err := New(testMemoryDatabasePath, option)
-	RequireNoError(t, err)
+	r := New(testMemoryDatabasePath, option)
+	RequireNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 	AssertTrue(t, storeInstance.JournalConfigured())
 }
@@ -2006,15 +2177,15 @@ func TestStore_WithJournal_Bad(t *T) {
 }
 
 func TestStore_WithJournal_Ugly(t *T) {
-	storeInstance, err := New(testMemoryDatabasePath, WithJournal(testJournalEndpoint, "", "events"))
-	AssertError(t, err)
-	AssertNil(t, storeInstance)
+	r := New(testMemoryDatabasePath, WithJournal(testJournalEndpoint, "", "events"))
+	AssertError(t, r)
 }
 
 func TestStore_WithWorkspaceStateDirectory_Good(t *T) {
 	directory := t.TempDir()
-	storeInstance, err := New(testMemoryDatabasePath, WithWorkspaceStateDirectory(directory))
-	RequireNoError(t, err)
+	r := New(testMemoryDatabasePath, WithWorkspaceStateDirectory(directory))
+	RequireNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 	AssertEqual(t, directory, storeInstance.WorkspaceStateDirectory())
 }
@@ -2026,15 +2197,17 @@ func TestStore_WithWorkspaceStateDirectory_Bad(t *T) {
 }
 
 func TestStore_WithWorkspaceStateDirectory_Ugly(t *T) {
-	storeInstance, err := New(testMemoryDatabasePath, WithWorkspaceStateDirectory(""))
-	RequireNoError(t, err)
+	r := New(testMemoryDatabasePath, WithWorkspaceStateDirectory(""))
+	RequireNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 	AssertNotEmpty(t, storeInstance.WorkspaceStateDirectory())
 }
 
 func TestStore_WithPurgeInterval_Good(t *T) {
-	storeInstance, err := New(testMemoryDatabasePath, WithPurgeInterval(5*Second))
-	RequireNoError(t, err)
+	r := New(testMemoryDatabasePath, WithPurgeInterval(5*Second))
+	RequireNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 	AssertEqual(t, 5*Second, storeInstance.Config().PurgeInterval)
 }
@@ -2046,41 +2219,43 @@ func TestStore_WithPurgeInterval_Bad(t *T) {
 }
 
 func TestStore_WithPurgeInterval_Ugly(t *T) {
-	storeInstance, err := New(testMemoryDatabasePath, WithPurgeInterval(0))
-	RequireNoError(t, err)
+	r := New(testMemoryDatabasePath, WithPurgeInterval(0))
+	RequireNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 	AssertTrue(t, storeInstance.Config().PurgeInterval > 0)
 }
 
 func TestStore_NewConfigured_Bad(t *T) {
-	storeInstance, err := NewConfigured(StoreConfig{})
-	AssertError(t, err)
-	AssertNil(t, storeInstance)
+	r := NewConfigured(StoreConfig{})
+	AssertError(t, r)
 }
 
 func TestStore_NewConfigured_Ugly(t *T) {
-	storeInstance, err := NewConfigured(StoreConfig{DatabasePath: testMemoryDatabasePath, WorkspaceStateDirectory: t.TempDir()})
-	RequireNoError(t, err)
+	r := NewConfigured(StoreConfig{DatabasePath: testMemoryDatabasePath, WorkspaceStateDirectory: t.TempDir()})
+	RequireNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 	AssertNotEmpty(t, storeInstance.WorkspaceStateDirectory())
 }
 
 func TestStore_New_Good(t *T) {
-	storeInstance, err := New(testMemoryDatabasePath)
-	RequireNoError(t, err)
+	r := New(testMemoryDatabasePath)
+	RequireNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 	AssertEqual(t, testMemoryDatabasePath, storeInstance.DatabasePath())
 }
 
 func TestStore_New_Bad(t *T) {
-	storeInstance, err := New("")
-	AssertError(t, err)
-	AssertNil(t, storeInstance)
+	r := New("")
+	AssertError(t, r)
 }
 
 func TestStore_New_Ugly(t *T) {
-	storeInstance, err := New(testMemoryDatabasePath, nil, WithPurgeInterval(24*Hour))
-	RequireNoError(t, err)
+	r := New(testMemoryDatabasePath, nil, WithPurgeInterval(24*Hour))
+	RequireNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 	AssertFalse(t, storeInstance.IsClosed())
 }
@@ -2098,8 +2273,9 @@ func TestStore_Store_JournalConfiguration_Bad(t *T) {
 }
 
 func TestStore_Store_JournalConfiguration_Ugly(t *T) {
-	storeInstance, err := New(testMemoryDatabasePath, WithJournal(testJournalEndpoint, "core", "events"))
-	RequireNoError(t, err)
+	r := New(testMemoryDatabasePath, WithJournal(testJournalEndpoint, "core", "events"))
+	RequireNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 	AssertEqual(t, "events", storeInstance.JournalConfiguration().BucketName)
 }
@@ -2114,9 +2290,9 @@ func TestStore_Store_JournalConfigured_Good(t *T) {
 func requireJournalConfiguredStore(t *T) *Store {
 	t.Helper()
 
-	storeInstance, err := New(testMemoryDatabasePath, WithJournal(testJournalEndpoint, "core", "events"))
-	RequireNoError(t, err)
-	return storeInstance
+	r := New(testMemoryDatabasePath, WithJournal(testJournalEndpoint, "core", "events"))
+	RequireNoError(t, r)
+	return r.Value.(*Store)
 }
 
 func TestStore_Store_JournalConfigured_Bad(t *T) {
@@ -2145,8 +2321,9 @@ func TestStore_Store_Config_Bad(t *T) {
 
 func TestStore_Store_Config_Ugly(t *T) {
 	medium := newFixtureMedium()
-	storeInstance, err := NewConfigured(StoreConfig{DatabasePath: testMemoryDatabasePath, Medium: medium})
-	RequireNoError(t, err)
+	r := NewConfigured(StoreConfig{DatabasePath: testMemoryDatabasePath, Medium: medium})
+	RequireNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 	AssertSame(t, medium, storeInstance.Config().Medium)
 }
@@ -2165,8 +2342,9 @@ func TestStore_Store_DatabasePath_Bad(t *T) {
 
 func TestStore_Store_DatabasePath_Ugly(t *T) {
 	path := Path(t.TempDir(), "db")
-	storeInstance, err := New(path)
-	RequireNoError(t, err)
+	r := New(path)
+	RequireNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 	AssertEqual(t, path, storeInstance.DatabasePath())
 }
@@ -2184,8 +2362,9 @@ func TestStore_Store_WorkspaceStateDirectory_Bad(t *T) {
 }
 
 func TestStore_Store_WorkspaceStateDirectory_Ugly(t *T) {
-	storeInstance, err := New(testMemoryDatabasePath, WithWorkspaceStateDirectory("state///"))
-	RequireNoError(t, err)
+	r := New(testMemoryDatabasePath, WithWorkspaceStateDirectory("state///"))
+	RequireNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 	AssertEqual(t, "state", storeInstance.WorkspaceStateDirectory())
 }
@@ -2203,16 +2382,18 @@ func TestStore_Store_IsClosed_Bad(t *T) {
 }
 
 func TestStore_Store_IsClosed_Ugly(t *T) {
-	storeInstance, err := New(testMemoryDatabasePath)
-	RequireNoError(t, err)
+	r := New(testMemoryDatabasePath)
+	RequireNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	RequireNoError(t, storeInstance.Close())
 	AssertTrue(t, storeInstance.IsClosed())
 }
 
 func TestStore_Store_Close_Good(t *T) {
-	storeInstance, err := New(testMemoryDatabasePath)
-	RequireNoError(t, err)
-	err = storeInstance.Close()
+	r := New(testMemoryDatabasePath)
+	RequireNoError(t, r)
+	storeInstance := r.Value.(*Store)
+	err := storeInstance.Close()
 	AssertNoError(t, err)
 	AssertTrue(t, storeInstance.IsClosed())
 }
@@ -2224,8 +2405,9 @@ func TestStore_Store_Close_Bad(t *T) {
 }
 
 func TestStore_Store_Close_Ugly(t *T) {
-	storeInstance, err := New(testMemoryDatabasePath)
-	RequireNoError(t, err)
+	r := New(testMemoryDatabasePath)
+	RequireNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	RequireNoError(t, storeInstance.Close())
 	AssertNoError(t, storeInstance.Close())
 }

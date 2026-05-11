@@ -222,8 +222,9 @@ func TestMedium_WithMedium_Good(t *testing.T) {
 	useWorkspaceStateDirectory(t)
 
 	medium := newMemoryMedium()
-	storeInstance, err := New(testMemoryDatabasePath, WithMedium(medium))
-	assertNoError(t, err)
+	r := New(testMemoryDatabasePath, WithMedium(medium))
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 
 	assertSamef(t, medium, storeInstance.Medium(), "medium should round-trip via accessor")
@@ -233,8 +234,9 @@ func TestMedium_WithMedium_Good(t *testing.T) {
 func TestMedium_WithMedium_Bad_NilKeepsFilesystemBackend(t *testing.T) {
 	useWorkspaceStateDirectory(t)
 
-	storeInstance, err := New(testMemoryDatabasePath)
-	assertNoError(t, err)
+	r := New(testMemoryDatabasePath)
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 
 	assertNil(t, storeInstance.Medium())
@@ -245,14 +247,16 @@ func TestMedium_WithMedium_Good_PersistsDatabaseThroughMedium(t *testing.T) {
 
 	medium := newMemoryMedium()
 
-	storeInstance, err := New(testAppDatabaseFile, WithMedium(medium))
-	assertNoError(t, err)
+	r := New(testAppDatabaseFile, WithMedium(medium))
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 
 	assertNoError(t, storeInstance.Set("g", "k", "v"))
 	assertNoError(t, storeInstance.Close())
 
-	reopenedStore, err := New(testAppDatabaseFile, WithMedium(medium))
-	assertNoError(t, err)
+	r = New(testAppDatabaseFile, WithMedium(medium))
+	assertNoError(t, r)
+	reopenedStore := r.Value.(*Store)
 	defer func() { _ = reopenedStore.Close() }()
 
 	value, err := reopenedStore.Get("g", "k")
@@ -264,8 +268,9 @@ func TestMedium_WithMedium_Good_PersistsDatabaseThroughMedium(t *testing.T) {
 func TestMedium_Import_Good_JSONL(t *testing.T) {
 	useWorkspaceStateDirectory(t)
 
-	storeInstance, err := New(testMemoryDatabasePath)
-	assertNoError(t, err)
+	r := New(testMemoryDatabasePath)
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 
 	workspace, err := storeInstance.NewWorkspace("medium-import-jsonl")
@@ -289,8 +294,9 @@ func TestMedium_Import_Good_JSONL(t *testing.T) {
 func TestMedium_Import_Good_JSONArray(t *testing.T) {
 	useWorkspaceStateDirectory(t)
 
-	storeInstance, err := New(testMemoryDatabasePath)
-	assertNoError(t, err)
+	r := New(testMemoryDatabasePath)
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 
 	workspace, err := storeInstance.NewWorkspace("medium-import-json-array")
@@ -308,8 +314,9 @@ func TestMedium_Import_Good_JSONArray(t *testing.T) {
 func TestMedium_Import_Good_CSV(t *testing.T) {
 	useWorkspaceStateDirectory(t)
 
-	storeInstance, err := New(testMemoryDatabasePath)
-	assertNoError(t, err)
+	r := New(testMemoryDatabasePath)
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 
 	workspace, err := storeInstance.NewWorkspace("medium-import-csv")
@@ -327,8 +334,9 @@ func TestMedium_Import_Good_CSV(t *testing.T) {
 func TestMedium_Import_Good_CSVQuotedMultiline(t *testing.T) {
 	useWorkspaceStateDirectory(t)
 
-	storeInstance, err := New(testMemoryDatabasePath)
-	assertNoError(t, err)
+	r := New(testMemoryDatabasePath)
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 
 	workspace, err := storeInstance.NewWorkspace("medium-import-csv-multiline")
@@ -346,8 +354,9 @@ func TestMedium_Import_Good_CSVQuotedMultiline(t *testing.T) {
 func TestMedium_Import_Bad_JSONArrayNonObject(t *testing.T) {
 	useWorkspaceStateDirectory(t)
 
-	storeInstance, err := New(testMemoryDatabasePath)
-	assertNoError(t, err)
+	r := New(testMemoryDatabasePath)
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 
 	workspace, err := storeInstance.NewWorkspace("medium-import-json-non-object")
@@ -367,8 +376,9 @@ func TestMedium_Import_Bad_JSONArrayNonObject(t *testing.T) {
 func TestMedium_Import_Bad_MalformedCSV(t *testing.T) {
 	useWorkspaceStateDirectory(t)
 
-	storeInstance, err := New(testMemoryDatabasePath)
-	assertNoError(t, err)
+	r := New(testMemoryDatabasePath)
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 
 	workspace, err := storeInstance.NewWorkspace("medium-import-csv-bad")
@@ -388,8 +398,9 @@ func TestMedium_Import_Bad_MalformedCSV(t *testing.T) {
 func TestMedium_Import_Bad_NilArguments(t *testing.T) {
 	useWorkspaceStateDirectory(t)
 
-	storeInstance, err := New(testMemoryDatabasePath)
-	assertNoError(t, err)
+	r := New(testMemoryDatabasePath)
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 
 	workspace, err := storeInstance.NewWorkspace("medium-import-bad")
@@ -406,8 +417,9 @@ func TestMedium_Import_Bad_NilArguments(t *testing.T) {
 func TestMedium_Import_Ugly_MissingFileReturnsError(t *testing.T) {
 	useWorkspaceStateDirectory(t)
 
-	storeInstance, err := New(testMemoryDatabasePath)
-	assertNoError(t, err)
+	r := New(testMemoryDatabasePath)
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 
 	workspace, err := storeInstance.NewWorkspace("medium-import-missing")
@@ -421,8 +433,9 @@ func TestMedium_Import_Ugly_MissingFileReturnsError(t *testing.T) {
 func TestMedium_Export_Good_JSON(t *testing.T) {
 	useWorkspaceStateDirectory(t)
 
-	storeInstance, err := New(testMemoryDatabasePath)
-	assertNoError(t, err)
+	r := New(testMemoryDatabasePath)
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 
 	workspace, err := storeInstance.NewWorkspace("medium-export-json")
@@ -446,8 +459,9 @@ func TestMedium_Export_Good_JSON(t *testing.T) {
 func TestMedium_Export_Good_JSONLines(t *testing.T) {
 	useWorkspaceStateDirectory(t)
 
-	storeInstance, err := New(testMemoryDatabasePath)
-	assertNoError(t, err)
+	r := New(testMemoryDatabasePath)
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 
 	workspace, err := storeInstance.NewWorkspace("medium-export-jsonl")
@@ -474,8 +488,9 @@ func TestMedium_Export_Good_JSONLines(t *testing.T) {
 func TestMedium_Export_Bad_NilArguments(t *testing.T) {
 	useWorkspaceStateDirectory(t)
 
-	storeInstance, err := New(testMemoryDatabasePath)
-	assertNoError(t, err)
+	r := New(testMemoryDatabasePath)
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 
 	workspace, err := storeInstance.NewWorkspace("medium-export-bad")
@@ -492,8 +507,9 @@ func TestMedium_Export_Bad_NilArguments(t *testing.T) {
 func TestMedium_Export_Bad_JSONPropagatesWorkspaceFailure(t *testing.T) {
 	useWorkspaceStateDirectory(t)
 
-	storeInstance, err := New(testMemoryDatabasePath)
-	assertNoError(t, err)
+	r := New(testMemoryDatabasePath)
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 
 	workspace, err := storeInstance.NewWorkspace("medium-export-json-closed")
@@ -518,8 +534,9 @@ func TestMedium_Compact_Good_MediumRoutesArchive(t *testing.T) {
 	useArchiveOutputDirectory(t)
 
 	medium := newMemoryMedium()
-	storeInstance, err := New(testMemoryDatabasePath, WithJournal(testJournalEndpoint, "core", "events"), WithMedium(medium))
-	assertNoError(t, err)
+	r := New(testMemoryDatabasePath, WithJournal(testJournalEndpoint, "core", "events"), WithMedium(medium))
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 
 	assertTrue(t, storeInstance.CommitToJournal("jobs", map[string]any{"count": 3}, map[string]string{"workspace": "jobs-1"}).OK)
@@ -541,8 +558,9 @@ func TestMedium_Compact_Bad_PreservesStagedArchiveWhenPublishFails(t *testing.T)
 	useArchiveOutputDirectory(t)
 
 	medium := &renameFailMedium{memoryMedium: newMemoryMedium()}
-	storeInstance, err := New(testMemoryDatabasePath, WithJournal(testJournalEndpoint, "core", "events"), WithMedium(medium))
-	assertNoError(t, err)
+	r := New(testMemoryDatabasePath, WithJournal(testJournalEndpoint, "core", "events"), WithMedium(medium))
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 
 	assertTrue(t, storeInstance.CommitToJournal("jobs", map[string]any{"count": 3}, map[string]string{"workspace": "jobs-1"}).OK)
@@ -584,8 +602,9 @@ func splitNewlines(content string) []string {
 }
 
 func TestMedium_WithMedium_Bad(t *T) {
-	storeInstance, err := New(testMemoryDatabasePath, WithMedium(nil))
-	RequireNoError(t, err)
+	r := New(testMemoryDatabasePath, WithMedium(nil))
+	RequireNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 	AssertNil(t, storeInstance.Medium())
 }
@@ -598,8 +617,9 @@ func TestMedium_WithMedium_Ugly(t *T) {
 
 func TestMedium_Store_Medium_Good(t *T) {
 	medium := newFixtureMedium()
-	storeInstance, err := NewConfigured(StoreConfig{DatabasePath: testMemoryDatabasePath, Medium: medium})
-	RequireNoError(t, err)
+	r := NewConfigured(StoreConfig{DatabasePath: testMemoryDatabasePath, Medium: medium})
+	RequireNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 	AssertSame(t, medium, storeInstance.Medium())
 }

@@ -4,15 +4,17 @@ import core "dappco.re/go"
 
 func ExampleWithMedium() {
 	medium := newFixtureMedium()
-	storeInstance, result := New(":memory:", WithMedium(medium))
-	exampleRequireOK(result)
+	r := New(":memory:", WithMedium(medium))
+	exampleRequireOK(r)
+	storeInstance := r.Value.(*Store)
 	defer exampleCloseStore(storeInstance)
 	core.Println(storeInstance.Medium() != nil)
 }
 
 func ExampleStore_Medium() {
-	storeInstance, result := New(":memory:", WithMedium(newFixtureMedium()))
-	exampleRequireOK(result)
+	r := New(":memory:", WithMedium(newFixtureMedium()))
+	exampleRequireOK(r)
+	storeInstance := r.Value.(*Store)
 	defer exampleCloseStore(storeInstance)
 	medium := storeInstance.Medium()
 	core.Println(medium != nil)

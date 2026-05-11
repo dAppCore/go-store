@@ -16,10 +16,11 @@ func BenchmarkGetAll_VaryingSize(b *testing.B) {
 
 	for _, size := range sizes {
 		b.Run(core.Sprintf("size=%d", size), func(b *testing.B) {
-			storeInstance, err := New(testMemoryDatabasePath)
-			if !err.OK {
-				b.Fatal(err.Error())
+			r := New(testMemoryDatabasePath)
+			if !r.OK {
+				b.Fatal(r.Error())
 			}
+			storeInstance := r.Value.(*Store)
 			defer func() { _ = storeInstance.Close() }()
 
 			for i := range size {
@@ -37,10 +38,11 @@ func BenchmarkGetAll_VaryingSize(b *testing.B) {
 }
 
 func BenchmarkSetGet_Parallel(b *testing.B) {
-	storeInstance, err := New(testMemoryDatabasePath)
-	if !err.OK {
-		b.Fatal(err.Error())
+	r := New(testMemoryDatabasePath)
+	if !r.OK {
+		b.Fatal(r.Error())
 	}
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 
 	b.ReportAllocs()
@@ -58,10 +60,11 @@ func BenchmarkSetGet_Parallel(b *testing.B) {
 }
 
 func BenchmarkCount_10K(b *testing.B) {
-	storeInstance, err := New(testMemoryDatabasePath)
-	if !err.OK {
-		b.Fatal(err.Error())
+	r := New(testMemoryDatabasePath)
+	if !r.OK {
+		b.Fatal(r.Error())
 	}
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 
 	for i := range 10_000 {
@@ -77,10 +80,11 @@ func BenchmarkCount_10K(b *testing.B) {
 }
 
 func BenchmarkDelete(b *testing.B) {
-	storeInstance, err := New(testMemoryDatabasePath)
-	if !err.OK {
-		b.Fatal(err.Error())
+	r := New(testMemoryDatabasePath)
+	if !r.OK {
+		b.Fatal(r.Error())
 	}
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 
 	// Pre-populate keys that will be deleted.
@@ -97,10 +101,11 @@ func BenchmarkDelete(b *testing.B) {
 }
 
 func BenchmarkSetWithTTL(b *testing.B) {
-	storeInstance, err := New(testMemoryDatabasePath)
-	if !err.OK {
-		b.Fatal(err.Error())
+	r := New(testMemoryDatabasePath)
+	if !r.OK {
+		b.Fatal(r.Error())
 	}
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 
 	b.ReportAllocs()
@@ -112,10 +117,11 @@ func BenchmarkSetWithTTL(b *testing.B) {
 }
 
 func BenchmarkRender(b *testing.B) {
-	storeInstance, err := New(testMemoryDatabasePath)
-	if !err.OK {
-		b.Fatal(err.Error())
+	r := New(testMemoryDatabasePath)
+	if !r.OK {
+		b.Fatal(r.Error())
 	}
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 
 	for i := range 50 {

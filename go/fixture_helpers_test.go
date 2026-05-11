@@ -57,8 +57,9 @@ func AssertErrorIs(t testing.TB, value any, target error) {
 
 func fixtureStore(t *T) *Store {
 	t.Helper()
-	storeInstance, err := New(testMemoryDatabasePath, WithPurgeInterval(24*Hour))
-	RequireNoError(t, err)
+	r := New(testMemoryDatabasePath, WithPurgeInterval(24*Hour))
+	RequireNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	t.Cleanup(func() { _ = storeInstance.Close() })
 	return storeInstance
 }
@@ -66,12 +67,13 @@ func fixtureStore(t *T) *Store {
 func fixtureConfiguredStore(t *T) (*Store, string) {
 	t.Helper()
 	stateDirectory := t.TempDir()
-	storeInstance, err := NewConfigured(StoreConfig{
+	r := NewConfigured(StoreConfig{
 		DatabasePath:            testMemoryDatabasePath,
 		PurgeInterval:           24 * Hour,
 		WorkspaceStateDirectory: stateDirectory,
 	})
-	RequireNoError(t, err)
+	RequireNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	t.Cleanup(func() { _ = storeInstance.Close() })
 	return storeInstance, stateDirectory
 }
@@ -105,8 +107,9 @@ func fixtureQuotaScopedStore(t *T, maxKeys, maxGroups int) *ScopedStore {
 func fixtureDuckDB(t *T) *DuckDB {
 	t.Helper()
 	path := Path(t.TempDir(), "ax7.duckdb")
-	database, err := OpenDuckDBReadWrite(path)
-	RequireNoError(t, err)
+	r := OpenDuckDBReadWrite(path)
+	RequireNoError(t, r)
+	database := r.Value.(*DuckDB)
 	t.Cleanup(func() { _ = database.Close() })
 	return database
 }

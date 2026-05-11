@@ -9,7 +9,9 @@ import (
 )
 
 func TestEvents_Watch_Good_Group(t *testing.T) {
-	storeInstance, _ := New(testMemoryDatabasePath)
+	r := New(testMemoryDatabasePath)
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 
 	events := storeInstance.Watch("config")
@@ -27,7 +29,9 @@ func TestEvents_Watch_Good_Group(t *testing.T) {
 }
 
 func TestEvents_Watch_Good_WildcardGroup(t *testing.T) {
-	storeInstance, _ := New(testMemoryDatabasePath)
+	r := New(testMemoryDatabasePath)
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 
 	events := storeInstance.Watch("*")
@@ -47,7 +51,9 @@ func TestEvents_Watch_Good_WildcardGroup(t *testing.T) {
 }
 
 func TestEvents_Unwatch_Good_StopsDelivery(t *testing.T) {
-	storeInstance, _ := New(testMemoryDatabasePath)
+	r := New(testMemoryDatabasePath)
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 
 	events := storeInstance.Watch("g")
@@ -60,7 +66,9 @@ func TestEvents_Unwatch_Good_StopsDelivery(t *testing.T) {
 }
 
 func TestEvents_Unwatch_Good_Idempotent(t *testing.T) {
-	storeInstance, _ := New(testMemoryDatabasePath)
+	r := New(testMemoryDatabasePath)
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 
 	events := storeInstance.Watch("g")
@@ -69,7 +77,9 @@ func TestEvents_Unwatch_Good_Idempotent(t *testing.T) {
 }
 
 func TestEvents_Close_Good_ClosesWatcherChannels(t *testing.T) {
-	storeInstance, _ := New(testMemoryDatabasePath)
+	r := New(testMemoryDatabasePath)
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 
 	events := storeInstance.Watch("g")
 	assertNoError(t, storeInstance.Close())
@@ -79,14 +89,18 @@ func TestEvents_Close_Good_ClosesWatcherChannels(t *testing.T) {
 }
 
 func TestEvents_Unwatch_Good_NilChannel(t *testing.T) {
-	storeInstance, _ := New(testMemoryDatabasePath)
+	r := New(testMemoryDatabasePath)
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 
 	storeInstance.Unwatch("g", nil)
 }
 
 func TestEvents_Watch_Good_DeleteEvent(t *testing.T) {
-	storeInstance, _ := New(testMemoryDatabasePath)
+	r := New(testMemoryDatabasePath)
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 
 	events := storeInstance.Watch("g")
@@ -109,7 +123,9 @@ func TestEvents_Watch_Good_DeleteEvent(t *testing.T) {
 }
 
 func TestEvents_Watch_Good_DeleteGroupEvent(t *testing.T) {
-	storeInstance, _ := New(testMemoryDatabasePath)
+	r := New(testMemoryDatabasePath)
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 
 	events := storeInstance.Watch("g")
@@ -133,7 +149,9 @@ func TestEvents_Watch_Good_DeleteGroupEvent(t *testing.T) {
 }
 
 func TestEvents_OnChange_Good_Fires(t *testing.T) {
-	storeInstance, _ := New(testMemoryDatabasePath)
+	r := New(testMemoryDatabasePath)
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 
 	var events []Event
@@ -157,7 +175,9 @@ func TestEvents_OnChange_Good_Fires(t *testing.T) {
 }
 
 func TestEvents_OnChange_Good_GroupFilteredCallback(t *testing.T) {
-	storeInstance, _ := New(testMemoryDatabasePath)
+	r := New(testMemoryDatabasePath)
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 
 	var seen []string
@@ -176,7 +196,9 @@ func TestEvents_OnChange_Good_GroupFilteredCallback(t *testing.T) {
 }
 
 func TestEvents_OnChange_Good_ReentrantSubscriptionChanges(t *testing.T) {
-	storeInstance, _ := New(testMemoryDatabasePath)
+	r := New(testMemoryDatabasePath)
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 
 	var (
@@ -233,7 +255,9 @@ func TestEvents_OnChange_Good_ReentrantSubscriptionChanges(t *testing.T) {
 }
 
 func TestEvents_Notify_Good_PopulatesTimestamp(t *testing.T) {
-	storeInstance, _ := New(testMemoryDatabasePath)
+	r := New(testMemoryDatabasePath)
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 
 	events := storeInstance.Watch("config")
@@ -252,7 +276,9 @@ func TestEvents_Notify_Good_PopulatesTimestamp(t *testing.T) {
 }
 
 func TestEvents_Watch_Good_BufferDrops(t *testing.T) {
-	storeInstance, _ := New(testMemoryDatabasePath)
+	r := New(testMemoryDatabasePath)
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 
 	events := storeInstance.Watch("g")
@@ -267,7 +293,9 @@ func TestEvents_Watch_Good_BufferDrops(t *testing.T) {
 }
 
 func TestEvents_Watch_Good_ConcurrentWatchUnwatch(t *testing.T) {
-	storeInstance, _ := New(testMemoryDatabasePath)
+	r := New(testMemoryDatabasePath)
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 
 	const workers = 10
@@ -288,7 +316,9 @@ func TestEvents_Watch_Good_ConcurrentWatchUnwatch(t *testing.T) {
 }
 
 func TestEvents_Watch_Good_ScopedStoreEventGroup(t *testing.T) {
-	storeInstance, _ := New(testMemoryDatabasePath)
+	r := New(testMemoryDatabasePath)
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 
 	scopedStore := NewScoped(storeInstance, testTenantA)
@@ -309,7 +339,9 @@ func TestEvents_Watch_Good_ScopedStoreEventGroup(t *testing.T) {
 }
 
 func TestEvents_Watch_Good_SetWithTTL(t *testing.T) {
-	storeInstance, _ := New(testMemoryDatabasePath)
+	r := New(testMemoryDatabasePath)
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 
 	events := storeInstance.Watch("g")

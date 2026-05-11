@@ -46,42 +46,67 @@ type DuckDB struct {
 }
 
 // OpenDuckDB opens a DuckDB database file in read-only mode to avoid locking
-// issues with the Python pipeline.
+// issues with the Python pipeline. Panics in the body recover as Result.Fail.
 //
 // Usage example:
 //
-//	db, err := store.OpenDuckDB("/Volumes/Data/lem/lem.duckdb")
-func OpenDuckDB(path string) (*DuckDB, core.Result) {
+//	r := store.OpenDuckDB("/Volumes/Data/lem/lem.duckdb")
+//	if !r.OK { return r }
+//	db := r.Value.(*DuckDB)
+func OpenDuckDB(path string) (r core.Result) {
+	defer func() {
+		if rec := recover(); rec != nil {
+			if err, ok := rec.(error); ok {
+				r = core.Fail(err)
+				return
+			}
+			r = core.Fail(core.E("store.OpenDuckDB", "panic recovered", nil))
+		}
+	}()
+
 	conn, err := sql.Open("duckdb", path+"?access_mode=READ_ONLY")
 	if err != nil {
-		return nil, core.Fail(core.E("store.OpenDuckDB", core.Sprintf("open duckdb %s", path), err))
+		return core.Fail(core.E("store.OpenDuckDB", core.Sprintf("open duckdb %s", path), err))
 	}
 	if err := conn.Ping(); err != nil {
 		if closeErr := conn.Close(); closeErr != nil {
 			core.Error("duckdb close after failed ping", "err", closeErr)
 		}
-		return nil, core.Fail(core.E("store.OpenDuckDB", core.Sprintf("ping duckdb %s", path), err))
+		return core.Fail(core.E("store.OpenDuckDB", core.Sprintf("ping duckdb %s", path), err))
 	}
-	return &DuckDB{conn: conn, path: path}, core.Ok(nil)
+	return core.Ok(&DuckDB{conn: conn, path: path})
 }
 
 // OpenDuckDBReadWrite opens a DuckDB database in read-write mode.
+// Panics in the body recover as Result.Fail.
 //
 // Usage example:
 //
-//	db, err := store.OpenDuckDBReadWrite("/Volumes/Data/lem/lem.duckdb")
-func OpenDuckDBReadWrite(path string) (*DuckDB, core.Result) {
+//	r := store.OpenDuckDBReadWrite("/Volumes/Data/lem/lem.duckdb")
+//	if !r.OK { return r }
+//	db := r.Value.(*DuckDB)
+func OpenDuckDBReadWrite(path string) (r core.Result) {
+	defer func() {
+		if rec := recover(); rec != nil {
+			if err, ok := rec.(error); ok {
+				r = core.Fail(err)
+				return
+			}
+			r = core.Fail(core.E("store.OpenDuckDBReadWrite", "panic recovered", nil))
+		}
+	}()
+
 	conn, err := sql.Open("duckdb", path)
 	if err != nil {
-		return nil, core.Fail(core.E("store.OpenDuckDBReadWrite", core.Sprintf("open duckdb %s", path), err))
+		return core.Fail(core.E("store.OpenDuckDBReadWrite", core.Sprintf("open duckdb %s", path), err))
 	}
 	if err := conn.Ping(); err != nil {
 		if closeErr := conn.Close(); closeErr != nil {
 			core.Error("duckdb close after failed ping", "err", closeErr)
 		}
-		return nil, core.Fail(core.E("store.OpenDuckDBReadWrite", core.Sprintf("ping duckdb %s", path), err))
+		return core.Fail(core.E("store.OpenDuckDBReadWrite", core.Sprintf("ping duckdb %s", path), err))
 	}
-	return &DuckDB{conn: conn, path: path}, core.Ok(nil)
+	return core.Ok(&DuckDB{conn: conn, path: path})
 }
 
 // Close closes the database connection.
