@@ -10,8 +10,9 @@ import (
 func TestWorkspace_NewWorkspace_Good_CreatePutAggregateQuery(t *testing.T) {
 	stateDirectory := useWorkspaceStateDirectory(t)
 
-	storeInstance, err := New(testMemoryDatabasePath, WithJournal(testJournalEndpoint, "core", "events"))
-	assertNoError(t, err)
+	r := New(testMemoryDatabasePath, WithJournal(testJournalEndpoint, "core", "events"))
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 
 	workspace, err := storeInstance.NewWorkspace(testScrollSession)
@@ -41,8 +42,9 @@ func TestWorkspace_NewWorkspace_Good_CreatePutAggregateQuery(t *testing.T) {
 func TestWorkspace_DatabasePath_Good(t *testing.T) {
 	stateDirectory := useWorkspaceStateDirectory(t)
 
-	storeInstance, err := New(testMemoryDatabasePath)
-	assertNoError(t, err)
+	r := New(testMemoryDatabasePath)
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 
 	workspace, err := storeInstance.NewWorkspace(testScrollSession)
@@ -55,8 +57,9 @@ func TestWorkspace_DatabasePath_Good(t *testing.T) {
 func TestWorkspace_Count_Good_Empty(t *testing.T) {
 	useWorkspaceStateDirectory(t)
 
-	storeInstance, err := New(testMemoryDatabasePath)
-	assertNoError(t, err)
+	r := New(testMemoryDatabasePath)
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 
 	workspace, err := storeInstance.NewWorkspace("count-empty")
@@ -71,8 +74,9 @@ func TestWorkspace_Count_Good_Empty(t *testing.T) {
 func TestWorkspace_Count_Good_AfterPuts(t *testing.T) {
 	useWorkspaceStateDirectory(t)
 
-	storeInstance, err := New(testMemoryDatabasePath)
-	assertNoError(t, err)
+	r := New(testMemoryDatabasePath)
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 
 	workspace, err := storeInstance.NewWorkspace("count-puts")
@@ -91,8 +95,9 @@ func TestWorkspace_Count_Good_AfterPuts(t *testing.T) {
 func TestWorkspace_Count_Bad_ClosedWorkspace(t *testing.T) {
 	useWorkspaceStateDirectory(t)
 
-	storeInstance, err := New(testMemoryDatabasePath)
-	assertNoError(t, err)
+	r := New(testMemoryDatabasePath)
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 
 	workspace, err := storeInstance.NewWorkspace("count-closed")
@@ -106,8 +111,9 @@ func TestWorkspace_Count_Bad_ClosedWorkspace(t *testing.T) {
 func TestWorkspace_Query_Good_RFCEntriesView(t *testing.T) {
 	useWorkspaceStateDirectory(t)
 
-	storeInstance, err := New(testMemoryDatabasePath)
-	assertNoError(t, err)
+	r := New(testMemoryDatabasePath)
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 
 	workspace, err := storeInstance.NewWorkspace(testScrollSession)
@@ -132,8 +138,9 @@ func TestWorkspace_Query_Good_RFCEntriesView(t *testing.T) {
 func TestWorkspace_Commit_Good_JournalAndSummary(t *testing.T) {
 	useWorkspaceStateDirectory(t)
 
-	storeInstance, err := New(testMemoryDatabasePath, WithJournal(testJournalEndpoint, "core", "events"))
-	assertNoError(t, err)
+	r := New(testMemoryDatabasePath, WithJournal(testJournalEndpoint, "core", "events"))
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 
 	workspace, err := storeInstance.NewWorkspace(testScrollSession)
@@ -177,8 +184,9 @@ func TestWorkspace_Commit_Good_JournalAndSummary(t *testing.T) {
 func TestWorkspace_Commit_Good_ResultCopiesAggregatedMap(t *testing.T) {
 	useWorkspaceStateDirectory(t)
 
-	storeInstance, err := New(testMemoryDatabasePath, WithJournal(testJournalEndpoint, "core", "events"))
-	assertNoError(t, err)
+	r := New(testMemoryDatabasePath, WithJournal(testJournalEndpoint, "core", "events"))
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 
 	workspace, err := storeInstance.NewWorkspace(testScrollSession)
@@ -200,8 +208,9 @@ func TestWorkspace_Commit_Good_ResultCopiesAggregatedMap(t *testing.T) {
 func TestWorkspace_Commit_Good_EmitsSummaryEvent(t *testing.T) {
 	useWorkspaceStateDirectory(t)
 
-	storeInstance, err := New(testMemoryDatabasePath, WithJournal(testJournalEndpoint, "core", "events"))
-	assertNoError(t, err)
+	r := New(testMemoryDatabasePath, WithJournal(testJournalEndpoint, "core", "events"))
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 
 	events := storeInstance.Watch(workspaceSummaryGroup(testScrollSession))
@@ -236,8 +245,9 @@ func TestWorkspace_Commit_Good_EmitsSummaryEvent(t *testing.T) {
 func TestWorkspace_RecoverOrphans_Good_SkipsAlreadyCommittedWorkspaceFile(t *testing.T) {
 	stateDirectory := useWorkspaceStateDirectory(t)
 
-	storeInstance, err := New(testMemoryDatabasePath, WithJournal(testJournalEndpoint, "core", "events"))
-	assertNoError(t, err)
+	r := New(testMemoryDatabasePath, WithJournal(testJournalEndpoint, "core", "events"))
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 
 	workspace, err := storeInstance.NewWorkspace("committed-leftover")
@@ -258,8 +268,9 @@ func TestWorkspace_RecoverOrphans_Good_SkipsAlreadyCommittedWorkspaceFile(t *tes
 func TestWorkspace_Discard_Good_Idempotent(t *testing.T) {
 	useWorkspaceStateDirectory(t)
 
-	storeInstance, err := New(testMemoryDatabasePath)
-	assertNoError(t, err)
+	r := New(testMemoryDatabasePath)
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 
 	workspace, err := storeInstance.NewWorkspace("discard-session")
@@ -274,8 +285,9 @@ func TestWorkspace_Discard_Good_Idempotent(t *testing.T) {
 func TestWorkspace_Close_Good_PreservesFileForRecovery(t *testing.T) {
 	stateDirectory := useWorkspaceStateDirectory(t)
 
-	storeInstance, err := New(testMemoryDatabasePath)
-	assertNoError(t, err)
+	r := New(testMemoryDatabasePath)
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 
 	workspace, err := storeInstance.NewWorkspace("close-session")
@@ -324,8 +336,9 @@ func TestWorkspace_Close_Good_ClosesDatabaseWithoutFilesystem(t *testing.T) {
 func TestWorkspace_RecoverOrphans_Good(t *testing.T) {
 	stateDirectory := useWorkspaceStateDirectory(t)
 
-	storeInstance, err := New(testMemoryDatabasePath, WithJournal(testJournalEndpoint, "core", "events"))
-	assertNoError(t, err)
+	r := New(testMemoryDatabasePath, WithJournal(testJournalEndpoint, "core", "events"))
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 
 	workspace, err := storeInstance.NewWorkspace(testOrphanSession)
@@ -359,8 +372,9 @@ func TestWorkspace_New_Good_LeavesOrphanedWorkspacesForRecovery(t *testing.T) {
 	assertNoError(t, orphanDatabase.Close())
 	assertTrue(t, testFilesystem().Exists(orphanDatabasePath))
 
-	storeInstance, err := New(testMemoryDatabasePath)
-	assertNoError(t, err)
+	r := New(testMemoryDatabasePath)
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 
 	assertTrue(t, testFilesystem().Exists(orphanDatabasePath))
@@ -391,8 +405,9 @@ func TestWorkspace_New_Good_CachesOrphansDuringConstruction(t *testing.T) {
 	assertNoError(t, orphanDatabase.Close())
 	assertTrue(t, testFilesystem().Exists(orphanDatabasePath))
 
-	storeInstance, err := New(testMemoryDatabasePath)
-	assertNoError(t, err)
+	r := New(testMemoryDatabasePath)
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 
 	requireCoreOK(t, testFilesystem().DeleteAll(stateDirectory))
@@ -421,11 +436,12 @@ func TestWorkspace_NewConfigured_Good_CachesOrphansFromConfiguredStateDirectory(
 	assertNoError(t, sqlErr)
 	assertNoError(t, orphanDatabase.Close())
 
-	storeInstance, err := NewConfigured(StoreConfig{
+	r := NewConfigured(StoreConfig{
 		DatabasePath:            testMemoryDatabasePath,
 		WorkspaceStateDirectory: stateDirectory,
 	})
-	assertNoError(t, err)
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 
 	requireCoreOK(t, testFilesystem().DeleteAll(stateDirectory))
@@ -448,8 +464,9 @@ func TestWorkspace_RecoverOrphans_Good_TrailingSlashUsesCache(t *testing.T) {
 	assertNoError(t, orphanDatabase.Close())
 	assertTrue(t, testFilesystem().Exists(orphanDatabasePath))
 
-	storeInstance, err := New(testMemoryDatabasePath)
-	assertNoError(t, err)
+	r := New(testMemoryDatabasePath)
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 
 	requireCoreOK(t, testFilesystem().DeleteAll(stateDirectory))
@@ -471,15 +488,17 @@ func TestWorkspace_Close_Good_PreservesOrphansForRecovery(t *testing.T) {
 	assertNoError(t, orphanDatabase.Close())
 	assertTrue(t, testFilesystem().Exists(orphanDatabasePath))
 
-	storeInstance, err := New(testMemoryDatabasePath)
-	assertNoError(t, err)
+	r := New(testMemoryDatabasePath)
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 
 	assertNoError(t, storeInstance.Close())
 
 	assertTrue(t, testFilesystem().Exists(orphanDatabasePath))
 
-	recoveryStore, err := New(testMemoryDatabasePath)
-	assertNoError(t, err)
+	rRec := New(testMemoryDatabasePath)
+	assertNoError(t, rRec)
+	recoveryStore := rRec.Value.(*Store)
 	defer func() { _ = recoveryStore.Close() }()
 
 	orphans := recoveryStore.RecoverOrphans(stateDirectory)

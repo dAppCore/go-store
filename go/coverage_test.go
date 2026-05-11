@@ -32,9 +32,9 @@ func TestCoverage_New_Bad_SchemaConflict(t *testing.T) {
 	assertNoError(t, err)
 	assertNoError(t, database.Close())
 
-	_, result := New(databasePath)
-	assertError(t, result)
-	assertContainsString(t, result.Error(), "store.New: ensure schema")
+	r := New(databasePath)
+	assertError(t, r)
+	assertContainsString(t, r.Error(), "store.New: ensure schema")
 }
 
 // ---------------------------------------------------------------------------
@@ -44,8 +44,9 @@ func TestCoverage_New_Bad_SchemaConflict(t *testing.T) {
 func TestCoverage_GetAll_Bad_ScanError(t *testing.T) {
 	// Trigger a scan error by inserting a row with a NULL key. The production
 	// code scans into plain strings, which cannot represent NULL.
-	storeInstance, result := New(testMemoryDatabasePath)
-	assertNoError(t, result)
+	r := New(testMemoryDatabasePath)
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 
 	// Insert a normal row first so the query returns results.
@@ -68,7 +69,7 @@ func TestCoverage_GetAll_Bad_ScanError(t *testing.T) {
 	_, err = storeInstance.sqliteDatabase.Exec(testDropEntriesBackupSQL)
 	assertNoError(t, err)
 
-	_, result = storeInstance.GetAll("g")
+	_, result := storeInstance.GetAll("g")
 	assertError(t, result)
 	assertContainsString(t, result.Error(), "store.All: scan")
 }
@@ -82,8 +83,9 @@ func TestCoverage_GetAll_Bad_RowsError(t *testing.T) {
 	// starts successfully but encounters a malformed page mid-scan.
 	databasePath := testPath(t, "corrupt-getall.db")
 
-	storeInstance, result := New(databasePath)
-	assertNoError(t, result)
+	r := New(databasePath)
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 
 	// Insert enough rows to span multiple database pages.
 	const rows = 5000
@@ -120,11 +122,12 @@ func TestCoverage_GetAll_Bad_RowsError(t *testing.T) {
 	_ = testFilesystem().Delete(databasePath + "-wal")
 	_ = testFilesystem().Delete(databasePath + "-shm")
 
-	reopenedStore, result := New(databasePath)
-	assertNoError(t, result)
+	r = New(databasePath)
+	assertNoError(t, r)
+	reopenedStore := r.Value.(*Store)
 	defer func() { _ = reopenedStore.Close() }()
 
-	_, result = reopenedStore.GetAll("g")
+	_, result := reopenedStore.GetAll("g")
 	assertError(t, result)
 	assertContainsString(t, result.Error(), "store.All: rows")
 }
@@ -135,8 +138,9 @@ func TestCoverage_GetAll_Bad_RowsError(t *testing.T) {
 
 func TestCoverage_Render_Bad_ScanError(t *testing.T) {
 	// Same NULL-key technique as TestCoverage_GetAll_Bad_ScanError.
-	storeInstance, result := New(testMemoryDatabasePath)
-	assertNoError(t, result)
+	r := New(testMemoryDatabasePath)
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 
 	assertNoError(t, storeInstance.Set("g", "good", "value"))
@@ -157,7 +161,7 @@ func TestCoverage_Render_Bad_ScanError(t *testing.T) {
 	_, err = storeInstance.sqliteDatabase.Exec(testDropEntriesBackupSQL)
 	assertNoError(t, err)
 
-	_, result = storeInstance.Render("{{ .good }}", "g")
+	_, result := storeInstance.Render("{{ .good }}", "g")
 	assertError(t, result)
 	assertContainsString(t, result.Error(), "store.All: scan")
 }
@@ -170,8 +174,9 @@ func TestCoverage_Render_Bad_RowsError(t *testing.T) {
 	// Same corruption technique as TestCoverage_GetAll_Bad_RowsError.
 	databasePath := testPath(t, "corrupt-render.db")
 
-	storeInstance, result := New(databasePath)
-	assertNoError(t, result)
+	r := New(databasePath)
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 
 	const rows = 5000
 	for i := range rows {
@@ -203,11 +208,12 @@ func TestCoverage_Render_Bad_RowsError(t *testing.T) {
 	_ = testFilesystem().Delete(databasePath + "-wal")
 	_ = testFilesystem().Delete(databasePath + "-shm")
 
-	reopenedStore, result := New(databasePath)
-	assertNoError(t, result)
+	r = New(databasePath)
+	assertNoError(t, r)
+	reopenedStore := r.Value.(*Store)
 	defer func() { _ = reopenedStore.Close() }()
 
-	_, result = reopenedStore.Render("{{ . }}", "g")
+	_, result := reopenedStore.Render("{{ . }}", "g")
 	assertError(t, result)
 	assertContainsString(t, result.Error(), "store.All: rows")
 }
@@ -219,8 +225,9 @@ func TestCoverage_Render_Bad_RowsError(t *testing.T) {
 func TestCoverage_GroupsSeq_Bad_ScanError(t *testing.T) {
 	// Trigger a scan error by inserting a row with a NULL group name. The
 	// production code scans into a plain string, which cannot represent NULL.
-	storeInstance, result := New(testMemoryDatabasePath)
-	assertNoError(t, result)
+	r := New(testMemoryDatabasePath)
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 
 	_, err := storeInstance.sqliteDatabase.Exec(testRenameEntriesBackupSQL)
@@ -273,7 +280,9 @@ func TestCoverage_GroupsSeq_Bad_RowsError(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestCoverage_ScopedStore_Bad_GroupsClosedStore(t *testing.T) {
-	storeInstance, _ := New(testMemoryDatabasePath)
+	r := New(testMemoryDatabasePath)
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	assertNoError(t, storeInstance.Close())
 
 	scopedStore := NewScoped(storeInstance, testTenantA)

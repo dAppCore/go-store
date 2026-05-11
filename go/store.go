@@ -363,22 +363,39 @@ func WithPurgeInterval(interval time.Duration) StoreOption {
 	}
 }
 
-// Usage example: `storeInstance, err := store.NewConfigured(store.StoreConfig{DatabasePath: ":memory:", Journal: store.JournalConfiguration{EndpointURL: "http://127.0.0.1:8086", Organisation: "core", BucketName: "events"}, PurgeInterval: 20 * time.Millisecond})`
-func NewConfigured(storeConfig StoreConfig) (*Store, core.Result) {
+// NewConfigured opens the store using a fully-resolved StoreConfig.
+// Panics in the body recover as Result.Fail.
+//
+// Usage example:
+//
+//	r := store.NewConfigured(store.StoreConfig{DatabasePath: ":memory:"})
+//	if !r.OK { return r }
+//	s := r.Value.(*Store)
+func NewConfigured(storeConfig StoreConfig) (r core.Result) {
+	defer func() {
+		if rec := recover(); rec != nil {
+			if err, ok := rec.(error); ok {
+				r = core.Fail(err)
+				return
+			}
+			r = core.Fail(core.E("store.NewConfigured", "panic recovered", nil))
+		}
+	}()
 	return openConfiguredStore("store.NewConfigured", storeConfig)
 }
 
-func openConfiguredStore(operation string, storeConfig StoreConfig) (*Store, core.Result) {
+func openConfiguredStore(operation string, storeConfig StoreConfig) core.Result {
 	if result := storeConfig.Validate(); !result.OK {
 		err, _ := result.Value.(error)
-		return nil, core.Fail(core.E(operation, "validate config", err))
+		return core.Fail(core.E(operation, "validate config", err))
 	}
 	storeConfig = storeConfig.Normalised()
 
-	storeInstance, result := openSQLiteStore(operation, storeConfig.DatabasePath, storeConfig.Medium)
-	if !result.OK {
-		return nil, result
+	openResult := openSQLiteStore(operation, storeConfig.DatabasePath, storeConfig.Medium)
+	if !openResult.OK {
+		return openResult
 	}
+	storeInstance := openResult.Value.(*Store)
 
 	if storeConfig.Journal != (JournalConfiguration{}) {
 		storeInstance.journalConfiguration = storeConfig.Journal
@@ -390,15 +407,30 @@ func openConfiguredStore(operation string, storeConfig StoreConfig) (*Store, cor
 	storeInstance.workspaceStateDirectory = storeConfig.WorkspaceStateDirectory
 	storeInstance.medium = storeConfig.Medium
 
-	// New() performs a non-destructive orphan scan so callers can discover
-	// leftover workspaces via RecoverOrphans().
 	storeInstance.cachedOrphanWorkspaces = discoverOrphanWorkspaces(storeInstance.workspaceStateDirectoryPath(), storeInstance)
 	storeInstance.startBackgroundPurge()
-	return storeInstance, core.Ok(nil)
+	return core.Ok(storeInstance)
 }
 
-// Usage example: `storeInstance, err := store.NewConfigured(store.StoreConfig{DatabasePath: "/tmp/go-store.db", Journal: store.JournalConfiguration{EndpointURL: "http://127.0.0.1:8086", Organisation: "core", BucketName: "events"}})`
-func New(databasePath string, options ...StoreOption) (*Store, core.Result) {
+// New opens the store using a database path and option-funcs.
+// Panics in the body recover as Result.Fail.
+//
+// Usage example:
+//
+//	r := store.New("/tmp/go-store.db")
+//	if !r.OK { return r }
+//	s := r.Value.(*Store)
+func New(databasePath string, options ...StoreOption) (r core.Result) {
+	defer func() {
+		if rec := recover(); rec != nil {
+			if err, ok := rec.(error); ok {
+				r = core.Fail(err)
+				return
+			}
+			r = core.Fail(core.E("store.New", "panic recovered", nil))
+		}
+	}()
+
 	scratch := &Store{
 		databasePath:            databasePath,
 		workspaceStateDirectory: normaliseWorkspaceStateDirectory(defaultWorkspaceStateDirectory),
@@ -418,32 +450,29 @@ func New(databasePath string, options ...StoreOption) (*Store, core.Result) {
 	storeConfig.WorkspaceStateDirectory = scratch.WorkspaceStateDirectory()
 	storeConfig.Medium = scratch.medium
 
-	storeInstance, result := openConfiguredStore(opNew, storeConfig)
-	if !result.OK {
-		return nil, result
-	}
-	return storeInstance, core.Ok(nil)
+	return openConfiguredStore(opNew, storeConfig)
 }
 
-func openSQLiteStore(operation, databasePath string, medium Medium) (*Store, core.Result) {
-	storage, result := prepareSQLiteStorage(operation, databasePath, medium)
-	if !result.OK {
-		return nil, result
+func openSQLiteStore(operation, databasePath string, medium Medium) core.Result {
+	prepareResult := prepareSQLiteStorage(operation, databasePath, medium)
+	if !prepareResult.OK {
+		return prepareResult
 	}
+	storage := prepareResult.Value.(sqliteStorageConfig)
 
 	sqliteDatabase, openErr := sql.Open("sqlite", storage.path)
 	if openErr != nil {
-		return nil, core.Fail(core.E(operation, "open database", openErr))
+		return core.Fail(core.E(operation, "open database", openErr))
 	}
 	if result := configureSQLiteDatabase(operation, sqliteDatabase); !result.OK {
 		if closeErr := sqliteDatabase.Close(); closeErr != nil {
 			core.Error("sqlite close after configure failed", "err", closeErr)
 		}
-		return nil, result
+		return result
 	}
 
 	purgeContext, cancel := context.WithCancel(context.Background())
-	return &Store{
+	return core.Ok(&Store{
 		db:                      sqliteDatabase,
 		sqliteDatabase:          sqliteDatabase,
 		databasePath:            databasePath,
@@ -456,7 +485,7 @@ func openSQLiteStore(operation, databasePath string, medium Medium) (*Store, cor
 		mediumBacked:            storage.mediumBacked,
 		medium:                  medium,
 		watchers:                make(map[string][]chan Event),
-	}, core.Ok(nil)
+	})
 }
 
 type sqliteStorageConfig struct {
@@ -465,27 +494,27 @@ type sqliteStorageConfig struct {
 	mediumBacked bool
 }
 
-func prepareSQLiteStorage(operation, databasePath string, medium Medium) (sqliteStorageConfig, core.Result) {
+func prepareSQLiteStorage(operation, databasePath string, medium Medium) core.Result {
 	storage := sqliteStorageConfig{path: databasePath}
 	storage.mediumBacked = medium != nil && databasePath != "" && databasePath != memoryDatabasePath
 	if !storage.mediumBacked {
-		return storage, core.Ok(nil)
+		return core.Ok(storage)
 	}
 	filesystem := (&core.Fs{}).NewUnrestricted()
 	storage.directory = filesystem.TempDir("go-store")
 	storage.path = core.Path(storage.directory, "store.db")
 	if !medium.Exists(databasePath) {
-		return storage, core.Ok(nil)
+		return core.Ok(storage)
 	}
-	content, result := medium.Read(databasePath)
-	if !result.OK {
-		err, _ := result.Value.(error)
-		return sqliteStorageConfig{}, core.Fail(core.E(operation, "read database from medium", err))
+	content, readResult := medium.Read(databasePath)
+	if !readResult.OK {
+		err, _ := readResult.Value.(error)
+		return core.Fail(core.E(operation, "read database from medium", err))
 	}
-	if result := filesystem.Write(storage.path, content); !result.OK {
-		return sqliteStorageConfig{}, core.Fail(core.E(operation, "seed sqlite file from medium", result.Value.(error)))
+	if writeResult := filesystem.Write(storage.path, content); !writeResult.OK {
+		return core.Fail(core.E(operation, "seed sqlite file from medium", writeResult.Value.(error)))
 	}
-	return storage, core.Ok(nil)
+	return core.Ok(storage)
 }
 
 func configureSQLiteDatabase(operation string, sqliteDatabase *sql.DB) core.Result {

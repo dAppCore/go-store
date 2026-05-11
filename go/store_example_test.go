@@ -13,19 +13,19 @@ func exampleRequireOK(result core.Result) {
 }
 
 func exampleOpenStore() *Store {
-	storeInstance, result := New(":memory:")
-	exampleRequireOK(result)
-	return storeInstance
+	r := New(":memory:")
+	exampleRequireOK(r)
+	return r.Value.(*Store)
 }
 
 func exampleOpenConfiguredStore() *Store {
-	storeInstance, result := NewConfigured(StoreConfig{
+	r := NewConfigured(StoreConfig{
 		DatabasePath:            ":memory:",
 		PurgeInterval:           time.Minute,
 		WorkspaceStateDirectory: ".core/example-state",
 	})
-	exampleRequireOK(result)
-	return storeInstance
+	exampleRequireOK(r)
+	return r.Value.(*Store)
 }
 
 func exampleCloseStore(storeInstance *Store) {
@@ -103,29 +103,33 @@ func ExampleJournalConfiguration_Validate() {
 }
 
 func ExampleWithJournal() {
-	storeInstance, result := New(":memory:", WithJournal("http://127.0.0.1:8086", "core", "events"))
-	exampleRequireOK(result)
+	r := New(":memory:", WithJournal("http://127.0.0.1:8086", "core", "events"))
+	exampleRequireOK(r)
+	storeInstance := r.Value.(*Store)
 	defer exampleCloseStore(storeInstance)
 	core.Println(storeInstance.JournalConfigured())
 }
 
 func ExampleWithWorkspaceStateDirectory() {
-	storeInstance, result := New(":memory:", WithWorkspaceStateDirectory(".core/workspaces"))
-	exampleRequireOK(result)
+	r := New(":memory:", WithWorkspaceStateDirectory(".core/workspaces"))
+	exampleRequireOK(r)
+	storeInstance := r.Value.(*Store)
 	defer exampleCloseStore(storeInstance)
 	core.Println(storeInstance.WorkspaceStateDirectory())
 }
 
 func ExampleStore_JournalConfiguration() {
-	storeInstance, result := New(":memory:", WithJournal("http://127.0.0.1:8086", "core", "events"))
-	exampleRequireOK(result)
+	r := New(":memory:", WithJournal("http://127.0.0.1:8086", "core", "events"))
+	exampleRequireOK(r)
+	storeInstance := r.Value.(*Store)
 	defer exampleCloseStore(storeInstance)
 	core.Println(storeInstance.JournalConfiguration().BucketName)
 }
 
 func ExampleStore_JournalConfigured() {
-	storeInstance, result := New(":memory:", WithJournal("http://127.0.0.1:8086", "core", "events"))
-	exampleRequireOK(result)
+	r := New(":memory:", WithJournal("http://127.0.0.1:8086", "core", "events"))
+	exampleRequireOK(r)
+	storeInstance := r.Value.(*Store)
 	defer exampleCloseStore(storeInstance)
 	core.Println(storeInstance.JournalConfigured())
 }
@@ -156,22 +160,25 @@ func ExampleStore_IsClosed() {
 }
 
 func ExampleWithPurgeInterval() {
-	storeInstance, result := New(":memory:", WithPurgeInterval(time.Minute))
-	exampleRequireOK(result)
+	r := New(":memory:", WithPurgeInterval(time.Minute))
+	exampleRequireOK(r)
+	storeInstance := r.Value.(*Store)
 	defer exampleCloseStore(storeInstance)
 	core.Println(storeInstance.Config().PurgeInterval)
 }
 
 func ExampleNewConfigured() {
-	storeInstance, result := NewConfigured(StoreConfig{DatabasePath: ":memory:"})
-	exampleRequireOK(result)
+	r := NewConfigured(StoreConfig{DatabasePath: ":memory:"})
+	exampleRequireOK(r)
+	storeInstance := r.Value.(*Store)
 	defer exampleCloseStore(storeInstance)
 	core.Println(storeInstance.DatabasePath())
 }
 
 func ExampleNew() {
-	storeInstance, result := New(":memory:")
-	exampleRequireOK(result)
+	r := New(":memory:")
+	exampleRequireOK(r)
+	storeInstance := r.Value.(*Store)
 	defer exampleCloseStore(storeInstance)
 	core.Println(storeInstance.IsClosed())
 }

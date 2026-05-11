@@ -7,8 +7,9 @@ import "testing"
 func TestImportExport_Import_Good_CSVAndJSONIngestion(t *testing.T) {
 	useWorkspaceStateDirectory(t)
 
-	storeInstance, err := New(testMemoryDatabasePath)
-	assertNoError(t, err)
+	r := New(testMemoryDatabasePath)
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 
 	workspace, err := storeInstance.NewWorkspace("import-export-good")
@@ -28,8 +29,9 @@ func TestImportExport_Import_Good_CSVAndJSONIngestion(t *testing.T) {
 func TestImportExport_Import_Bad_MalformedPayload(t *testing.T) {
 	useWorkspaceStateDirectory(t)
 
-	storeInstance, err := New(testMemoryDatabasePath)
-	assertNoError(t, err)
+	r := New(testMemoryDatabasePath)
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 
 	workspace, err := storeInstance.NewWorkspace("import-export-bad")
@@ -49,8 +51,9 @@ func TestImportExport_Import_Bad_MalformedPayload(t *testing.T) {
 func TestImportExport_Import_Ugly_EmptyPayload(t *testing.T) {
 	useWorkspaceStateDirectory(t)
 
-	storeInstance, err := New(testMemoryDatabasePath)
-	assertNoError(t, err)
+	r := New(testMemoryDatabasePath)
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 
 	workspace, err := storeInstance.NewWorkspace("import-export-ugly")

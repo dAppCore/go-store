@@ -43,13 +43,13 @@ type Service struct {
 // Usage example: `c, _ := core.New(core.WithName("store", store.NewService(store.StoreConfig{DatabasePath: "/var/lib/core/store.db"})))`
 func NewService(config StoreConfig) func(*core.Core) core.Result {
 	return func(c *core.Core) core.Result {
-		st, r := NewConfigured(config)
+		r := NewConfigured(config)
 		if !r.OK {
 			return r
 		}
 		return core.Ok(&Service{
 			ServiceRuntime: core.NewServiceRuntime(c, config),
-			Store:          st,
+			Store:          r.Value.(*Store),
 		})
 	}
 }

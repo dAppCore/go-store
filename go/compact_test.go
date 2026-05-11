@@ -13,8 +13,9 @@ import (
 func TestCompact_Compact_Good_GzipArchive(t *testing.T) {
 	outputDirectory := useArchiveOutputDirectory(t)
 
-	storeInstance, err := New(testMemoryDatabasePath, WithJournal(testJournalEndpoint, "core", "events"))
-	assertNoError(t, err)
+	r := New(testMemoryDatabasePath, WithJournal(testJournalEndpoint, "core", "events"))
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 
 	assertTrue(t, storeInstance.CommitToJournal(testSessionA, map[string]any{"like": 1}, map[string]string{"workspace": testSessionA}).OK)
@@ -63,8 +64,9 @@ func TestCompact_Compact_Good_GzipArchive(t *testing.T) {
 func TestCompact_Compact_Good_ZstdArchive(t *testing.T) {
 	outputDirectory := useArchiveOutputDirectory(t)
 
-	storeInstance, err := New(testMemoryDatabasePath, WithJournal(testJournalEndpoint, "core", "events"))
-	assertNoError(t, err)
+	r := New(testMemoryDatabasePath, WithJournal(testJournalEndpoint, "core", "events"))
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 
 	assertTrue(t, storeInstance.CommitToJournal(testSessionA, map[string]any{"like": 1}, map[string]string{"workspace": testSessionA}).OK)
@@ -107,8 +109,9 @@ func TestCompact_Compact_Good_ZstdArchive(t *testing.T) {
 func TestCompact_Compact_Good_NoRows(t *testing.T) {
 	outputDirectory := useArchiveOutputDirectory(t)
 
-	storeInstance, err := New(testMemoryDatabasePath)
-	assertNoError(t, err)
+	r := New(testMemoryDatabasePath)
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 
 	result := storeInstance.Compact(CompactOptions{
@@ -123,8 +126,9 @@ func TestCompact_Compact_Good_NoRows(t *testing.T) {
 func TestCompact_Compact_Good_DeterministicOrderingForSameTimestamp(t *testing.T) {
 	outputDirectory := useArchiveOutputDirectory(t)
 
-	storeInstance, err := New(testMemoryDatabasePath, WithJournal(testJournalEndpoint, "core", "events"))
-	assertNoError(t, err)
+	r := New(testMemoryDatabasePath, WithJournal(testJournalEndpoint, "core", "events"))
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 	assertNoError(t, ensureJournalSchema(storeInstance.sqliteDatabase))
 

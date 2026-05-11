@@ -6,8 +6,9 @@ import (
 )
 
 func TestJournal_CommitToJournal_Good_WithQueryJournalSQL(t *testing.T) {
-	storeInstance, err := New(testMemoryDatabasePath, WithJournal(testJournalEndpoint, "core", "events"))
-	assertNoError(t, err)
+	r := New(testMemoryDatabasePath, WithJournal(testJournalEndpoint, "core", "events"))
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 
 	first := storeInstance.CommitToJournal(testSessionA, map[string]any{"like": 4}, map[string]string{"workspace": testSessionA})
@@ -33,8 +34,9 @@ func TestJournal_CommitToJournal_Good_WithQueryJournalSQL(t *testing.T) {
 }
 
 func TestJournal_CommitToJournal_Good_ResultCopiesInputMaps(t *testing.T) {
-	storeInstance, err := New(testMemoryDatabasePath, WithJournal(testJournalEndpoint, "core", "events"))
-	assertNoError(t, err)
+	r := New(testMemoryDatabasePath, WithJournal(testJournalEndpoint, "core", "events"))
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 
 	fields := map[string]any{"like": 4}
@@ -59,8 +61,9 @@ func TestJournal_CommitToJournal_Good_ResultCopiesInputMaps(t *testing.T) {
 }
 
 func TestJournal_QueryJournal_Good_RawSQLWithCTE(t *testing.T) {
-	storeInstance, err := New(testMemoryDatabasePath, WithJournal(testJournalEndpoint, "core", "events"))
-	assertNoError(t, err)
+	r := New(testMemoryDatabasePath, WithJournal(testJournalEndpoint, "core", "events"))
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 
 	assertTrue(t, storeInstance.CommitToJournal(testSessionA, map[string]any{"like": 4}, map[string]string{"workspace": testSessionA}).OK)
@@ -82,8 +85,9 @@ func TestJournal_QueryJournal_Good_RawSQLWithCTE(t *testing.T) {
 }
 
 func TestJournal_QueryJournal_Good_PragmaSQL(t *testing.T) {
-	storeInstance, err := New(testMemoryDatabasePath, WithJournal(testJournalEndpoint, "core", "events"))
-	assertNoError(t, err)
+	r := New(testMemoryDatabasePath, WithJournal(testJournalEndpoint, "core", "events"))
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 
 	rows := requireResultRows(
@@ -101,8 +105,9 @@ func TestJournal_QueryJournal_Good_PragmaSQL(t *testing.T) {
 }
 
 func TestJournal_QueryJournal_Good_FluxFilters(t *testing.T) {
-	storeInstance, err := New(testMemoryDatabasePath, WithJournal(testJournalEndpoint, "core", "events"))
-	assertNoError(t, err)
+	r := New(testMemoryDatabasePath, WithJournal(testJournalEndpoint, "core", "events"))
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 
 	assertTrue(t, storeInstance.CommitToJournal(testSessionA, map[string]any{"like": 1}, map[string]string{"workspace": testSessionA}).OK)
@@ -121,8 +126,9 @@ func TestJournal_QueryJournal_Good_FluxFilters(t *testing.T) {
 }
 
 func TestJournal_QueryJournal_Good_TagFilter(t *testing.T) {
-	storeInstance, err := New(testMemoryDatabasePath, WithJournal(testJournalEndpoint, "core", "events"))
-	assertNoError(t, err)
+	r := New(testMemoryDatabasePath, WithJournal(testJournalEndpoint, "core", "events"))
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 
 	assertTrue(t, storeInstance.CommitToJournal(testSessionA, map[string]any{"like": 1}, map[string]string{"workspace": testSessionA}).OK)
@@ -141,8 +147,9 @@ func TestJournal_QueryJournal_Good_TagFilter(t *testing.T) {
 }
 
 func TestJournal_QueryJournal_Good_NumericFieldFilter(t *testing.T) {
-	storeInstance, err := New(testMemoryDatabasePath, WithJournal(testJournalEndpoint, "core", "events"))
-	assertNoError(t, err)
+	r := New(testMemoryDatabasePath, WithJournal(testJournalEndpoint, "core", "events"))
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 
 	assertTrue(t, storeInstance.CommitToJournal(testSessionA, map[string]any{"like": 1}, map[string]string{"workspace": testSessionA}).OK)
@@ -161,8 +168,9 @@ func TestJournal_QueryJournal_Good_NumericFieldFilter(t *testing.T) {
 }
 
 func TestJournal_QueryJournal_Good_BooleanFieldFilter(t *testing.T) {
-	storeInstance, err := New(testMemoryDatabasePath, WithJournal(testJournalEndpoint, "core", "events"))
-	assertNoError(t, err)
+	r := New(testMemoryDatabasePath, WithJournal(testJournalEndpoint, "core", "events"))
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 
 	assertTrue(t, storeInstance.CommitToJournal(testSessionA, map[string]any{"complete": false}, map[string]string{"workspace": testSessionA}).OK)
@@ -181,8 +189,9 @@ func TestJournal_QueryJournal_Good_BooleanFieldFilter(t *testing.T) {
 }
 
 func TestJournal_QueryJournal_Good_BucketFilter(t *testing.T) {
-	storeInstance, err := New(testMemoryDatabasePath)
-	assertNoError(t, err)
+	r := New(testMemoryDatabasePath)
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 
 	assertTrue(t, storeInstance.CommitToJournal(testSessionA, map[string]any{"like": 1}, map[string]string{"workspace": testSessionA}).OK)
@@ -198,8 +207,9 @@ func TestJournal_QueryJournal_Good_BucketFilter(t *testing.T) {
 }
 
 func TestJournal_QueryJournal_Good_DeterministicOrderingForSameTimestamp(t *testing.T) {
-	storeInstance, err := New(testMemoryDatabasePath)
-	assertNoError(t, err)
+	r := New(testMemoryDatabasePath)
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 	assertNoError(t, ensureJournalSchema(storeInstance.sqliteDatabase))
 
@@ -217,8 +227,9 @@ func TestJournal_QueryJournal_Good_DeterministicOrderingForSameTimestamp(t *test
 }
 
 func TestJournal_QueryJournal_Good_AbsoluteRangeWithStop(t *testing.T) {
-	storeInstance, err := New(testMemoryDatabasePath, WithJournal(testJournalEndpoint, "core", "events"))
-	assertNoError(t, err)
+	r := New(testMemoryDatabasePath, WithJournal(testJournalEndpoint, "core", "events"))
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 
 	assertTrue(t, storeInstance.CommitToJournal(testSessionA, map[string]any{"like": 1}, map[string]string{"workspace": testSessionA}).OK)
@@ -246,8 +257,9 @@ func TestJournal_QueryJournal_Good_AbsoluteRangeWithStop(t *testing.T) {
 }
 
 func TestJournal_QueryJournal_Good_AbsoluteRangeHonoursStop(t *testing.T) {
-	storeInstance, err := New(testMemoryDatabasePath, WithJournal(testJournalEndpoint, "core", "events"))
-	assertNoError(t, err)
+	r := New(testMemoryDatabasePath, WithJournal(testJournalEndpoint, "core", "events"))
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 
 	assertTrue(t, storeInstance.CommitToJournal(testSessionA, map[string]any{"like": 1}, map[string]string{"workspace": testSessionA}).OK)
@@ -275,8 +287,9 @@ func TestJournal_QueryJournal_Good_AbsoluteRangeHonoursStop(t *testing.T) {
 }
 
 func TestJournal_CommitToJournal_Bad_EmptyMeasurement(t *testing.T) {
-	storeInstance, err := New(testMemoryDatabasePath)
-	assertNoError(t, err)
+	r := New(testMemoryDatabasePath)
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 
 	result := storeInstance.CommitToJournal("", map[string]any{"like": 1}, map[string]string{"workspace": "missing"})

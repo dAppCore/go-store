@@ -5,8 +5,9 @@ import "testing"
 func TestRecover_Orphans_Good_RecoversOrphan(t *testing.T) {
 	stateDirectory := useWorkspaceStateDirectory(t)
 
-	storeInstance, err := New(testMemoryDatabasePath)
-	assertNoError(t, err)
+	r := New(testMemoryDatabasePath)
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 
 	workspace, err := storeInstance.NewWorkspace(testRecoverGood)
@@ -26,8 +27,9 @@ func TestRecover_Orphans_Good_RecoversOrphan(t *testing.T) {
 func TestRecover_Orphans_Bad_CorruptMetadataQuarantined(t *testing.T) {
 	stateDirectory := useWorkspaceStateDirectory(t)
 
-	storeInstance, err := New(testMemoryDatabasePath)
-	assertNoError(t, err)
+	r := New(testMemoryDatabasePath)
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 
 	corruptDatabasePath := workspaceFilePath(stateDirectory, "recover-bad")
@@ -48,8 +50,9 @@ func TestRecover_Orphans_Bad_CorruptMetadataQuarantined(t *testing.T) {
 func TestRecover_Orphans_Ugly_NoOrphansNoop(t *testing.T) {
 	stateDirectory := useWorkspaceStateDirectory(t)
 
-	storeInstance, err := New(testMemoryDatabasePath)
-	assertNoError(t, err)
+	r := New(testMemoryDatabasePath)
+	assertNoError(t, r)
+	storeInstance := r.Value.(*Store)
 	defer func() { _ = storeInstance.Close() }()
 
 	orphans := storeInstance.RecoverOrphans(stateDirectory)

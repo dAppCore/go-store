@@ -3,22 +3,23 @@ package store
 import core "dappco.re/go"
 
 func exampleDuckDB() *DuckDB {
-	database, result := OpenDuckDBReadWrite("example.duckdb")
-	exampleRequireOK(result)
-	return database
+	r := OpenDuckDBReadWrite("example.duckdb")
+	exampleRequireOK(r)
+	return r.Value.(*DuckDB)
 }
 
 func ExampleOpenDuckDB() {
-	database, result := OpenDuckDB("example.duckdb")
-	if result.OK {
-		defer exampleRequireOK(database.Close())
+	r := OpenDuckDB("example.duckdb")
+	if r.OK {
+		defer exampleRequireOK(r.Value.(*DuckDB).Close())
 	}
-	core.Println(result.OK)
+	core.Println(r.OK)
 }
 
 func ExampleOpenDuckDBReadWrite() {
-	database, result := OpenDuckDBReadWrite("example.duckdb")
-	exampleRequireOK(result)
+	r := OpenDuckDBReadWrite("example.duckdb")
+	exampleRequireOK(r)
+	database := r.Value.(*DuckDB)
 	defer exampleRequireOK(database.Close())
 	core.Println(database.Path())
 }
