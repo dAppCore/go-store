@@ -67,9 +67,11 @@ type ParquetRow struct {
 //
 // Usage example:
 //
-//	_, err := store.ExportParquet("/Volumes/Data/lem/training", "/Volumes/Data/lem/parquet")
-func ExportParquet(trainingDir, outputDir string) (int, core.Result) {
-	return 0, core.Fail(core.E(
+//	r := store.ExportParquet("/Volumes/Data/lem/training", "/Volumes/Data/lem/parquet")
+//	if !r.OK { return r }
+//	rowCount := r.Value.(int)
+func ExportParquet(trainingDir, outputDir string) core.Result {
+	return core.Fail(core.E(
 		"store.ExportParquet",
 		"Parquet export requires an external tool so core does not ship a runtime Parquet dependency",
 		nil,
@@ -81,9 +83,11 @@ func ExportParquet(trainingDir, outputDir string) (int, core.Result) {
 //
 // Usage example:
 //
-//	_, err := store.ExportSplitParquet("/data/train.jsonl", "/data/parquet", "train")
-func ExportSplitParquet(jsonlPath, outputDir, split string) (int, core.Result) {
-	return 0, core.Fail(core.E(
+//	r := store.ExportSplitParquet("/data/train.jsonl", "/data/parquet", "train")
+//	if !r.OK { return r }
+//	rowCount := r.Value.(int)
+func ExportSplitParquet(jsonlPath, outputDir, split string) core.Result {
+	return core.Fail(core.E(
 		"store.ExportSplitParquet",
 		"Parquet export requires an external tool so core does not ship a runtime Parquet dependency",
 		nil,
