@@ -19,7 +19,7 @@ func TestWorkspace_NewWorkspace_Good_CreatePutAggregateQuery(t *testing.T) {
 	defer workspace.Discard()
 
 	assertEqual(t, workspaceFilePath(stateDirectory, testScrollSession), workspace.databasePath)
-	assertTrue(t, testFilesystem().Exists(workspace.databasePath))
+	assertTrue(t, testFilesystem().Exists(workspace.databasePath).OK)
 
 	assertNoError(t, workspace.Put("like", map[string]any{"user": testActorAlice}))
 	assertNoError(t, workspace.Put("like", map[string]any{"user": "@bob"}))
@@ -146,7 +146,7 @@ func TestWorkspace_Commit_Good_JournalAndSummary(t *testing.T) {
 	result := workspace.Commit()
 	assertTruef(t, result.OK, testWorkspaceCommitFailedFormat, result.Value)
 	assertEqual(t, map[string]any{"like": 2, "profile_match": 1}, result.Value)
-	assertFalse(t, testFilesystem().Exists(workspace.databasePath))
+	assertFalse(t, testFilesystem().Exists(workspace.databasePath).OK)
 
 	summaryJSON, err := storeInstance.Get(workspaceSummaryGroup(testScrollSession), "summary")
 	assertNoError(t, err)
@@ -248,11 +248,11 @@ func TestWorkspace_RecoverOrphans_Good_SkipsAlreadyCommittedWorkspaceFile(t *tes
 	assertNoError(t, err)
 	assertNoError(t, storeInstance.commitWorkspaceAggregate(workspace.Name(), fields))
 	assertNoError(t, workspace.closeWithoutRemovingFiles())
-	assertTrue(t, testFilesystem().Exists(workspace.databasePath))
+	assertTrue(t, testFilesystem().Exists(workspace.databasePath).OK)
 
 	orphans := storeInstance.RecoverOrphans(stateDirectory)
 	assertLen(t, orphans, 0)
-	assertFalse(t, testFilesystem().Exists(workspace.databasePath))
+	assertFalse(t, testFilesystem().Exists(workspace.databasePath).OK)
 }
 
 func TestWorkspace_Discard_Good_Idempotent(t *testing.T) {
@@ -268,7 +268,7 @@ func TestWorkspace_Discard_Good_Idempotent(t *testing.T) {
 	workspace.Discard()
 	workspace.Discard()
 
-	assertFalse(t, testFilesystem().Exists(workspace.databasePath))
+	assertFalse(t, testFilesystem().Exists(workspace.databasePath).OK)
 }
 
 func TestWorkspace_Close_Good_PreservesFileForRecovery(t *testing.T) {
@@ -284,7 +284,7 @@ func TestWorkspace_Close_Good_PreservesFileForRecovery(t *testing.T) {
 	assertNoError(t, workspace.Put("like", map[string]any{"user": testActorAlice}))
 	assertNoError(t, workspace.Close())
 
-	assertTrue(t, testFilesystem().Exists(workspace.databasePath))
+	assertTrue(t, testFilesystem().Exists(workspace.databasePath).OK)
 
 	err = workspace.Put("like", map[string]any{"user": "@bob"})
 	assertError(t, err)
@@ -294,7 +294,7 @@ func TestWorkspace_Close_Good_PreservesFileForRecovery(t *testing.T) {
 	assertEqual(t, "close-session", orphans[0].Name())
 	assertEqual(t, map[string]any{"like": 1}, orphans[0].Aggregate())
 	orphans[0].Discard()
-	assertFalse(t, testFilesystem().Exists(workspace.databasePath))
+	assertFalse(t, testFilesystem().Exists(workspace.databasePath).OK)
 }
 
 func TestWorkspace_Close_Good_ClosesDatabaseWithoutFilesystem(t *testing.T) {
@@ -315,7 +315,7 @@ func TestWorkspace_Close_Good_ClosesDatabaseWithoutFilesystem(t *testing.T) {
 	assertError(t, execErr)
 	assertContainsString(t, execErr.Error(), "closed")
 
-	assertTrue(t, testFilesystem().Exists(databasePath))
+	assertTrue(t, testFilesystem().Exists(databasePath).OK)
 	for _, path := range workspaceDatabaseFilePaths(databasePath) {
 		_ = testFilesystem().Delete(path)
 	}
@@ -339,7 +339,7 @@ func TestWorkspace_RecoverOrphans_Good(t *testing.T) {
 	assertEqual(t, map[string]any{"like": 1}, orphans[0].Aggregate())
 
 	orphans[0].Discard()
-	assertFalse(t, testFilesystem().Exists(workspaceFilePath(stateDirectory, testOrphanSession)))
+	assertFalse(t, testFilesystem().Exists(workspaceFilePath(stateDirectory, testOrphanSession)).OK)
 }
 
 func TestWorkspace_New_Good_LeavesOrphanedWorkspacesForRecovery(t *testing.T) {
@@ -357,21 +357,21 @@ func TestWorkspace_New_Good_LeavesOrphanedWorkspacesForRecovery(t *testing.T) {
 	)
 	assertNoError(t, sqlErr)
 	assertNoError(t, orphanDatabase.Close())
-	assertTrue(t, testFilesystem().Exists(orphanDatabasePath))
+	assertTrue(t, testFilesystem().Exists(orphanDatabasePath).OK)
 
 	storeInstance, err := New(testMemoryDatabasePath)
 	assertNoError(t, err)
 	defer func() { _ = storeInstance.Close() }()
 
-	assertTrue(t, testFilesystem().Exists(orphanDatabasePath))
+	assertTrue(t, testFilesystem().Exists(orphanDatabasePath).OK)
 
 	orphans := storeInstance.RecoverOrphans(stateDirectory)
 	assertLen(t, orphans, 1)
 	assertEqual(t, testOrphanSession, orphans[0].Name())
 	orphans[0].Discard()
-	assertFalse(t, testFilesystem().Exists(orphanDatabasePath))
-	assertFalse(t, testFilesystem().Exists(orphanDatabasePath+"-wal"))
-	assertFalse(t, testFilesystem().Exists(orphanDatabasePath+"-shm"))
+	assertFalse(t, testFilesystem().Exists(orphanDatabasePath).OK)
+	assertFalse(t, testFilesystem().Exists(orphanDatabasePath+"-wal").OK)
+	assertFalse(t, testFilesystem().Exists(orphanDatabasePath+"-shm").OK)
 }
 
 func TestWorkspace_New_Good_CachesOrphansDuringConstruction(t *testing.T) {
@@ -389,14 +389,14 @@ func TestWorkspace_New_Good_CachesOrphansDuringConstruction(t *testing.T) {
 	)
 	assertNoError(t, sqlErr)
 	assertNoError(t, orphanDatabase.Close())
-	assertTrue(t, testFilesystem().Exists(orphanDatabasePath))
+	assertTrue(t, testFilesystem().Exists(orphanDatabasePath).OK)
 
 	storeInstance, err := New(testMemoryDatabasePath)
 	assertNoError(t, err)
 	defer func() { _ = storeInstance.Close() }()
 
 	requireCoreOK(t, testFilesystem().DeleteAll(stateDirectory))
-	assertFalse(t, testFilesystem().Exists(orphanDatabasePath))
+	assertFalse(t, testFilesystem().Exists(orphanDatabasePath).OK)
 
 	orphans := storeInstance.RecoverOrphans(stateDirectory)
 	assertLen(t, orphans, 1)
@@ -429,7 +429,7 @@ func TestWorkspace_NewConfigured_Good_CachesOrphansFromConfiguredStateDirectory(
 	defer func() { _ = storeInstance.Close() }()
 
 	requireCoreOK(t, testFilesystem().DeleteAll(stateDirectory))
-	assertFalse(t, testFilesystem().Exists(orphanDatabasePath))
+	assertFalse(t, testFilesystem().Exists(orphanDatabasePath).OK)
 
 	orphans := storeInstance.RecoverOrphans("")
 	assertLen(t, orphans, 1)
@@ -446,14 +446,14 @@ func TestWorkspace_RecoverOrphans_Good_TrailingSlashUsesCache(t *testing.T) {
 	orphanDatabase, err := openWorkspaceDatabase(orphanDatabasePath)
 	assertNoError(t, err)
 	assertNoError(t, orphanDatabase.Close())
-	assertTrue(t, testFilesystem().Exists(orphanDatabasePath))
+	assertTrue(t, testFilesystem().Exists(orphanDatabasePath).OK)
 
 	storeInstance, err := New(testMemoryDatabasePath)
 	assertNoError(t, err)
 	defer func() { _ = storeInstance.Close() }()
 
 	requireCoreOK(t, testFilesystem().DeleteAll(stateDirectory))
-	assertFalse(t, testFilesystem().Exists(orphanDatabasePath))
+	assertFalse(t, testFilesystem().Exists(orphanDatabasePath).OK)
 
 	orphans := storeInstance.RecoverOrphans(stateDirectory + "/")
 	assertLen(t, orphans, 1)
@@ -469,14 +469,14 @@ func TestWorkspace_Close_Good_PreservesOrphansForRecovery(t *testing.T) {
 	orphanDatabase, err := openWorkspaceDatabase(orphanDatabasePath)
 	assertNoError(t, err)
 	assertNoError(t, orphanDatabase.Close())
-	assertTrue(t, testFilesystem().Exists(orphanDatabasePath))
+	assertTrue(t, testFilesystem().Exists(orphanDatabasePath).OK)
 
 	storeInstance, err := New(testMemoryDatabasePath)
 	assertNoError(t, err)
 
 	assertNoError(t, storeInstance.Close())
 
-	assertTrue(t, testFilesystem().Exists(orphanDatabasePath))
+	assertTrue(t, testFilesystem().Exists(orphanDatabasePath).OK)
 
 	recoveryStore, err := New(testMemoryDatabasePath)
 	assertNoError(t, err)
@@ -486,7 +486,7 @@ func TestWorkspace_Close_Good_PreservesOrphansForRecovery(t *testing.T) {
 	assertLen(t, orphans, 1)
 	assertEqual(t, testOrphanSession, orphans[0].Name())
 	orphans[0].Discard()
-	assertFalse(t, testFilesystem().Exists(orphanDatabasePath))
+	assertFalse(t, testFilesystem().Exists(orphanDatabasePath).OK)
 }
 
 func TestWorkspace_Store_NewWorkspace_Good(t *T) {

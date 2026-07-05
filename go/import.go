@@ -873,10 +873,10 @@ func escapeSQLPath(p string) string {
 
 // isFile returns true if the path exists and is a regular file.
 func isFile(path string) bool {
-	return localFs.IsFile(path)
+	return localFs.IsFile(path).OK
 }
 
 // isDir returns true if the path exists and is a directory.
 func isDir(path string) bool {
-	return localFs.IsDir(path)
+	return localFs.IsDir(path).OK
 }

@@ -120,7 +120,7 @@ func TestStore_New_Good_WithWorkspaceStateDirectoryOption(t *testing.T) {
 	defer workspace.Discard()
 
 	assertEqual(t, workspaceFilePath(workspaceStateDirectory, testScrollSession), workspace.DatabasePath())
-	assertTrue(t, testFilesystem().Exists(workspace.DatabasePath()))
+	assertTrue(t, testFilesystem().Exists(workspace.DatabasePath()).OK)
 }
 
 func TestStore_NewConfigured_Good_WorkspaceStateDirectory(t *testing.T) {
@@ -140,7 +140,7 @@ func TestStore_NewConfigured_Good_WorkspaceStateDirectory(t *testing.T) {
 	defer workspace.Discard()
 
 	assertEqual(t, workspaceFilePath(workspaceStateDirectory, testScrollSession), workspace.DatabasePath())
-	assertTrue(t, testFilesystem().Exists(workspace.DatabasePath()))
+	assertTrue(t, testFilesystem().Exists(workspace.DatabasePath()).OK)
 }
 
 func TestStore_WorkspaceStateDirectory_Good_Default(t *testing.T) {

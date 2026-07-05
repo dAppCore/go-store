@@ -36,7 +36,7 @@ func TestCompact_Compact_Good_GzipArchive(t *testing.T) {
 
 	archivePath, ok := result.Value.(string)
 	assertTruef(t, ok, testUnexpectedArchivePathTypeFormat, result.Value)
-	assertTrue(t, testFilesystem().Exists(archivePath))
+	assertTrue(t, testFilesystem().Exists(archivePath).OK)
 
 	archiveData := requireCoreReadBytes(t, archivePath)
 	reader, gzipErr := gzip.NewReader(core.NewBuffer(archiveData))
@@ -85,7 +85,7 @@ func TestCompact_Compact_Good_ZstdArchive(t *testing.T) {
 
 	archivePath, ok := result.Value.(string)
 	assertTruef(t, ok, testUnexpectedArchivePathTypeFormat, result.Value)
-	assertTrue(t, testFilesystem().Exists(archivePath))
+	assertTrue(t, testFilesystem().Exists(archivePath).OK)
 	assertContainsString(t, archivePath, ".jsonl.zst")
 
 	archiveData := requireCoreReadBytes(t, archivePath)
