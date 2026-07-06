@@ -6,7 +6,6 @@ import (
 	"database/sql"
 
 	core "dappco.re/go"
-	_ "github.com/marcboeker/go-duckdb"
 )
 
 // DuckDB table names for checkpoint scoring and probe results.

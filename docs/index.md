@@ -9,7 +9,10 @@ description: Group-namespaced SQLite key-value store with TTL expiry, namespace 
 
 For declarative setup, `store.NewConfigured(store.StoreConfig{...})` takes a single config struct instead of functional options. Prefer this when the configuration is already known; use `store.New(path, ...)` when you are only varying the database path.
 
-The package has a single runtime dependency -- a pure-Go SQLite driver (`modernc.org/sqlite`). No CGO is required. It compiles and runs on all platforms that Go supports.
+The core key-value path uses a pure-Go SQLite driver (`modernc.org/sqlite`), so
+normal store consumers can compile without CGO. DuckDB-backed workspace and
+analytics helpers require CGO when they are used at runtime. See
+[Windows Builds](windows.md) for the Windows cross-compile checklist.
 
 **Module path:** `dappco.re/go/store`
 **Go version:** 1.26+
@@ -148,6 +151,8 @@ Tests are organised in corresponding files:
 | Module | Purpose |
 |--------|---------|
 | `modernc.org/sqlite` | Pure-Go SQLite driver (no CGO). Registered as a `database/sql` driver. |
+| `github.com/marcboeker/go-duckdb` | DuckDB driver for workspace buffers and analytics helpers. Registered only when CGO is enabled. |
+| `github.com/influxdata/influxdb-client-go/v2` | Optional journal publishing client. |
 
 **Test only:**
 
@@ -155,7 +160,10 @@ Tests are organised in corresponding files:
 |--------|---------|
 | `github.com/stretchr/testify` | Assertion helpers (`assert`, `require`) for tests. |
 
-There are no other direct dependencies. The package uses the Go standard library plus `dappco.re/go/core` helper primitives for error wrapping, string handling, and filesystem-safe path composition.
+Additional module requirements cover Core primitives, compression codecs, and
+the transitive libraries behind the runtime drivers. The package uses the Go
+standard library plus `dappco.re/go` helper primitives for error wrapping,
+string handling, and filesystem-safe path composition.
 
 ## Key Types
 
@@ -177,3 +185,4 @@ There are no other direct dependencies. The package uses the Go standard library
 - [AX RFC](RFC-CORE-008-AGENT-EXPERIENCE.md) -- naming, comment, and path conventions for agent consumers
 - [Architecture](architecture.md) -- storage layer internals, TTL model, event system, concurrency design
 - [Development Guide](development.md) -- building, testing, benchmarks, contribution workflow
+- [Windows Builds](windows.md) -- Windows compile and DuckDB CGO checklist

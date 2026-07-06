@@ -8,7 +8,8 @@ description: How to build, test, benchmark, and contribute to go-store.
 ## Prerequisites
 
 - Go 1.26 or later
-- No CGO required (`modernc.org/sqlite` is a pure-Go SQLite implementation)
+- No CGO required for pure-Go store compiles (`modernc.org/sqlite` is a pure-Go SQLite implementation)
+- CGO required for DuckDB-backed workspace and analytics tests
 - No external tools beyond the Go toolchain
 
 ## Build and Test
@@ -38,6 +39,10 @@ go test -bench=. -benchmem ./...
 # Run a specific benchmark
 go test -bench=BenchmarkSet -benchmem ./...
 ```
+
+For Windows cross-compiles, see [Windows Builds](windows.md). Compile-only
+consumer builds can use `CGO_ENABLED=0`; DuckDB-enabled Windows binaries need
+`CGO_ENABLED=1` plus a Windows-capable C compiler.
 
 Alternatively, if the `core` CLI is available:
 
