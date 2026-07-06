@@ -21,7 +21,7 @@ func TestRecover_Orphans_Good_RecoversOrphan(t *testing.T) {
 	assertEqual(t, map[string]any{"like": 1}, orphans[0].Aggregate())
 
 	orphans[0].Discard()
-	assertFalse(t, testFilesystem().Exists(workspaceFilePath(stateDirectory, testRecoverGood)))
+	assertFalse(t, testFilesystem().Exists(workspaceFilePath(stateDirectory, testRecoverGood)).OK)
 }
 
 func TestRecover_Orphans_Bad_CorruptMetadataQuarantined(t *testing.T) {
@@ -38,12 +38,12 @@ func TestRecover_Orphans_Bad_CorruptMetadataQuarantined(t *testing.T) {
 
 	orphans := storeInstance.RecoverOrphans(stateDirectory)
 	assertLen(t, orphans, 0)
-	assertFalse(t, testFilesystem().Exists(corruptDatabasePath))
-	assertFalse(t, testFilesystem().Exists(corruptDatabasePath+".wal"))
+	assertFalse(t, testFilesystem().Exists(corruptDatabasePath).OK)
+	assertFalse(t, testFilesystem().Exists(corruptDatabasePath+".wal").OK)
 
 	quarantinePath := workspaceQuarantineFilePath(stateDirectory, corruptDatabasePath)
-	assertTrue(t, testFilesystem().Exists(quarantinePath))
-	assertTrue(t, testFilesystem().Exists(quarantinePath+".wal"))
+	assertTrue(t, testFilesystem().Exists(quarantinePath).OK)
+	assertTrue(t, testFilesystem().Exists(quarantinePath+".wal").OK)
 	assertEqual(t, "not a duckdb database", string(requireCoreReadBytes(t, quarantinePath)))
 }
 
@@ -57,5 +57,5 @@ func TestRecover_Orphans_Ugly_NoOrphansNoop(t *testing.T) {
 
 	orphans := storeInstance.RecoverOrphans(stateDirectory)
 	assertLen(t, orphans, 0)
-	assertFalse(t, testFilesystem().Exists(joinPath(stateDirectory, workspaceQuarantineDirName)))
+	assertFalse(t, testFilesystem().Exists(joinPath(stateDirectory, workspaceQuarantineDirName)).OK)
 }

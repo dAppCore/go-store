@@ -501,7 +501,7 @@ func prepareSQLiteStorage(operation, databasePath string, medium Medium) core.Re
 		return core.Ok(storage)
 	}
 	filesystem := (&core.Fs{}).NewUnrestricted()
-	storage.directory = filesystem.TempDir("go-store")
+	storage.directory = filesystem.TempDir("go-store").Value.(string)
 	storage.path = core.Path(storage.directory, "store.db")
 	if !medium.Exists(databasePath) {
 		return core.Ok(storage)
