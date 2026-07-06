@@ -84,7 +84,7 @@ func (medium *filesystemmedium) EnsureDir(path string) core.Result {
 
 // Usage example: `exists := localMedium().IsFile("archive.jsonl")`
 func (medium *filesystemmedium) IsFile(path string) bool {
-	return medium.filesystem.IsFile(path)
+	return medium.filesystem.IsFile(path).OK
 }
 
 // Usage example: `err := localMedium().Delete("archive.jsonl")`
@@ -179,12 +179,12 @@ func (medium *filesystemmedium) WriteStream(path string) (goio.WriteCloser, core
 
 // Usage example: `exists := localMedium().Exists("archive.jsonl")`
 func (medium *filesystemmedium) Exists(path string) bool {
-	return medium.filesystem.Exists(path)
+	return medium.filesystem.Exists(path).OK
 }
 
 // Usage example: `isDirectory := localMedium().IsDir("archives")`
 func (medium *filesystemmedium) IsDir(path string) bool {
-	return medium.filesystem.IsDir(path)
+	return medium.filesystem.IsDir(path).OK
 }
 
 func resultError(result core.Result) core.Result {

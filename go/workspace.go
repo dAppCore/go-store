@@ -118,7 +118,7 @@ func (storeInstance *Store) NewWorkspace(name string) (*Workspace, core.Result) 
 	filesystem := (&core.Fs{}).NewUnrestricted()
 	stateDirectory := storeInstance.workspaceStateDirectoryPath()
 	databasePath := workspaceFilePath(stateDirectory, name)
-	if filesystem.Exists(databasePath) {
+	if filesystem.Exists(databasePath).OK {
 		return nil, core.Fail(core.E(opNewWorkspace, core.Concat("workspace already exists: ", name), nil))
 	}
 	if result := filesystem.EnsureDir(stateDirectory); !result.OK {
@@ -147,7 +147,7 @@ func discoverOrphanWorkspacePaths(stateDirectory string) []string {
 	if stateDirectory == "" {
 		stateDirectory = defaultWorkspaceStateDirectory
 	}
-	if !filesystem.Exists(stateDirectory) {
+	if !filesystem.Exists(stateDirectory).OK {
 		return nil
 	}
 
@@ -393,7 +393,7 @@ func (workspace *Workspace) shouldUseOrphanAggregate() bool {
 	if workspace.filesystem == nil || workspace.databasePath == "" {
 		return false
 	}
-	return !workspace.filesystem.Exists(workspace.databasePath)
+	return !workspace.filesystem.Exists(workspace.databasePath).OK
 }
 
 func (workspace *Workspace) aggregateFieldsWithoutReadiness() (map[string]any, core.Result) {
@@ -456,7 +456,7 @@ func (workspace *Workspace) closeAndCleanup(removeFiles bool) core.Result {
 		return core.Ok(nil)
 	}
 	for _, path := range workspaceDatabaseFilePaths(workspace.databasePath) {
-		if result := workspace.filesystem.Delete(path); !result.OK && workspace.filesystem.Exists(path) {
+		if result := workspace.filesystem.Delete(path); !result.OK && workspace.filesystem.Exists(path).OK {
 			return core.Fail(core.E("store.Workspace.closeAndCleanup", "delete workspace file", result.Value.(error)))
 		}
 	}
@@ -613,7 +613,7 @@ func availableQuarantineWorkspacePath(filesystem *core.Fs, preferredPath string)
 
 func workspaceQuarantinePathExists(filesystem *core.Fs, databasePath string) bool {
 	for _, path := range workspaceDatabaseFilePaths(databasePath) {
-		if filesystem.Exists(path) {
+		if filesystem.Exists(path).OK {
 			return true
 		}
 	}
@@ -647,7 +647,7 @@ func workspaceDatabaseFilePaths(databasePath string) []string {
 }
 
 func quarantineWorkspaceFile(filesystem *core.Fs, sourcePath, quarantinePath string) {
-	if filesystem == nil || !filesystem.Exists(sourcePath) {
+	if filesystem == nil || !filesystem.Exists(sourcePath).OK {
 		return
 	}
 	if result := filesystem.Rename(sourcePath, quarantinePath); !result.OK {
