@@ -2,6 +2,7 @@ package store
 
 import (
 	"database/sql"
+	"maps"
 	"regexp"
 	"time"
 
@@ -672,9 +673,7 @@ func cloneAnyMap(input map[string]any) map[string]any {
 		return map[string]any{}
 	}
 	cloned := make(map[string]any, len(input))
-	for key, value := range input {
-		cloned[key] = value
-	}
+	maps.Copy(cloned, input)
 	return cloned
 }
 
@@ -683,8 +682,6 @@ func cloneStringMap(input map[string]string) map[string]string {
 		return map[string]string{}
 	}
 	cloned := make(map[string]string, len(input))
-	for key, value := range input {
-		cloned[key] = value
-	}
+	maps.Copy(cloned, input)
 	return cloned
 }

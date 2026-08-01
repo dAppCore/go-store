@@ -239,7 +239,7 @@ func isNil(value any) bool {
 	}
 	rv := reflect.ValueOf(value)
 	switch rv.Kind() {
-	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Ptr, reflect.Slice:
+	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Pointer, reflect.Slice:
 		return rv.IsNil()
 	}
 	return false
@@ -253,7 +253,7 @@ func isEmpty(value any) bool {
 	switch rv.Kind() {
 	case reflect.Array, reflect.Chan, reflect.Map, reflect.Slice, reflect.String:
 		return rv.Len() == 0
-	case reflect.Ptr, reflect.Interface:
+	case reflect.Pointer, reflect.Interface:
 		if rv.IsNil() {
 			return true
 		}
@@ -376,7 +376,7 @@ func samePointer(want, got any) bool {
 	if !wantValue.IsValid() || !gotValue.IsValid() {
 		return false
 	}
-	if wantValue.Kind() != reflect.Ptr || gotValue.Kind() != reflect.Ptr {
+	if wantValue.Kind() != reflect.Pointer || gotValue.Kind() != reflect.Pointer {
 		return false
 	}
 	return wantValue.Pointer() == gotValue.Pointer()

@@ -492,7 +492,7 @@ func exportCSV(workspace *Workspace, medium Medium, path string) core.Result {
 
 func csvField(value string) string {
 	needsQuote := false
-	for index := 0; index < len(value); index++ {
+	for index := range len(value) {
 		switch value[index] {
 		case ',', '"', '\n', '\r':
 			needsQuote = true

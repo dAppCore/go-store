@@ -284,7 +284,7 @@ func TestEvents_Watch_Good_BufferDrops(t *testing.T) {
 	events := storeInstance.Watch("g")
 	defer storeInstance.Unwatch("g", events)
 
-	for i := 0; i < watcherEventBufferCapacity+8; i++ {
+	for i := range watcherEventBufferCapacity + 8 {
 		assertNoError(t, storeInstance.Set("g", core.Sprintf("k-%d", i), "v"))
 	}
 
@@ -302,7 +302,7 @@ func TestEvents_Watch_Good_ConcurrentWatchUnwatch(t *testing.T) {
 	var wg sync.WaitGroup
 	wg.Add(workers)
 
-	for worker := 0; worker < workers; worker++ {
+	for worker := range workers {
 		go func(worker int) {
 			defer wg.Done()
 			group := core.Sprintf("g-%d", worker)

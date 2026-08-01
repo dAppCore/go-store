@@ -86,7 +86,7 @@ func indentCompactJSON(buf interface {
 		if _, err := buf.WriteString(prefix); err != nil {
 			return core.Fail(err)
 		}
-		for i := 0; i < level; i++ {
+		for range level {
 			if _, err := buf.WriteString(indent); err != nil {
 				return core.Fail(err)
 			}
@@ -94,7 +94,7 @@ func indentCompactJSON(buf interface {
 		return core.Ok(nil)
 	}
 
-	for i := 0; i < len(src); i++ {
+	for i := range src {
 		c := src[i]
 		if state.inString {
 			if result := state.writeStringByte(buf, c); !result.OK {
