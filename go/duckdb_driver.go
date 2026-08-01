@@ -4,4 +4,4 @@
 
 package store
 
-import _ "github.com/marcboeker/go-duckdb/v2" // Note: registers the database/sql "duckdb" driver when CGO is available.
+import _ "github.com/duckdb/duckdb-go/v2" // Note: the official DuckDB-hosted driver; registers the database/sql "duckdb" driver when CGO is available.
