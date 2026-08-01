@@ -135,4 +135,3 @@ func TestService_Service_OnShutdown_Ugly(t *core.T) {
 		t.FailNow()
 	}
 }
-
