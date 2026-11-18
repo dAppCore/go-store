@@ -18,7 +18,7 @@ back.
 
 ## Compliance Rules
 
-Follow the v0.9.0 Core compliance shape. Use `dappco.re/go` primitives for JSON,
+Follow the v0.9.0 Core compliance shape. Use `github.com/dappcore/go` primitives for JSON,
 errors, formatting, strings, bytes, filesystem, process, and environment helpers
 whenever a wrapper exists. Do not add files named `ax7*.go`, versioned test
 files, compatibility shims, or monolithic compliance dumps.

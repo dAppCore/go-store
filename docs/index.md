@@ -14,7 +14,7 @@ normal store consumers can compile without CGO. DuckDB-backed workspace and
 analytics helpers require CGO when they are used at runtime. See
 [Windows Builds](windows.md) for the Windows cross-compile checklist.
 
-**Module path:** `dappco.re/go/store`
+**Module path:** `github.com/dappcore/go-store/go`
 **Go version:** 1.26+
 **Licence:** EUPL-1.2
 
@@ -27,7 +27,7 @@ import (
     "fmt"
     "time"
 
-    "dappco.re/go/store"
+    "github.com/dappcore/go-store/go"
 )
 
 func main() {
@@ -162,7 +162,7 @@ Tests are organised in corresponding files:
 
 Additional module requirements cover Core primitives, compression codecs, and
 the transitive libraries behind the runtime drivers. The package uses the Go
-standard library plus `dappco.re/go` helper primitives for error wrapping,
+standard library plus `github.com/dappcore/go` helper primitives for error wrapping,
 string handling, and filesystem-safe path composition.
 
 ## Key Types

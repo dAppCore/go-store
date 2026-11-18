@@ -9,7 +9,7 @@ import (
 	"testing"
 	"unicode"
 
-	core "dappco.re/go"
+	core "github.com/dappcore/go"
 )
 
 func TestConventions_Imports_Good_Banned(t *testing.T) {

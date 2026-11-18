@@ -4,8 +4,8 @@ package store_test
 import (
 	"testing"
 
-	core "dappco.re/go"
-	store "dappco.re/go/store"
+	core "github.com/dappcore/go"
+	store "github.com/dappcore/go-store/go"
 )
 
 type (

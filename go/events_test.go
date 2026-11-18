@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	core "dappco.re/go"
+	core "github.com/dappcore/go"
 )
 
 func TestEvents_Watch_Good_Group(t *testing.T) {

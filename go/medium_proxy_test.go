@@ -6,7 +6,7 @@ import (
 	goio "io"
 	"testing"
 
-	core "dappco.re/go"
+	core "github.com/dappcore/go"
 )
 
 // Real-behaviour coverage for the filesystemmedium proxy that backs

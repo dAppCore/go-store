@@ -5,7 +5,7 @@ import (
 	"time"
 	"unicode"
 
-	core "dappco.re/go"
+	core "github.com/dappcore/go"
 	"github.com/klauspost/compress/zstd"
 )
 

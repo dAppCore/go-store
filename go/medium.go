@@ -7,7 +7,7 @@ import (
 	goio "io"
 	"io/fs"
 
-	core "dappco.re/go"
+	core "github.com/dappcore/go"
 )
 
 // Medium is the minimal storage transport used by the go-store workspace

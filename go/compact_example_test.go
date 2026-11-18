@@ -3,7 +3,7 @@ package store
 import (
 	"time"
 
-	core "dappco.re/go"
+	core "github.com/dappcore/go"
 )
 
 func ExampleCompactOptions_Normalised() {

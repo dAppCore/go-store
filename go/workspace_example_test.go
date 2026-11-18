@@ -1,6 +1,6 @@
 package store
 
-import core "dappco.re/go"
+import core "github.com/dappcore/go"
 
 func ExampleWorkspace_Name() {
 	_, workspace := exampleWorkspace()

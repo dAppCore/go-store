@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What This Is
 
-SQLite key-value store with TTL, namespace isolation, and reactive events. Pure Go (no CGO). Module: `dappco.re/go/store`
+SQLite key-value store with TTL, namespace isolation, and reactive events. Pure Go (no CGO). Module: `github.com/dappcore/go-store/go`
 
 ## AX Notes
 
@@ -62,7 +62,7 @@ import (
 	"fmt"
 	"time"
 
-	"dappco.re/go/store"
+	"github.com/dappcore/go-store/go"
 )
 
 func main() {

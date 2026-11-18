@@ -5,7 +5,7 @@ package store
 import (
 	"database/sql"
 
-	core "dappco.re/go"
+	core "github.com/dappcore/go"
 )
 
 // DuckDB table names for checkpoint scoring and probe results.
