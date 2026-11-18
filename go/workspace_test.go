@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	core "dappco.re/go"
+	core "github.com/dappcore/go"
 )
 
 func TestWorkspace_NewWorkspace_Good_CreatePutAggregateQuery(t *testing.T) {

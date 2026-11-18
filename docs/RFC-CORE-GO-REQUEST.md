@@ -87,7 +87,7 @@ c.Action("blockchain.chain.sync", ...)
 
 The LNS is 672 lines of Go at `~/Code/lthn/lns/`. It could become `go-dns` in the Core ecosystem.
 
-**Ask: Should I make it `dappco.re/go/core/dns` or keep it as a standalone?**
+**Ask: Should I make it `github.com/dappcore/go-dns/go` or keep it as a standalone?**
 
 If yes to go-dns, the actions would be:
 ```go
@@ -137,7 +137,7 @@ Every CGo package (go-blockchain/crypto, go-mlx, go-rocm) does this dance manual
 | 5 | Escrow txs | **Charon** | In go-blockchain |
 | 6 | Asset operations | **Charon** | After HF5 |
 | 7 | Chain service | **Charon** | Implementing today |
-| 8 | go-dns | **Cladius** | `dappco.re/go/dns` — DNS record DTOs + ClouDNS API types |
+| 8 | go-dns | **Cladius** | `github.com/dappcore/go-dns/go` — DNS record DTOs + ClouDNS API types |
 | 9 | Storage encoder | **Charon** | DONE |
 | 10 | go-cgo | **Cladius** | RFC written, dispatching |
 
@@ -236,4 +236,4 @@ RFC written at `plans/code/core/go/cgo/RFC.md`. Buffer, Scope, Call, String help
 
 ### #8 Answer: go-dns
 
-`dappco.re/go/dns` — Core package. DNS record structs as DTOs mapping 1:1 to ClouDNS API. Your LNS code at `~/Code/lthn/lns/` moves in as the service layer on top. Dispatching when repo exists.
+`github.com/dappcore/go-dns/go` — Core package. DNS record structs as DTOs mapping 1:1 to ClouDNS API. Your LNS code at `~/Code/lthn/lns/` moves in as the service layer on top. Dispatching when repo exists.

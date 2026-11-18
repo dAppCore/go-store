@@ -1,7 +1,7 @@
 # RFC — Windows support for go-store
 
 **Status:** draft · **Author:** Cladius · **Date:** 2026-05-12
-**Triggered by:** Lethean Desktop (`lthn/desktop`) Windows cross-compile blocked at `dappco.re/go/store` duckdb driver registration. Sibling to [go-process RFC](../go-process/RFC.md) and [go-io RFC](../go-io/RFC.md) — same demo deadline, same "compile clean on `GOOS=windows GOARCH=amd64`" target.
+**Triggered by:** Lethean Desktop (`lthn/desktop`) Windows cross-compile blocked at `github.com/dappcore/go-store/go` duckdb driver registration. Sibling to [go-process RFC](../go-process/RFC.md) and [go-io RFC](../go-io/RFC.md) — same demo deadline, same "compile clean on `GOOS=windows GOARCH=amd64`" target.
 
 ## Problem
 
@@ -9,7 +9,7 @@
 
 ```
 package dappco.re/lthn/desktop/cmd/lthn
-  imports dappco.re/go/store
+  imports github.com/dappcore/go-store/go
   imports github.com/marcboeker/go-duckdb: build constraints exclude all Go files in
     ~/go/pkg/mod/github.com/marcboeker/go-duckdb@v1.8.5
 ```

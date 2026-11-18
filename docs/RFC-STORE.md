@@ -1,5 +1,5 @@
 ---
-module: dappco.re/go/store
+module: github.com/dappcore/go-store/go
 repo: core/go-store
 lang: go
 tier: lib
@@ -16,7 +16,7 @@ tags:
 
 > An agent should be able to use this store from this document alone.
 
-**Module:** `dappco.re/go/store`
+**Module:** `github.com/dappcore/go-store/go`
 **Repository:** `core/go-store`
 **Files:** 9
 

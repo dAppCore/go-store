@@ -9,7 +9,7 @@ import (
 	"time"
 	"unicode"
 
-	core "dappco.re/go"
+	core "github.com/dappcore/go"
 	influxdb2 "github.com/influxdata/influxdb-client-go/v2"
 	_ "modernc.org/sqlite"
 )

@@ -9,7 +9,7 @@ import (
 	"net/http"
 	"time"
 
-	core "dappco.re/go"
+	core "github.com/dappcore/go"
 )
 
 // PublishConfig holds options for the publish operation.

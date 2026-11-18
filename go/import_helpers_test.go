@@ -3,7 +3,7 @@ package store
 import (
 	"testing"
 
-	core "dappco.re/go"
+	core "github.com/dappcore/go"
 )
 
 // Real-behaviour coverage for the import-path helpers: the pure shape helpers

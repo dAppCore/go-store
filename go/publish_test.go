@@ -3,7 +3,7 @@ package store
 import (
 	"testing"
 
-	core "dappco.re/go"
+	core "github.com/dappcore/go"
 )
 
 func TestPublish_Publish_Bad_EmptyRepository(t *testing.T) {

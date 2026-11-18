@@ -8,7 +8,7 @@ import (
 	"io"
 	"io/fs"
 
-	core "dappco.re/go"
+	core "github.com/dappcore/go"
 )
 
 // localFs provides unrestricted filesystem access for import operations.

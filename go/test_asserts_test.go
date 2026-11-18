@@ -5,7 +5,7 @@ import (
 	"sort"
 	"testing"
 
-	core "dappco.re/go"
+	core "github.com/dappcore/go"
 )
 
 func assertNoError(t testing.TB, err any) {

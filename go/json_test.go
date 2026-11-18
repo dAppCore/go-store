@@ -1,7 +1,7 @@
 package store_test
 
 import (
-	store "dappco.re/go/store"
+	store "github.com/dappcore/go-store/go"
 )
 
 func TestJson_RawMessage_MarshalJSONCore_Good(t *T) {

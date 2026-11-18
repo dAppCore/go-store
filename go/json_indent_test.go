@@ -3,7 +3,7 @@
 package store_test
 
 import (
-	store "dappco.re/go/store"
+	store "github.com/dappcore/go-store/go"
 )
 
 // Exercises the indentCompactJSON byte-encoder branches through the public

@@ -1,7 +1,7 @@
 package store_test
 
 import (
-	store "dappco.re/go/store"
+	store "github.com/dappcore/go-store/go"
 )
 
 func TestInventory_PrintDuckDBInventory_Good(t *T) {

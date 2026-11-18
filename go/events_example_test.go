@@ -1,6 +1,6 @@
 package store
 
-import core "dappco.re/go"
+import core "github.com/dappcore/go"
 
 func ExampleEventType_String() {
 	label := EventDeleteGroup.String()

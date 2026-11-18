@@ -1,5 +1,5 @@
 ---
-module: dappco.re/go/core
+module: github.com/dappcore/go
 repo: core/go
 lang: go
 tier: lib
@@ -12,12 +12,12 @@ tags:
 ---
 # CoreGO RFC — API Contract
 
-> `dappco.re/go/core` — Dependency injection, service lifecycle, permission, and message-passing framework.
+> `github.com/dappcore/go` — Dependency injection, service lifecycle, permission, and message-passing framework.
 > This document is the authoritative API contract. An agent should be able to write a service
 > that registers with Core from this document alone.
 
 **Status:** Living document
-**Module:** `dappco.re/go/core`
+**Module:** `github.com/dappcore/go`
 **Version:** v0.8.0
 
 ---
