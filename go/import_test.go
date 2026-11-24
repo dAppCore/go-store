@@ -70,6 +70,9 @@ func TestImport_ImportSeeds_Bad_WalkFailure(t *testing.T) {
 }
 
 func TestImport_ImportAll_Good(t *T) {
+	if !DuckDBAvailable() {
+		t.Skip("needs DuckDB: built without cgo, or with -tags noduckdb")
+	}
 	database := fixtureDuckDB(t)
 	output := NewBuffer()
 	err := ImportAll(database, ImportConfig{DataDir: t.TempDir(), SkipM3: true}, output)
@@ -85,6 +88,9 @@ func TestImport_ImportAll_Bad(t *T) {
 }
 
 func TestImport_ImportAll_Ugly(t *T) {
+	if !DuckDBAvailable() {
+		t.Skip("needs DuckDB: built without cgo, or with -tags noduckdb")
+	}
 	database := fixtureDuckDB(t)
 	output := NewBuffer()
 	err := ImportAll(database, ImportConfig{DataDir: t.TempDir(), SkipM3: false, Scp: func(string, string) error { return NewError("offline") }}, output)

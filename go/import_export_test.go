@@ -5,6 +5,9 @@ package store
 import "testing"
 
 func TestImportExport_Import_Good_CSVAndJSONIngestion(t *testing.T) {
+	if !DuckDBAvailable() {
+		t.Skip("needs DuckDB: built without cgo, or with -tags noduckdb")
+	}
 	useWorkspaceStateDirectory(t)
 
 	r := New(testMemoryDatabasePath)
@@ -27,6 +30,9 @@ func TestImportExport_Import_Good_CSVAndJSONIngestion(t *testing.T) {
 }
 
 func TestImportExport_Import_Bad_MalformedPayload(t *testing.T) {
+	if !DuckDBAvailable() {
+		t.Skip("needs DuckDB: built without cgo, or with -tags noduckdb")
+	}
 	useWorkspaceStateDirectory(t)
 
 	r := New(testMemoryDatabasePath)
@@ -49,6 +55,9 @@ func TestImportExport_Import_Bad_MalformedPayload(t *testing.T) {
 }
 
 func TestImportExport_Import_Ugly_EmptyPayload(t *testing.T) {
+	if !DuckDBAvailable() {
+		t.Skip("needs DuckDB: built without cgo, or with -tags noduckdb")
+	}
 	useWorkspaceStateDirectory(t)
 
 	r := New(testMemoryDatabasePath)

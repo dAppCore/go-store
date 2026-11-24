@@ -90,6 +90,9 @@ func TestImportHelpers_EscapeSQLPath_Ugly_DoublesSingleQuotes(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestImportHelpers_InsertSeed_Good_MapSeed(t *testing.T) {
+	if !DuckDBAvailable() {
+		t.Skip("needs DuckDB: built without cgo, or with -tags noduckdb")
+	}
 	session, done := newImportTx(t)
 	defer done()
 	inserted, r := insertSeed(session, "western.json", "western", map[string]any{
@@ -101,6 +104,9 @@ func TestImportHelpers_InsertSeed_Good_MapSeed(t *testing.T) {
 }
 
 func TestImportHelpers_InsertSeed_Good_StringSeed(t *testing.T) {
+	if !DuckDBAvailable() {
+		t.Skip("needs DuckDB: built without cgo, or with -tags noduckdb")
+	}
 	session, done := newImportTx(t)
 	defer done()
 	inserted, r := insertSeed(session, "rel.json", "region", "a bare prompt")
@@ -110,6 +116,9 @@ func TestImportHelpers_InsertSeed_Good_StringSeed(t *testing.T) {
 }
 
 func TestImportHelpers_InsertSeed_Ugly_UnsupportedSeedSkipped(t *testing.T) {
+	if !DuckDBAvailable() {
+		t.Skip("needs DuckDB: built without cgo, or with -tags noduckdb")
+	}
 	session, done := newImportTx(t)
 	defer done()
 	inserted, r := insertSeed(session, "rel.json", "region", 12345)
@@ -123,6 +132,9 @@ func TestImportHelpers_InsertSeed_Ugly_UnsupportedSeedSkipped(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestImportHelpers_ImportSeedFile_Good_IngestsPromptsArray(t *testing.T) {
+	if !DuckDBAvailable() {
+		t.Skip("needs DuckDB: built without cgo, or with -tags noduckdb")
+	}
 	session, done := newImportTx(t)
 	defer done()
 	dir := t.TempDir()
@@ -136,6 +148,9 @@ func TestImportHelpers_ImportSeedFile_Good_IngestsPromptsArray(t *testing.T) {
 }
 
 func TestImportHelpers_ImportSeedFile_Bad_NonJSONExtensionSkipped(t *testing.T) {
+	if !DuckDBAvailable() {
+		t.Skip("needs DuckDB: built without cgo, or with -tags noduckdb")
+	}
 	session, done := newImportTx(t)
 	defer done()
 	dir := t.TempDir()
@@ -167,6 +182,9 @@ func TestImportHelpers_ReadSeedList_Bad_MalformedJSON(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestImportHelpers_QueryRowScan_Bad_InvalidQuery(t *testing.T) {
+	if !DuckDBAvailable() {
+		t.Skip("needs DuckDB: built without cgo, or with -tags noduckdb")
+	}
 	session, done := newImportTx(t)
 	defer done()
 	var dest int

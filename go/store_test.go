@@ -113,6 +113,9 @@ func TestStore_New_Good_WithJournalOption(t *testing.T) {
 }
 
 func TestStore_New_Good_WithWorkspaceStateDirectoryOption(t *testing.T) {
+	if !DuckDBAvailable() {
+		t.Skip("needs DuckDB: built without cgo, or with -tags noduckdb")
+	}
 	workspaceStateDirectory := testPath(t, "workspace-state-option")
 
 	r := New(testMemoryDatabasePath, WithWorkspaceStateDirectory(workspaceStateDirectory))
@@ -131,6 +134,9 @@ func TestStore_New_Good_WithWorkspaceStateDirectoryOption(t *testing.T) {
 }
 
 func TestStore_NewConfigured_Good_WorkspaceStateDirectory(t *testing.T) {
+	if !DuckDBAvailable() {
+		t.Skip("needs DuckDB: built without cgo, or with -tags noduckdb")
+	}
 	workspaceStateDirectory := testPath(t, "workspace-state")
 
 	r := NewConfigured(StoreConfig{

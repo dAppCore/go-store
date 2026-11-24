@@ -3,6 +3,9 @@ package store
 import "testing"
 
 func TestRecover_Orphans_Good_RecoversOrphan(t *testing.T) {
+	if !DuckDBAvailable() {
+		t.Skip("needs DuckDB: built without cgo, or with -tags noduckdb")
+	}
 	stateDirectory := useWorkspaceStateDirectory(t)
 
 	r := New(testMemoryDatabasePath)

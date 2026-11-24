@@ -4,7 +4,9 @@
 
 # go-store
 
-Group-namespaced SQLite key-value store with TTL expiry, namespace isolation, quota enforcement, and a reactive event system. Backed by a pure-Go SQLite driver (no CGO), uses WAL mode for concurrent reads, and enforces a single connection to keep pragma settings consistent. Supports scoped stores for multi-tenant use, Watch/Unwatch subscriptions, and OnChange callbacks for downstream event consumers.
+Group-namespaced SQLite key-value store with TTL expiry, namespace isolation, quota enforcement, and a reactive event system. Backed by a pure-Go SQLite driver, uses WAL mode for concurrent reads, and enforces a single connection to keep pragma settings consistent. Supports scoped stores for multi-tenant use, Watch/Unwatch subscriptions, and OnChange callbacks for downstream event consumers.
+
+The key-value store is pure Go. The workspace buffer and `OpenDuckDB` use DuckDB, which is linked in with cgo. Build with `-tags noduckdb` (or `CGO_ENABLED=0`) to leave it out: the key-value store works the same, and `store.DuckDBAvailable()` reports false.
 
 **Module**: `github.com/dappcore/go-store/go`
 **Licence**: EUPL-1.2
