@@ -266,6 +266,9 @@ func TestMedium_WithMedium_Good_PersistsDatabaseThroughMedium(t *testing.T) {
 }
 
 func TestMedium_Import_Good_JSONL(t *testing.T) {
+	if !DuckDBAvailable() {
+		t.Skip("needs DuckDB: built without cgo, or with -tags noduckdb")
+	}
 	useWorkspaceStateDirectory(t)
 
 	r := New(testMemoryDatabasePath)
@@ -292,6 +295,9 @@ func TestMedium_Import_Good_JSONL(t *testing.T) {
 }
 
 func TestMedium_Import_Good_JSONArray(t *testing.T) {
+	if !DuckDBAvailable() {
+		t.Skip("needs DuckDB: built without cgo, or with -tags noduckdb")
+	}
 	useWorkspaceStateDirectory(t)
 
 	r := New(testMemoryDatabasePath)
@@ -312,6 +318,9 @@ func TestMedium_Import_Good_JSONArray(t *testing.T) {
 }
 
 func TestMedium_Import_Good_CSV(t *testing.T) {
+	if !DuckDBAvailable() {
+		t.Skip("needs DuckDB: built without cgo, or with -tags noduckdb")
+	}
 	useWorkspaceStateDirectory(t)
 
 	r := New(testMemoryDatabasePath)
@@ -332,6 +341,9 @@ func TestMedium_Import_Good_CSV(t *testing.T) {
 }
 
 func TestMedium_Import_Good_CSVQuotedMultiline(t *testing.T) {
+	if !DuckDBAvailable() {
+		t.Skip("needs DuckDB: built without cgo, or with -tags noduckdb")
+	}
 	useWorkspaceStateDirectory(t)
 
 	r := New(testMemoryDatabasePath)
@@ -352,6 +364,9 @@ func TestMedium_Import_Good_CSVQuotedMultiline(t *testing.T) {
 }
 
 func TestMedium_Import_Bad_JSONArrayNonObject(t *testing.T) {
+	if !DuckDBAvailable() {
+		t.Skip("needs DuckDB: built without cgo, or with -tags noduckdb")
+	}
 	useWorkspaceStateDirectory(t)
 
 	r := New(testMemoryDatabasePath)
@@ -374,6 +389,9 @@ func TestMedium_Import_Bad_JSONArrayNonObject(t *testing.T) {
 }
 
 func TestMedium_Import_Bad_MalformedCSV(t *testing.T) {
+	if !DuckDBAvailable() {
+		t.Skip("needs DuckDB: built without cgo, or with -tags noduckdb")
+	}
 	useWorkspaceStateDirectory(t)
 
 	r := New(testMemoryDatabasePath)
@@ -396,6 +414,9 @@ func TestMedium_Import_Bad_MalformedCSV(t *testing.T) {
 }
 
 func TestMedium_Import_Bad_NilArguments(t *testing.T) {
+	if !DuckDBAvailable() {
+		t.Skip("needs DuckDB: built without cgo, or with -tags noduckdb")
+	}
 	useWorkspaceStateDirectory(t)
 
 	r := New(testMemoryDatabasePath)
@@ -415,6 +436,9 @@ func TestMedium_Import_Bad_NilArguments(t *testing.T) {
 }
 
 func TestMedium_Import_Ugly_MissingFileReturnsError(t *testing.T) {
+	if !DuckDBAvailable() {
+		t.Skip("needs DuckDB: built without cgo, or with -tags noduckdb")
+	}
 	useWorkspaceStateDirectory(t)
 
 	r := New(testMemoryDatabasePath)
@@ -431,6 +455,9 @@ func TestMedium_Import_Ugly_MissingFileReturnsError(t *testing.T) {
 }
 
 func TestMedium_Export_Good_JSON(t *testing.T) {
+	if !DuckDBAvailable() {
+		t.Skip("needs DuckDB: built without cgo, or with -tags noduckdb")
+	}
 	useWorkspaceStateDirectory(t)
 
 	r := New(testMemoryDatabasePath)
@@ -457,6 +484,9 @@ func TestMedium_Export_Good_JSON(t *testing.T) {
 }
 
 func TestMedium_Export_Good_JSONLines(t *testing.T) {
+	if !DuckDBAvailable() {
+		t.Skip("needs DuckDB: built without cgo, or with -tags noduckdb")
+	}
 	useWorkspaceStateDirectory(t)
 
 	r := New(testMemoryDatabasePath)
@@ -486,6 +516,9 @@ func TestMedium_Export_Good_JSONLines(t *testing.T) {
 }
 
 func TestMedium_Export_Bad_NilArguments(t *testing.T) {
+	if !DuckDBAvailable() {
+		t.Skip("needs DuckDB: built without cgo, or with -tags noduckdb")
+	}
 	useWorkspaceStateDirectory(t)
 
 	r := New(testMemoryDatabasePath)
@@ -505,6 +538,9 @@ func TestMedium_Export_Bad_NilArguments(t *testing.T) {
 }
 
 func TestMedium_Export_Bad_JSONPropagatesWorkspaceFailure(t *testing.T) {
+	if !DuckDBAvailable() {
+		t.Skip("needs DuckDB: built without cgo, or with -tags noduckdb")
+	}
 	useWorkspaceStateDirectory(t)
 
 	r := New(testMemoryDatabasePath)
@@ -637,6 +673,9 @@ func TestMedium_Store_Medium_Ugly(t *T) {
 }
 
 func TestMedium_Import_Good(t *T) {
+	if !DuckDBAvailable() {
+		t.Skip("needs DuckDB: built without cgo, or with -tags noduckdb")
+	}
 	_, workspace := fixtureWorkspace(t)
 	medium := newFixtureMedium()
 	RequireNoError(t, medium.Write(testRecordsJSONLFile, `{"name":"alice"}`))
@@ -652,6 +691,9 @@ func TestMedium_Import_Bad(t *T) {
 }
 
 func TestMedium_Import_Ugly(t *T) {
+	if !DuckDBAvailable() {
+		t.Skip("needs DuckDB: built without cgo, or with -tags noduckdb")
+	}
 	_, workspace := fixtureWorkspace(t)
 	medium := newFixtureMedium()
 	RequireNoError(t, medium.Write("records.csv", "name\nalice\n"))
@@ -660,6 +702,9 @@ func TestMedium_Import_Ugly(t *T) {
 }
 
 func TestMedium_Export_Good(t *T) {
+	if !DuckDBAvailable() {
+		t.Skip("needs DuckDB: built without cgo, or with -tags noduckdb")
+	}
 	_, workspace := fixtureWorkspace(t)
 	medium := newFixtureMedium()
 	RequireNoError(t, workspace.Put("entry", map[string]any{"name": "alice"}))
@@ -675,6 +720,9 @@ func TestMedium_Export_Bad(t *T) {
 }
 
 func TestMedium_Export_Ugly(t *T) {
+	if !DuckDBAvailable() {
+		t.Skip("needs DuckDB: built without cgo, or with -tags noduckdb")
+	}
 	_, workspace := fixtureWorkspace(t)
 	medium := newFixtureMedium()
 	RequireNoError(t, workspace.Put("entry", map[string]any{"name": "alice"}))

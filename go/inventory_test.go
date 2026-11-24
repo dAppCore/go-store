@@ -5,6 +5,9 @@ import (
 )
 
 func TestInventory_PrintDuckDBInventory_Good(t *T) {
+	if !store.DuckDBAvailable() {
+		t.Skip("needs DuckDB: built without cgo, or with -tags noduckdb")
+	}
 	database := fixtureDuckDB(t)
 	fixtureSeedDuckDB(t, database)
 	output := NewBuffer()
@@ -14,6 +17,9 @@ func TestInventory_PrintDuckDBInventory_Good(t *T) {
 }
 
 func TestInventory_PrintDuckDBInventory_Bad(t *T) {
+	if !store.DuckDBAvailable() {
+		t.Skip("needs DuckDB: built without cgo, or with -tags noduckdb")
+	}
 	database := fixtureDuckDB(t)
 	RequireNoError(t, database.Close())
 	output := NewBuffer()
@@ -23,6 +29,9 @@ func TestInventory_PrintDuckDBInventory_Bad(t *T) {
 }
 
 func TestInventory_PrintDuckDBInventory_Ugly(t *T) {
+	if !store.DuckDBAvailable() {
+		t.Skip("needs DuckDB: built without cgo, or with -tags noduckdb")
+	}
 	database := fixtureDuckDB(t)
 	RequireNoError(t, database.EnsureScoringTables())
 	output := NewBuffer()

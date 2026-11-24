@@ -8,6 +8,9 @@ import (
 )
 
 func TestWorkspace_NewWorkspace_Good_CreatePutAggregateQuery(t *testing.T) {
+	if !DuckDBAvailable() {
+		t.Skip("needs DuckDB: built without cgo, or with -tags noduckdb")
+	}
 	stateDirectory := useWorkspaceStateDirectory(t)
 
 	r := New(testMemoryDatabasePath, WithJournal(testJournalEndpoint, "core", "events"))
@@ -40,6 +43,9 @@ func TestWorkspace_NewWorkspace_Good_CreatePutAggregateQuery(t *testing.T) {
 }
 
 func TestWorkspace_DatabasePath_Good(t *testing.T) {
+	if !DuckDBAvailable() {
+		t.Skip("needs DuckDB: built without cgo, or with -tags noduckdb")
+	}
 	stateDirectory := useWorkspaceStateDirectory(t)
 
 	r := New(testMemoryDatabasePath)
@@ -55,6 +61,9 @@ func TestWorkspace_DatabasePath_Good(t *testing.T) {
 }
 
 func TestWorkspace_Count_Good_Empty(t *testing.T) {
+	if !DuckDBAvailable() {
+		t.Skip("needs DuckDB: built without cgo, or with -tags noduckdb")
+	}
 	useWorkspaceStateDirectory(t)
 
 	r := New(testMemoryDatabasePath)
@@ -72,6 +81,9 @@ func TestWorkspace_Count_Good_Empty(t *testing.T) {
 }
 
 func TestWorkspace_Count_Good_AfterPuts(t *testing.T) {
+	if !DuckDBAvailable() {
+		t.Skip("needs DuckDB: built without cgo, or with -tags noduckdb")
+	}
 	useWorkspaceStateDirectory(t)
 
 	r := New(testMemoryDatabasePath)
@@ -93,6 +105,9 @@ func TestWorkspace_Count_Good_AfterPuts(t *testing.T) {
 }
 
 func TestWorkspace_Count_Bad_ClosedWorkspace(t *testing.T) {
+	if !DuckDBAvailable() {
+		t.Skip("needs DuckDB: built without cgo, or with -tags noduckdb")
+	}
 	useWorkspaceStateDirectory(t)
 
 	r := New(testMemoryDatabasePath)
@@ -109,6 +124,9 @@ func TestWorkspace_Count_Bad_ClosedWorkspace(t *testing.T) {
 }
 
 func TestWorkspace_Query_Good_RFCEntriesView(t *testing.T) {
+	if !DuckDBAvailable() {
+		t.Skip("needs DuckDB: built without cgo, or with -tags noduckdb")
+	}
 	useWorkspaceStateDirectory(t)
 
 	r := New(testMemoryDatabasePath)
@@ -136,6 +154,9 @@ func TestWorkspace_Query_Good_RFCEntriesView(t *testing.T) {
 }
 
 func TestWorkspace_Commit_Good_JournalAndSummary(t *testing.T) {
+	if !DuckDBAvailable() {
+		t.Skip("needs DuckDB: built without cgo, or with -tags noduckdb")
+	}
 	useWorkspaceStateDirectory(t)
 
 	r := New(testMemoryDatabasePath, WithJournal(testJournalEndpoint, "core", "events"))
@@ -182,6 +203,9 @@ func TestWorkspace_Commit_Good_JournalAndSummary(t *testing.T) {
 }
 
 func TestWorkspace_Commit_Good_ResultCopiesAggregatedMap(t *testing.T) {
+	if !DuckDBAvailable() {
+		t.Skip("needs DuckDB: built without cgo, or with -tags noduckdb")
+	}
 	useWorkspaceStateDirectory(t)
 
 	r := New(testMemoryDatabasePath, WithJournal(testJournalEndpoint, "core", "events"))
@@ -206,6 +230,9 @@ func TestWorkspace_Commit_Good_ResultCopiesAggregatedMap(t *testing.T) {
 }
 
 func TestWorkspace_Commit_Good_EmitsSummaryEvent(t *testing.T) {
+	if !DuckDBAvailable() {
+		t.Skip("needs DuckDB: built without cgo, or with -tags noduckdb")
+	}
 	useWorkspaceStateDirectory(t)
 
 	r := New(testMemoryDatabasePath, WithJournal(testJournalEndpoint, "core", "events"))
@@ -243,6 +270,9 @@ func TestWorkspace_Commit_Good_EmitsSummaryEvent(t *testing.T) {
 }
 
 func TestWorkspace_RecoverOrphans_Good_SkipsAlreadyCommittedWorkspaceFile(t *testing.T) {
+	if !DuckDBAvailable() {
+		t.Skip("needs DuckDB: built without cgo, or with -tags noduckdb")
+	}
 	stateDirectory := useWorkspaceStateDirectory(t)
 
 	r := New(testMemoryDatabasePath, WithJournal(testJournalEndpoint, "core", "events"))
@@ -266,6 +296,9 @@ func TestWorkspace_RecoverOrphans_Good_SkipsAlreadyCommittedWorkspaceFile(t *tes
 }
 
 func TestWorkspace_Discard_Good_Idempotent(t *testing.T) {
+	if !DuckDBAvailable() {
+		t.Skip("needs DuckDB: built without cgo, or with -tags noduckdb")
+	}
 	useWorkspaceStateDirectory(t)
 
 	r := New(testMemoryDatabasePath)
@@ -283,6 +316,9 @@ func TestWorkspace_Discard_Good_Idempotent(t *testing.T) {
 }
 
 func TestWorkspace_Close_Good_PreservesFileForRecovery(t *testing.T) {
+	if !DuckDBAvailable() {
+		t.Skip("needs DuckDB: built without cgo, or with -tags noduckdb")
+	}
 	stateDirectory := useWorkspaceStateDirectory(t)
 
 	r := New(testMemoryDatabasePath)
@@ -310,6 +346,9 @@ func TestWorkspace_Close_Good_PreservesFileForRecovery(t *testing.T) {
 }
 
 func TestWorkspace_Close_Good_ClosesDatabaseWithoutFilesystem(t *testing.T) {
+	if !DuckDBAvailable() {
+		t.Skip("needs DuckDB: built without cgo, or with -tags noduckdb")
+	}
 	databasePath := testPath(t, "workspace-no-filesystem.duckdb")
 
 	database, err := openWorkspaceDatabase(databasePath)
@@ -334,6 +373,9 @@ func TestWorkspace_Close_Good_ClosesDatabaseWithoutFilesystem(t *testing.T) {
 }
 
 func TestWorkspace_RecoverOrphans_Good(t *testing.T) {
+	if !DuckDBAvailable() {
+		t.Skip("needs DuckDB: built without cgo, or with -tags noduckdb")
+	}
 	stateDirectory := useWorkspaceStateDirectory(t)
 
 	r := New(testMemoryDatabasePath, WithJournal(testJournalEndpoint, "core", "events"))
@@ -356,6 +398,9 @@ func TestWorkspace_RecoverOrphans_Good(t *testing.T) {
 }
 
 func TestWorkspace_New_Good_LeavesOrphanedWorkspacesForRecovery(t *testing.T) {
+	if !DuckDBAvailable() {
+		t.Skip("needs DuckDB: built without cgo, or with -tags noduckdb")
+	}
 	stateDirectory := useWorkspaceStateDirectory(t)
 	requireCoreOK(t, testFilesystem().EnsureDir(stateDirectory))
 
@@ -389,6 +434,9 @@ func TestWorkspace_New_Good_LeavesOrphanedWorkspacesForRecovery(t *testing.T) {
 }
 
 func TestWorkspace_New_Good_CachesOrphansDuringConstruction(t *testing.T) {
+	if !DuckDBAvailable() {
+		t.Skip("needs DuckDB: built without cgo, or with -tags noduckdb")
+	}
 	stateDirectory := useWorkspaceStateDirectory(t)
 	requireCoreOK(t, testFilesystem().EnsureDir(stateDirectory))
 
@@ -421,6 +469,9 @@ func TestWorkspace_New_Good_CachesOrphansDuringConstruction(t *testing.T) {
 }
 
 func TestWorkspace_NewConfigured_Good_CachesOrphansFromConfiguredStateDirectory(t *testing.T) {
+	if !DuckDBAvailable() {
+		t.Skip("needs DuckDB: built without cgo, or with -tags noduckdb")
+	}
 	stateDirectory := testPath(t, "configured-state")
 	requireCoreOK(t, testFilesystem().EnsureDir(stateDirectory))
 
@@ -455,6 +506,9 @@ func TestWorkspace_NewConfigured_Good_CachesOrphansFromConfiguredStateDirectory(
 }
 
 func TestWorkspace_RecoverOrphans_Good_TrailingSlashUsesCache(t *testing.T) {
+	if !DuckDBAvailable() {
+		t.Skip("needs DuckDB: built without cgo, or with -tags noduckdb")
+	}
 	stateDirectory := useWorkspaceStateDirectory(t)
 	requireCoreOK(t, testFilesystem().EnsureDir(stateDirectory))
 
@@ -479,6 +533,9 @@ func TestWorkspace_RecoverOrphans_Good_TrailingSlashUsesCache(t *testing.T) {
 }
 
 func TestWorkspace_Close_Good_PreservesOrphansForRecovery(t *testing.T) {
+	if !DuckDBAvailable() {
+		t.Skip("needs DuckDB: built without cgo, or with -tags noduckdb")
+	}
 	stateDirectory := useWorkspaceStateDirectory(t)
 	requireCoreOK(t, testFilesystem().EnsureDir(stateDirectory))
 
@@ -509,6 +566,9 @@ func TestWorkspace_Close_Good_PreservesOrphansForRecovery(t *testing.T) {
 }
 
 func TestWorkspace_Store_NewWorkspace_Good(t *T) {
+	if !DuckDBAvailable() {
+		t.Skip("needs DuckDB: built without cgo, or with -tags noduckdb")
+	}
 	storeInstance, _ := fixtureConfiguredStore(t)
 	workspace, err := storeInstance.NewWorkspace("ax7")
 	RequireNoError(t, err)
@@ -524,6 +584,9 @@ func TestWorkspace_Store_NewWorkspace_Bad(t *T) {
 }
 
 func TestWorkspace_Store_NewWorkspace_Ugly(t *T) {
+	if !DuckDBAvailable() {
+		t.Skip("needs DuckDB: built without cgo, or with -tags noduckdb")
+	}
 	storeInstance, _ := fixtureConfiguredStore(t)
 	workspace, err := storeInstance.NewWorkspace("ax7-42")
 	RequireNoError(t, err)
@@ -532,6 +595,9 @@ func TestWorkspace_Store_NewWorkspace_Ugly(t *T) {
 }
 
 func TestWorkspace_Store_RecoverOrphans_Good(t *T) {
+	if !DuckDBAvailable() {
+		t.Skip("needs DuckDB: built without cgo, or with -tags noduckdb")
+	}
 	storeInstance, stateDirectory := fixtureConfiguredStore(t)
 	workspace, err := storeInstance.NewWorkspace("orphan")
 	RequireNoError(t, err)
@@ -554,6 +620,9 @@ func TestWorkspace_Store_RecoverOrphans_Ugly(t *T) {
 }
 
 func TestWorkspace_Workspace_Name_Good(t *T) {
+	if !DuckDBAvailable() {
+		t.Skip("needs DuckDB: built without cgo, or with -tags noduckdb")
+	}
 	_, workspace := fixtureWorkspace(t)
 	name := workspace.Name()
 	AssertEqual(t, testFixtureWorkspaceName, name)
@@ -566,12 +635,18 @@ func TestWorkspace_Workspace_Name_Bad(t *T) {
 }
 
 func TestWorkspace_Workspace_Name_Ugly(t *T) {
+	if !DuckDBAvailable() {
+		t.Skip("needs DuckDB: built without cgo, or with -tags noduckdb")
+	}
 	_, workspace := fixtureWorkspace(t)
 	RequireNoError(t, workspace.Close())
 	AssertEqual(t, testFixtureWorkspaceName, workspace.Name())
 }
 
 func TestWorkspace_Workspace_DatabasePath_Good(t *T) {
+	if !DuckDBAvailable() {
+		t.Skip("needs DuckDB: built without cgo, or with -tags noduckdb")
+	}
 	_, workspace := fixtureWorkspace(t)
 	path := workspace.DatabasePath()
 	AssertContains(t, path, testFixtureWorkspaceName)
@@ -584,12 +659,18 @@ func TestWorkspace_Workspace_DatabasePath_Bad(t *T) {
 }
 
 func TestWorkspace_Workspace_DatabasePath_Ugly(t *T) {
+	if !DuckDBAvailable() {
+		t.Skip("needs DuckDB: built without cgo, or with -tags noduckdb")
+	}
 	_, workspace := fixtureWorkspace(t)
 	RequireNoError(t, workspace.Close())
 	AssertContains(t, workspace.DatabasePath(), duckDBExtension)
 }
 
 func TestWorkspace_Workspace_Close_Good(t *T) {
+	if !DuckDBAvailable() {
+		t.Skip("needs DuckDB: built without cgo, or with -tags noduckdb")
+	}
 	_, workspace := fixtureWorkspace(t)
 	err := workspace.Close()
 	AssertNoError(t, err)
@@ -603,6 +684,9 @@ func TestWorkspace_Workspace_Close_Bad(t *T) {
 }
 
 func TestWorkspace_Workspace_Close_Ugly(t *T) {
+	if !DuckDBAvailable() {
+		t.Skip("needs DuckDB: built without cgo, or with -tags noduckdb")
+	}
 	_, workspace := fixtureWorkspace(t)
 	RequireNoError(t, workspace.Close())
 	err := workspace.Close()
@@ -610,6 +694,9 @@ func TestWorkspace_Workspace_Close_Ugly(t *T) {
 }
 
 func TestWorkspace_Workspace_Put_Good(t *T) {
+	if !DuckDBAvailable() {
+		t.Skip("needs DuckDB: built without cgo, or with -tags noduckdb")
+	}
 	_, workspace := fixtureWorkspace(t)
 	err := workspace.Put("entry", map[string]any{"name": "alice"})
 	AssertNoError(t, err)
@@ -617,12 +704,18 @@ func TestWorkspace_Workspace_Put_Good(t *T) {
 }
 
 func TestWorkspace_Workspace_Put_Bad(t *T) {
+	if !DuckDBAvailable() {
+		t.Skip("needs DuckDB: built without cgo, or with -tags noduckdb")
+	}
 	_, workspace := fixtureWorkspace(t)
 	err := workspace.Put("", map[string]any{"name": "alice"})
 	AssertError(t, err)
 }
 
 func TestWorkspace_Workspace_Put_Ugly(t *T) {
+	if !DuckDBAvailable() {
+		t.Skip("needs DuckDB: built without cgo, or with -tags noduckdb")
+	}
 	_, workspace := fixtureWorkspace(t)
 	err := workspace.Put("entry", nil)
 	AssertNoError(t, err)
@@ -630,6 +723,9 @@ func TestWorkspace_Workspace_Put_Ugly(t *T) {
 }
 
 func TestWorkspace_Workspace_Count_Good(t *T) {
+	if !DuckDBAvailable() {
+		t.Skip("needs DuckDB: built without cgo, or with -tags noduckdb")
+	}
 	_, workspace := fixtureWorkspace(t)
 	RequireNoError(t, workspace.Put("entry", map[string]any{"name": "alice"}))
 	count, err := workspace.Count()
@@ -638,6 +734,9 @@ func TestWorkspace_Workspace_Count_Good(t *T) {
 }
 
 func TestWorkspace_Workspace_Count_Bad(t *T) {
+	if !DuckDBAvailable() {
+		t.Skip("needs DuckDB: built without cgo, or with -tags noduckdb")
+	}
 	_, workspace := fixtureWorkspace(t)
 	RequireNoError(t, workspace.Close())
 	count, err := workspace.Count()
@@ -646,6 +745,9 @@ func TestWorkspace_Workspace_Count_Bad(t *T) {
 }
 
 func TestWorkspace_Workspace_Count_Ugly(t *T) {
+	if !DuckDBAvailable() {
+		t.Skip("needs DuckDB: built without cgo, or with -tags noduckdb")
+	}
 	_, workspace := fixtureWorkspace(t)
 	count, err := workspace.Count()
 	AssertNoError(t, err)
@@ -653,6 +755,9 @@ func TestWorkspace_Workspace_Count_Ugly(t *T) {
 }
 
 func TestWorkspace_Workspace_Aggregate_Good(t *T) {
+	if !DuckDBAvailable() {
+		t.Skip("needs DuckDB: built without cgo, or with -tags noduckdb")
+	}
 	_, workspace := fixtureWorkspace(t)
 	RequireNoError(t, workspace.Put("entry", map[string]any{"name": "alice"}))
 	summary := workspace.Aggregate()
@@ -666,6 +771,9 @@ func TestWorkspace_Workspace_Aggregate_Bad(t *T) {
 }
 
 func TestWorkspace_Workspace_Aggregate_Ugly(t *T) {
+	if !DuckDBAvailable() {
+		t.Skip("needs DuckDB: built without cgo, or with -tags noduckdb")
+	}
 	_, workspace := fixtureWorkspace(t)
 	RequireNoError(t, workspace.Close())
 	summary := workspace.Aggregate()
@@ -673,6 +781,9 @@ func TestWorkspace_Workspace_Aggregate_Ugly(t *T) {
 }
 
 func TestWorkspace_Workspace_Commit_Good(t *T) {
+	if !DuckDBAvailable() {
+		t.Skip("needs DuckDB: built without cgo, or with -tags noduckdb")
+	}
 	storeInstance, workspace := fixtureWorkspace(t)
 	RequireNoError(t, workspace.Put("entry", map[string]any{"name": "alice"}))
 	result := workspace.Commit()
@@ -688,6 +799,9 @@ func TestWorkspace_Workspace_Commit_Bad(t *T) {
 }
 
 func TestWorkspace_Workspace_Commit_Ugly(t *T) {
+	if !DuckDBAvailable() {
+		t.Skip("needs DuckDB: built without cgo, or with -tags noduckdb")
+	}
 	_, workspace := fixtureWorkspace(t)
 	result := workspace.Commit()
 	AssertTrue(t, result.OK)
@@ -695,6 +809,9 @@ func TestWorkspace_Workspace_Commit_Ugly(t *T) {
 }
 
 func TestWorkspace_Workspace_Discard_Good(t *T) {
+	if !DuckDBAvailable() {
+		t.Skip("needs DuckDB: built without cgo, or with -tags noduckdb")
+	}
 	_, workspace := fixtureWorkspace(t)
 	workspace.Discard()
 	result := workspace.Query("SELECT 1")
@@ -708,12 +825,18 @@ func TestWorkspace_Workspace_Discard_Bad(t *T) {
 }
 
 func TestWorkspace_Workspace_Discard_Ugly(t *T) {
+	if !DuckDBAvailable() {
+		t.Skip("needs DuckDB: built without cgo, or with -tags noduckdb")
+	}
 	_, workspace := fixtureWorkspace(t)
 	workspace.Discard()
 	AssertNotPanics(t, func() { workspace.Discard() })
 }
 
 func TestWorkspace_Workspace_Query_Good(t *T) {
+	if !DuckDBAvailable() {
+		t.Skip("needs DuckDB: built without cgo, or with -tags noduckdb")
+	}
 	_, workspace := fixtureWorkspace(t)
 	RequireNoError(t, workspace.Put("entry", map[string]any{"name": "alice"}))
 	result := workspace.Query("SELECT entry_kind FROM workspace_entries")
@@ -722,6 +845,9 @@ func TestWorkspace_Workspace_Query_Good(t *T) {
 }
 
 func TestWorkspace_Workspace_Query_Bad(t *T) {
+	if !DuckDBAvailable() {
+		t.Skip("needs DuckDB: built without cgo, or with -tags noduckdb")
+	}
 	_, workspace := fixtureWorkspace(t)
 	result := workspace.Query("SELECT * FROM missing_table")
 	AssertFalse(t, result.OK)
@@ -729,6 +855,9 @@ func TestWorkspace_Workspace_Query_Bad(t *T) {
 }
 
 func TestWorkspace_Workspace_Query_Ugly(t *T) {
+	if !DuckDBAvailable() {
+		t.Skip("needs DuckDB: built without cgo, or with -tags noduckdb")
+	}
 	_, workspace := fixtureWorkspace(t)
 	result := workspace.Query("SELECT COUNT(*) AS n FROM workspace_entries")
 	AssertTrue(t, result.OK)

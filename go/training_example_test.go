@@ -76,6 +76,9 @@ func TestTrainingExample_FromJSON_Bad_MalformedJSON(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestTrainingExample_InsertTrainingExample_Good_PersistsRow(t *testing.T) {
+	if !DuckDBAvailable() {
+		t.Skip("needs DuckDB: built without cgo, or with -tags noduckdb")
+	}
 	session, done := newTrainingTx(t)
 	defer done()
 	example := trainingExampleFromMessages([]ChatMessage{

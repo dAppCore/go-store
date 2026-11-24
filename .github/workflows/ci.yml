@@ -23,3 +23,24 @@ jobs:
         with:
           go-version: "1.26"
           run-vet: "true"
+
+  # The key-value store without DuckDB: how a CGO_ENABLED=0 app (a Windows
+  # release, say) and -tags noduckdb builds use it. DuckDB tests skip here.
+  no-duckdb:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go/go.mod
+
+      - name: Test without cgo
+        working-directory: go
+        env:
+          CGO_ENABLED: "0"
+        run: go test -count=1 ./...
+
+      - name: Test with -tags noduckdb
+        working-directory: go
+        run: go test -count=1 -tags noduckdb ./...

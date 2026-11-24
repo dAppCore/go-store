@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What This Is
 
-SQLite key-value store with TTL, namespace isolation, and reactive events. Pure Go (no CGO). Module: `github.com/dappcore/go-store/go`
+SQLite key-value store with TTL, namespace isolation, and reactive events. The key-value store is pure Go; the DuckDB workspace needs cgo (opt out with `-tags noduckdb`). Module: `github.com/dappcore/go-store/go`
 
 ## AX Notes
 
@@ -132,7 +132,7 @@ func main() {
 - `go test -race ./...` must pass before commit
 - Conventional commits: `type(scope): description`
 - Co-Author: `Co-Authored-By: Virgil <virgil@lethean.io>`
-- Only runtime dependency allowed: `modernc.org/sqlite`. No CGO. New deps must be pure Go with EUPL-1.2-compatible licence.
+- Runtime dependencies: `modernc.org/sqlite` (pure Go) for the key-value store, `github.com/duckdb/duckdb-go/v2` (cgo, behind `cgo && !noduckdb`) for the workspace. New deps must be pure Go with an EUPL-1.2-compatible licence. Tests that need DuckDB skip when `!store.DuckDBAvailable()`.
 
 ## Test Conventions
 

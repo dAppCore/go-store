@@ -54,6 +54,9 @@ func TestInventoryHelpers_DuckDBStrVal_Ugly_NonStringValueStringified(t *testing
 // ---------------------------------------------------------------------------
 
 func TestInventoryHelpers_PromptsDetail_Good_CountsDistinctDomainsAndVoices(t *testing.T) {
+	if !DuckDBAvailable() {
+		t.Skip("needs DuckDB: built without cgo, or with -tags noduckdb")
+	}
 	db := fixtureDuckDB(t)
 	assertNoError(t, db.Exec(`CREATE TABLE prompts (domain VARCHAR, voice VARCHAR)`))
 	assertNoError(t, db.Exec(`INSERT INTO prompts VALUES ('ethics','plain'),('ethics','formal'),('logic','plain')`))
@@ -66,11 +69,17 @@ func TestInventoryHelpers_PromptsDetail_Good_CountsDistinctDomainsAndVoices(t *t
 }
 
 func TestInventoryHelpers_PromptsDetail_Bad_AbsentTableKeyReturnsNil(t *testing.T) {
+	if !DuckDBAvailable() {
+		t.Skip("needs DuckDB: built without cgo, or with -tags noduckdb")
+	}
 	db := fixtureDuckDB(t)
 	assertNil(t, promptsDetail(db, map[string]int{}))
 }
 
 func TestInventoryHelpers_AppendDistinctPromptCount_Ugly_MissingTableLeavesNotesEmpty(t *testing.T) {
+	if !DuckDBAvailable() {
+		t.Skip("needs DuckDB: built without cgo, or with -tags noduckdb")
+	}
 	db := fixtureDuckDB(t)
 	detail := &duckDBTableDetail{}
 	// No prompts table exists: the query fails, so no note is appended.
@@ -83,6 +92,9 @@ func TestInventoryHelpers_AppendDistinctPromptCount_Ugly_MissingTableLeavesNotes
 // ---------------------------------------------------------------------------
 
 func TestInventoryHelpers_GeminiResponsesDetail_Good_PerModelCounts(t *testing.T) {
+	if !DuckDBAvailable() {
+		t.Skip("needs DuckDB: built without cgo, or with -tags noduckdb")
+	}
 	db := fixtureDuckDB(t)
 	assertNoError(t, db.Exec(`CREATE TABLE gemini_responses (source_model VARCHAR)`))
 	assertNoError(t, db.Exec(`INSERT INTO gemini_responses VALUES ('a'),('a'),('b')`))
@@ -94,6 +106,9 @@ func TestInventoryHelpers_GeminiResponsesDetail_Good_PerModelCounts(t *testing.T
 }
 
 func TestInventoryHelpers_GeminiResponsesDetail_Bad_AbsentKeyReturnsNil(t *testing.T) {
+	if !DuckDBAvailable() {
+		t.Skip("needs DuckDB: built without cgo, or with -tags noduckdb")
+	}
 	db := fixtureDuckDB(t)
 	assertNil(t, geminiResponsesDetail(db, map[string]int{}))
 }
@@ -103,6 +118,9 @@ func TestInventoryHelpers_GeminiResponsesDetail_Bad_AbsentKeyReturnsNil(t *testi
 // ---------------------------------------------------------------------------
 
 func TestInventoryHelpers_BenchmarkResultsDetail_Good_DistinctSources(t *testing.T) {
+	if !DuckDBAvailable() {
+		t.Skip("needs DuckDB: built without cgo, or with -tags noduckdb")
+	}
 	db := fixtureDuckDB(t)
 	assertNoError(t, db.Exec(`CREATE TABLE benchmark_results (source VARCHAR)`))
 	assertNoError(t, db.Exec(`INSERT INTO benchmark_results VALUES ('mmlu'),('mmlu'),('gsm8k')`))
@@ -113,6 +131,9 @@ func TestInventoryHelpers_BenchmarkResultsDetail_Good_DistinctSources(t *testing
 }
 
 func TestInventoryHelpers_TrainingExamplesDetail_Good_DistinctSources(t *testing.T) {
+	if !DuckDBAvailable() {
+		t.Skip("needs DuckDB: built without cgo, or with -tags noduckdb")
+	}
 	db := fixtureDuckDB(t)
 	assertNoError(t, db.Exec(`CREATE TABLE training_examples (source VARCHAR)`))
 	assertNoError(t, db.Exec(`INSERT INTO training_examples VALUES ('corpus-a'),('corpus-b'),('corpus-b')`))

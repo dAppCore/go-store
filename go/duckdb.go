@@ -44,6 +44,22 @@ type DuckDB struct {
 	path string
 }
 
+// DuckDBAvailable reports whether the DuckDB driver is linked into this
+// build: it is with cgo, and not with CGO_ENABLED=0 or -tags noduckdb. The
+// key-value store works either way; the workspace and OpenDuckDB need it.
+//
+// Usage example:
+//
+//	if !store.DuckDBAvailable() { return core.Fail(core.E("app", "built without DuckDB", nil)) }
+func DuckDBAvailable() bool {
+	for _, name := range sql.Drivers() {
+		if name == "duckdb" {
+			return true
+		}
+	}
+	return false
+}
+
 // OpenDuckDB opens a DuckDB database file in read-only mode to avoid locking
 // issues with the Python pipeline. Panics in the body recover as Result.Fail.
 //

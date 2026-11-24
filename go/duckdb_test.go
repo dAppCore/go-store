@@ -5,6 +5,9 @@ import (
 )
 
 func TestDuckdb_OpenDuckDBReadWrite_Good(t *T) {
+	if !store.DuckDBAvailable() {
+		t.Skip("needs DuckDB: built without cgo, or with -tags noduckdb")
+	}
 	path := Path(t.TempDir(), "rw.duckdb")
 	r := store.OpenDuckDBReadWrite(path)
 	RequireNoError(t, r)
@@ -19,6 +22,9 @@ func TestDuckdb_OpenDuckDBReadWrite_Bad(t *T) {
 }
 
 func TestDuckdb_OpenDuckDBReadWrite_Ugly(t *T) {
+	if !store.DuckDBAvailable() {
+		t.Skip("needs DuckDB: built without cgo, or with -tags noduckdb")
+	}
 	path := Path(t.TempDir(), "with space.duckdb")
 	r := store.OpenDuckDBReadWrite(path)
 	RequireNoError(t, r)
@@ -28,6 +34,9 @@ func TestDuckdb_OpenDuckDBReadWrite_Ugly(t *T) {
 }
 
 func TestDuckdb_OpenDuckDB_Good(t *T) {
+	if !store.DuckDBAvailable() {
+		t.Skip("needs DuckDB: built without cgo, or with -tags noduckdb")
+	}
 	path := Path(t.TempDir(), "ro.duckdb")
 	rw := store.OpenDuckDBReadWrite(path)
 	RequireNoError(t, rw)
@@ -46,6 +55,9 @@ func TestDuckdb_OpenDuckDB_Bad(t *T) {
 }
 
 func TestDuckdb_OpenDuckDB_Ugly(t *T) {
+	if !store.DuckDBAvailable() {
+		t.Skip("needs DuckDB: built without cgo, or with -tags noduckdb")
+	}
 	path := Path(t.TempDir(), "ro spaced.duckdb")
 	rw := store.OpenDuckDBReadWrite(path)
 	RequireNoError(t, rw)
@@ -59,6 +71,9 @@ func TestDuckdb_OpenDuckDB_Ugly(t *T) {
 }
 
 func TestDuckdb_DuckDB_Close_Good(t *T) {
+	if !store.DuckDBAvailable() {
+		t.Skip("needs DuckDB: built without cgo, or with -tags noduckdb")
+	}
 	database := fixtureDuckDB(t)
 	path := database.Path()
 	err := database.Close()
@@ -67,6 +82,9 @@ func TestDuckdb_DuckDB_Close_Good(t *T) {
 }
 
 func TestDuckdb_DuckDB_Close_Bad(t *T) {
+	if !store.DuckDBAvailable() {
+		t.Skip("needs DuckDB: built without cgo, or with -tags noduckdb")
+	}
 	database := fixtureDuckDB(t)
 	RequireNoError(t, database.Close())
 	err := database.Exec("SELECT 1")
@@ -74,6 +92,9 @@ func TestDuckdb_DuckDB_Close_Bad(t *T) {
 }
 
 func TestDuckdb_DuckDB_Close_Ugly(t *T) {
+	if !store.DuckDBAvailable() {
+		t.Skip("needs DuckDB: built without cgo, or with -tags noduckdb")
+	}
 	database := fixtureDuckDB(t)
 	RequireNoError(t, database.Close())
 	err := database.Close()
@@ -81,12 +102,18 @@ func TestDuckdb_DuckDB_Close_Ugly(t *T) {
 }
 
 func TestDuckdb_DuckDB_Path_Good(t *T) {
+	if !store.DuckDBAvailable() {
+		t.Skip("needs DuckDB: built without cgo, or with -tags noduckdb")
+	}
 	database := fixtureDuckDB(t)
 	path := database.Path()
 	AssertContains(t, path, "ax7.duckdb")
 }
 
 func TestDuckdb_DuckDB_Path_Bad(t *T) {
+	if !store.DuckDBAvailable() {
+		t.Skip("needs DuckDB: built without cgo, or with -tags noduckdb")
+	}
 	database := fixtureDuckDB(t)
 	RequireNoError(t, database.Close())
 	path := database.Path()
@@ -94,6 +121,9 @@ func TestDuckdb_DuckDB_Path_Bad(t *T) {
 }
 
 func TestDuckdb_DuckDB_Path_Ugly(t *T) {
+	if !store.DuckDBAvailable() {
+		t.Skip("needs DuckDB: built without cgo, or with -tags noduckdb")
+	}
 	path := Path(t.TempDir(), "custom.duckdb")
 	r := store.OpenDuckDBReadWrite(path)
 	RequireNoError(t, r)
@@ -103,12 +133,18 @@ func TestDuckdb_DuckDB_Path_Ugly(t *T) {
 }
 
 func TestDuckdb_DuckDB_Conn_Good(t *T) {
+	if !store.DuckDBAvailable() {
+		t.Skip("needs DuckDB: built without cgo, or with -tags noduckdb")
+	}
 	database := fixtureDuckDB(t)
 	conn := database.Conn()
 	AssertNotNil(t, conn)
 }
 
 func TestDuckdb_DuckDB_Conn_Bad(t *T) {
+	if !store.DuckDBAvailable() {
+		t.Skip("needs DuckDB: built without cgo, or with -tags noduckdb")
+	}
 	database := fixtureDuckDB(t)
 	RequireNoError(t, database.Close())
 	conn := database.Conn()
@@ -116,24 +152,36 @@ func TestDuckdb_DuckDB_Conn_Bad(t *T) {
 }
 
 func TestDuckdb_DuckDB_Conn_Ugly(t *T) {
+	if !store.DuckDBAvailable() {
+		t.Skip("needs DuckDB: built without cgo, or with -tags noduckdb")
+	}
 	database := fixtureDuckDB(t)
 	err := database.Conn().Ping()
 	AssertNoError(t, err)
 }
 
 func TestDuckdb_DuckDB_Exec_Good(t *T) {
+	if !store.DuckDBAvailable() {
+		t.Skip("needs DuckDB: built without cgo, or with -tags noduckdb")
+	}
 	database := fixtureDuckDB(t)
 	err := database.Exec("CREATE TABLE ax7_exec (id INTEGER)")
 	AssertNoError(t, err)
 }
 
 func TestDuckdb_DuckDB_Exec_Bad(t *T) {
+	if !store.DuckDBAvailable() {
+		t.Skip("needs DuckDB: built without cgo, or with -tags noduckdb")
+	}
 	database := fixtureDuckDB(t)
 	err := database.Exec("CREATE TABLE")
 	AssertError(t, err)
 }
 
 func TestDuckdb_DuckDB_Exec_Ugly(t *T) {
+	if !store.DuckDBAvailable() {
+		t.Skip("needs DuckDB: built without cgo, or with -tags noduckdb")
+	}
 	database := fixtureDuckDB(t)
 	RequireNoError(t, database.Exec("CREATE TABLE ax7_exec (id INTEGER)"))
 	err := database.Exec("INSERT INTO ax7_exec VALUES (?)", 1)
@@ -141,6 +189,9 @@ func TestDuckdb_DuckDB_Exec_Ugly(t *T) {
 }
 
 func TestDuckdb_DuckDB_QueryRowScan_Good(t *T) {
+	if !store.DuckDBAvailable() {
+		t.Skip("needs DuckDB: built without cgo, or with -tags noduckdb")
+	}
 	database := fixtureDuckDB(t)
 	var n int
 	err := database.QueryRowScan("SELECT 42", &n)
@@ -149,6 +200,9 @@ func TestDuckdb_DuckDB_QueryRowScan_Good(t *T) {
 }
 
 func TestDuckdb_DuckDB_QueryRowScan_Bad(t *T) {
+	if !store.DuckDBAvailable() {
+		t.Skip("needs DuckDB: built without cgo, or with -tags noduckdb")
+	}
 	database := fixtureDuckDB(t)
 	var n int
 	err := database.QueryRowScan("SELECT * FROM missing", &n)
@@ -156,6 +210,9 @@ func TestDuckdb_DuckDB_QueryRowScan_Bad(t *T) {
 }
 
 func TestDuckdb_DuckDB_QueryRowScan_Ugly(t *T) {
+	if !store.DuckDBAvailable() {
+		t.Skip("needs DuckDB: built without cgo, or with -tags noduckdb")
+	}
 	database := fixtureDuckDB(t)
 	var text string
 	err := database.QueryRowScan("SELECT 'agent'", &text)
@@ -164,6 +221,9 @@ func TestDuckdb_DuckDB_QueryRowScan_Ugly(t *T) {
 }
 
 func TestDuckdb_DuckDB_QueryGoldenSet_Good(t *T) {
+	if !store.DuckDBAvailable() {
+		t.Skip("needs DuckDB: built without cgo, or with -tags noduckdb")
+	}
 	database := fixtureDuckDB(t)
 	fixtureSeedDuckDB(t, database)
 	rows, err := database.QueryGoldenSet(1)
@@ -172,6 +232,9 @@ func TestDuckdb_DuckDB_QueryGoldenSet_Good(t *T) {
 }
 
 func TestDuckdb_DuckDB_QueryGoldenSet_Bad(t *T) {
+	if !store.DuckDBAvailable() {
+		t.Skip("needs DuckDB: built without cgo, or with -tags noduckdb")
+	}
 	database := fixtureDuckDB(t)
 	rows, err := database.QueryGoldenSet(1)
 	AssertError(t, err)
@@ -179,6 +242,9 @@ func TestDuckdb_DuckDB_QueryGoldenSet_Bad(t *T) {
 }
 
 func TestDuckdb_DuckDB_QueryGoldenSet_Ugly(t *T) {
+	if !store.DuckDBAvailable() {
+		t.Skip("needs DuckDB: built without cgo, or with -tags noduckdb")
+	}
 	database := fixtureDuckDB(t)
 	fixtureSeedDuckDB(t, database)
 	rows, err := database.QueryGoldenSet(1000)
@@ -187,6 +253,9 @@ func TestDuckdb_DuckDB_QueryGoldenSet_Ugly(t *T) {
 }
 
 func TestDuckdb_DuckDB_CountGoldenSet_Good(t *T) {
+	if !store.DuckDBAvailable() {
+		t.Skip("needs DuckDB: built without cgo, or with -tags noduckdb")
+	}
 	database := fixtureDuckDB(t)
 	fixtureSeedDuckDB(t, database)
 	count, err := database.CountGoldenSet()
@@ -195,6 +264,9 @@ func TestDuckdb_DuckDB_CountGoldenSet_Good(t *T) {
 }
 
 func TestDuckdb_DuckDB_CountGoldenSet_Bad(t *T) {
+	if !store.DuckDBAvailable() {
+		t.Skip("needs DuckDB: built without cgo, or with -tags noduckdb")
+	}
 	database := fixtureDuckDB(t)
 	count, err := database.CountGoldenSet()
 	AssertError(t, err)
@@ -202,6 +274,9 @@ func TestDuckdb_DuckDB_CountGoldenSet_Bad(t *T) {
 }
 
 func TestDuckdb_DuckDB_CountGoldenSet_Ugly(t *T) {
+	if !store.DuckDBAvailable() {
+		t.Skip("needs DuckDB: built without cgo, or with -tags noduckdb")
+	}
 	database := fixtureDuckDB(t)
 	RequireNoError(t, database.Exec("CREATE TABLE golden_set (idx INTEGER)"))
 	count, err := database.CountGoldenSet()
@@ -210,6 +285,9 @@ func TestDuckdb_DuckDB_CountGoldenSet_Ugly(t *T) {
 }
 
 func TestDuckdb_DuckDB_QueryExpansionPrompts_Good(t *T) {
+	if !store.DuckDBAvailable() {
+		t.Skip("needs DuckDB: built without cgo, or with -tags noduckdb")
+	}
 	database := fixtureDuckDB(t)
 	fixtureSeedDuckDB(t, database)
 	rows, err := database.QueryExpansionPrompts("pending", 10)
@@ -218,6 +296,9 @@ func TestDuckdb_DuckDB_QueryExpansionPrompts_Good(t *T) {
 }
 
 func TestDuckdb_DuckDB_QueryExpansionPrompts_Bad(t *T) {
+	if !store.DuckDBAvailable() {
+		t.Skip("needs DuckDB: built without cgo, or with -tags noduckdb")
+	}
 	database := fixtureDuckDB(t)
 	rows, err := database.QueryExpansionPrompts("pending", 10)
 	AssertError(t, err)
@@ -225,6 +306,9 @@ func TestDuckdb_DuckDB_QueryExpansionPrompts_Bad(t *T) {
 }
 
 func TestDuckdb_DuckDB_QueryExpansionPrompts_Ugly(t *T) {
+	if !store.DuckDBAvailable() {
+		t.Skip("needs DuckDB: built without cgo, or with -tags noduckdb")
+	}
 	database := fixtureDuckDB(t)
 	fixtureSeedDuckDB(t, database)
 	rows, err := database.QueryExpansionPrompts("done", 0)
@@ -233,6 +317,9 @@ func TestDuckdb_DuckDB_QueryExpansionPrompts_Ugly(t *T) {
 }
 
 func TestDuckdb_DuckDB_CountExpansionPrompts_Good(t *T) {
+	if !store.DuckDBAvailable() {
+		t.Skip("needs DuckDB: built without cgo, or with -tags noduckdb")
+	}
 	database := fixtureDuckDB(t)
 	fixtureSeedDuckDB(t, database)
 	total, pending, err := database.CountExpansionPrompts()
@@ -242,6 +329,9 @@ func TestDuckdb_DuckDB_CountExpansionPrompts_Good(t *T) {
 }
 
 func TestDuckdb_DuckDB_CountExpansionPrompts_Bad(t *T) {
+	if !store.DuckDBAvailable() {
+		t.Skip("needs DuckDB: built without cgo, or with -tags noduckdb")
+	}
 	database := fixtureDuckDB(t)
 	total, pending, err := database.CountExpansionPrompts()
 	AssertError(t, err)
@@ -250,6 +340,9 @@ func TestDuckdb_DuckDB_CountExpansionPrompts_Bad(t *T) {
 }
 
 func TestDuckdb_DuckDB_CountExpansionPrompts_Ugly(t *T) {
+	if !store.DuckDBAvailable() {
+		t.Skip("needs DuckDB: built without cgo, or with -tags noduckdb")
+	}
 	database := fixtureDuckDB(t)
 	RequireNoError(t, database.Exec("CREATE TABLE expansion_prompts (status VARCHAR)"))
 	total, pending, err := database.CountExpansionPrompts()
@@ -259,6 +352,9 @@ func TestDuckdb_DuckDB_CountExpansionPrompts_Ugly(t *T) {
 }
 
 func TestDuckdb_DuckDB_UpdateExpansionStatus_Good(t *T) {
+	if !store.DuckDBAvailable() {
+		t.Skip("needs DuckDB: built without cgo, or with -tags noduckdb")
+	}
 	database := fixtureDuckDB(t)
 	fixtureSeedDuckDB(t, database)
 	err := database.UpdateExpansionStatus(7, "done")
@@ -269,12 +365,18 @@ func TestDuckdb_DuckDB_UpdateExpansionStatus_Good(t *T) {
 }
 
 func TestDuckdb_DuckDB_UpdateExpansionStatus_Bad(t *T) {
+	if !store.DuckDBAvailable() {
+		t.Skip("needs DuckDB: built without cgo, or with -tags noduckdb")
+	}
 	database := fixtureDuckDB(t)
 	err := database.UpdateExpansionStatus(7, "done")
 	AssertError(t, err)
 }
 
 func TestDuckdb_DuckDB_UpdateExpansionStatus_Ugly(t *T) {
+	if !store.DuckDBAvailable() {
+		t.Skip("needs DuckDB: built without cgo, or with -tags noduckdb")
+	}
 	database := fixtureDuckDB(t)
 	fixtureSeedDuckDB(t, database)
 	err := database.UpdateExpansionStatus(999, "done")
@@ -282,6 +384,9 @@ func TestDuckdb_DuckDB_UpdateExpansionStatus_Ugly(t *T) {
 }
 
 func TestDuckdb_DuckDB_QueryRows_Good(t *T) {
+	if !store.DuckDBAvailable() {
+		t.Skip("needs DuckDB: built without cgo, or with -tags noduckdb")
+	}
 	database := fixtureDuckDB(t)
 	rows, err := database.QueryRows("SELECT 1 AS n")
 	AssertNoError(t, err)
@@ -289,6 +394,9 @@ func TestDuckdb_DuckDB_QueryRows_Good(t *T) {
 }
 
 func TestDuckdb_DuckDB_QueryRows_Bad(t *T) {
+	if !store.DuckDBAvailable() {
+		t.Skip("needs DuckDB: built without cgo, or with -tags noduckdb")
+	}
 	database := fixtureDuckDB(t)
 	rows, err := database.QueryRows("SELECT * FROM missing")
 	AssertError(t, err)
@@ -296,6 +404,9 @@ func TestDuckdb_DuckDB_QueryRows_Bad(t *T) {
 }
 
 func TestDuckdb_DuckDB_QueryRows_Ugly(t *T) {
+	if !store.DuckDBAvailable() {
+		t.Skip("needs DuckDB: built without cgo, or with -tags noduckdb")
+	}
 	database := fixtureDuckDB(t)
 	rows, err := database.QueryRows("SELECT 'agent' AS name")
 	AssertNoError(t, err)
@@ -303,6 +414,9 @@ func TestDuckdb_DuckDB_QueryRows_Ugly(t *T) {
 }
 
 func TestDuckdb_DuckDB_EnsureScoringTables_Good(t *T) {
+	if !store.DuckDBAvailable() {
+		t.Skip("needs DuckDB: built without cgo, or with -tags noduckdb")
+	}
 	database := fixtureDuckDB(t)
 	err := database.EnsureScoringTables()
 	AssertNoError(t, err)
@@ -310,6 +424,9 @@ func TestDuckdb_DuckDB_EnsureScoringTables_Good(t *T) {
 }
 
 func TestDuckdb_DuckDB_EnsureScoringTables_Bad(t *T) {
+	if !store.DuckDBAvailable() {
+		t.Skip("needs DuckDB: built without cgo, or with -tags noduckdb")
+	}
 	database := fixtureDuckDB(t)
 	RequireNoError(t, database.Close())
 	err := database.EnsureScoringTables()
@@ -317,6 +434,9 @@ func TestDuckdb_DuckDB_EnsureScoringTables_Bad(t *T) {
 }
 
 func TestDuckdb_DuckDB_EnsureScoringTables_Ugly(t *T) {
+	if !store.DuckDBAvailable() {
+		t.Skip("needs DuckDB: built without cgo, or with -tags noduckdb")
+	}
 	database := fixtureDuckDB(t)
 	RequireNoError(t, database.EnsureScoringTables())
 	err := database.EnsureScoringTables()
@@ -324,6 +444,9 @@ func TestDuckdb_DuckDB_EnsureScoringTables_Ugly(t *T) {
 }
 
 func TestDuckdb_DuckDB_WriteScoringResult_Good(t *T) {
+	if !store.DuckDBAvailable() {
+		t.Skip("needs DuckDB: built without cgo, or with -tags noduckdb")
+	}
 	database := fixtureDuckDB(t)
 	RequireNoError(t, database.EnsureScoringTables())
 	err := database.WriteScoringResult("model", "prompt", "suite", "dimension", 0.5)
@@ -331,12 +454,18 @@ func TestDuckdb_DuckDB_WriteScoringResult_Good(t *T) {
 }
 
 func TestDuckdb_DuckDB_WriteScoringResult_Bad(t *T) {
+	if !store.DuckDBAvailable() {
+		t.Skip("needs DuckDB: built without cgo, or with -tags noduckdb")
+	}
 	database := fixtureDuckDB(t)
 	err := database.WriteScoringResult("model", "prompt", "suite", "dimension", 0.5)
 	AssertError(t, err)
 }
 
 func TestDuckdb_DuckDB_WriteScoringResult_Ugly(t *T) {
+	if !store.DuckDBAvailable() {
+		t.Skip("needs DuckDB: built without cgo, or with -tags noduckdb")
+	}
 	database := fixtureDuckDB(t)
 	RequireNoError(t, database.EnsureScoringTables())
 	err := database.WriteScoringResult("", "", "", "", 0)
@@ -344,6 +473,9 @@ func TestDuckdb_DuckDB_WriteScoringResult_Ugly(t *T) {
 }
 
 func TestDuckdb_DuckDB_TableCounts_Good(t *T) {
+	if !store.DuckDBAvailable() {
+		t.Skip("needs DuckDB: built without cgo, or with -tags noduckdb")
+	}
 	database := fixtureDuckDB(t)
 	fixtureSeedDuckDB(t, database)
 	counts, err := database.TableCounts()
@@ -352,6 +484,9 @@ func TestDuckdb_DuckDB_TableCounts_Good(t *T) {
 }
 
 func TestDuckdb_DuckDB_TableCounts_Bad(t *T) {
+	if !store.DuckDBAvailable() {
+		t.Skip("needs DuckDB: built without cgo, or with -tags noduckdb")
+	}
 	database := fixtureDuckDB(t)
 	RequireNoError(t, database.Close())
 	counts, err := database.TableCounts()
@@ -360,9 +495,25 @@ func TestDuckdb_DuckDB_TableCounts_Bad(t *T) {
 }
 
 func TestDuckdb_DuckDB_TableCounts_Ugly(t *T) {
+	if !store.DuckDBAvailable() {
+		t.Skip("needs DuckDB: built without cgo, or with -tags noduckdb")
+	}
 	database := fixtureDuckDB(t)
 	RequireNoError(t, database.EnsureScoringTables())
 	counts, err := database.TableCounts()
 	AssertNoError(t, err)
 	AssertContains(t, counts, "scoring_results")
+}
+
+// DuckDBAvailable agrees with what the workspace can actually do: with the
+// driver linked, a DuckDB file opens; without it (no cgo, or -tags noduckdb),
+// opening one fails instead of pretending.
+func TestDuckdb_DuckDBAvailable_Good(t *T) {
+	r := store.OpenDuckDBReadWrite(t.TempDir() + "/check.duckdb")
+	if r.OK {
+		defer r.Value.(*store.DuckDB).Close()
+	}
+	if store.DuckDBAvailable() != r.OK {
+		t.Fatalf("store.DuckDBAvailable() = %v but opening DuckDB OK = %v", store.DuckDBAvailable(), r.OK)
+	}
 }
